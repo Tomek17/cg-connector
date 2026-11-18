@@ -224,56 +224,47 @@ Aby wyłączyć autostart, uruchom w ten sam sposób `uninstall-autostart.ps1` (
 
 ## Krok 10. Codzienna kopia zapasowa
 
-Skrypt `ops/wsl/backup.sh` kopiuje bazy SQLite do `~/cg-data/backups/<data_godzina>/` (bezpieczna kopia „online”, jak `sqlite3 .backup`, także przy działającym serwerze) i usuwa kopie starsze niż 14 dni. Dane da się zawsze odtworzyć z Garmina, więc kopia to wygoda, a nie konieczność.
+Skrypt `ops/wsl/backup.sh`:
 
-Ręczny test:
+- robi spójną kopię bazy (`cg.sqlite`) do `~/cg-data/backups/<data_godzina>/` — bezpieczną kopię „online”, jak `sqlite3 .backup`, także przy działającym serwerze — i sprawdza ją (`integrity_check: ok`),
+- kopiuje ten katalog na dysk Windows, domyślnie do `C:\Users\<nazwa>\CG-kopie` (gdyby WSL się zepsuł, kopia przetrwa),
+- usuwa kopie starsze niż 14 dni (w obu miejscach; najnowsza zostaje zawsze).
 
-```bash
-~/cg-connector/ops/wsl/backup.sh && sudo ls ~/cg-data/backups
-```
+Dane da się zawsze odtworzyć z Garmina, więc kopia to wygoda, a nie konieczność.
 
-Oczekiwany wynik: linie `start kopii …`, `OK: <baza> -> backups/…` (albo `Brak baz SQLite…`, jeśli serwer jeszcze nic nie zapisał) i `koniec kopii …`.
-
-Uruchamianie codziennie o 14:30 (po synchronizacji o 14:00) przez systemd. `Persistent=true` sprawia, że gdy laptop był o 14:30 wyłączony, kopia wykona się zaraz po jego włączeniu:
+Włączenie codziennej kopii o 14:30 (po synchronizacji o 14:00). Gdy laptop był o tej porze wyłączony, kopia wykona się zaraz po jego włączeniu:
 
 ```bash
-sudo tee /etc/systemd/system/cg-backup.service >/dev/null <<EOF
-[Unit]
-Description=CG-connector: kopia zapasowa SQLite
-Requires=docker.service
-After=docker.service
-
-[Service]
-Type=oneshot
-User=$USER
-ExecStart=$HOME/cg-connector/ops/wsl/backup.sh
-EOF
-sudo tee /etc/systemd/system/cg-backup.timer >/dev/null <<EOF
-[Unit]
-Description=CG-connector: codzienna kopia zapasowa
-
-[Timer]
-OnCalendar=*-*-* 14:30:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-sudo systemctl daemon-reload && sudo systemctl enable --now cg-backup.timer && systemctl list-timers cg-backup.timer
+sudo ~/cg-connector/ops/wsl/install-backup-timer.sh
 ```
 
-Oczekiwany wynik: tabela z jedną linią `cg-backup.timer` i datą następnego uruchomienia (`NEXT`) dziś albo jutro o 14:30. Dziennik kopii: `journalctl -u cg-backup.service -n 20`.
+Oczekiwany wynik: linia `Kopie na dysku Windows: /mnt/c/Users/<nazwa>/CG-kopie` i tabela z jedną linią `cg-backup.timer` oraz datą następnego uruchomienia (`NEXT`) dziś albo jutro o 14:30. Inny folder (np. dysk D:) podaj na końcu polecenia: `sudo ~/cg-connector/ops/wsl/install-backup-timer.sh /mnt/d/CG-kopie`.
 
-Alternatywa (prostsza, ale bez nadrabiania pominiętej kopii): `crontab -e` i linia
-`30 14 * * * $HOME/cg-connector/ops/wsl/backup.sh >> $HOME/cg-backup.log 2>&1`.
+> Folder z kopiami zawiera dane treningowe. Nie wybieraj folderu synchronizowanego z chmurą (OneDrive, „Dokumenty”, „Pulpit”), jeśli nie chcesz, żeby tam trafiły.
 
-**Przywracanie z kopii** (rzadko potrzebne):
+Test od razu (nie trzeba czekać do 14:30):
+
+```bash
+sudo systemctl start cg-backup.service && journalctl -u cg-backup.service -n 10 --no-pager
+```
+
+Oczekiwany wynik: linie `start kopii …`, `OK: cg.sqlite -> backups/… (integrity_check: ok)`, `OK: kopia … -> /mnt/c/Users/<nazwa>/CG-kopie/…` i `koniec kopii …`. W Eksploratorze Windows w folderze `CG-kopie` pojawi się katalog z dzisiejszą datą. (Jeśli serwer jeszcze nic nie zapisał: `Brak baz SQLite…` — to normalne.)
+
+**Przywracanie z kopii** (rzadko potrzebne). Najpierw zatrzymaj serwer i wybierz kopię (katalog z datą):
 
 ```bash
 cd ~/cg-connector/server && docker compose stop cg-server && sudo ls ~/cg-data/backups
-# wybierz katalog z datą i nazwę bazy, potem:
-sudo rm -f ~/cg-data/<baza>-wal ~/cg-data/<baza>-shm && sudo cp -a ~/cg-data/backups/<data_godzina>/<baza> ~/cg-data/<baza> && docker compose start cg-server
 ```
+
+Wpisz wybraną nazwę katalogu (np. `2026-11-18_143000`) i przywróć bazę:
+
+```bash
+read -rp "Katalog kopii: " K && sudo rm -f ~/cg-data/cg.sqlite-wal ~/cg-data/cg.sqlite-shm && sudo install -o 10001 -g 10001 -m 600 ~/cg-data/backups/$K/cg.sqlite ~/cg-data/cg.sqlite && cd ~/cg-connector/server && docker compose start cg-server && unset K
+```
+
+Oczekiwany wynik: `Container cg-connector-cg-server-1 Started`, a po chwili `curl http://127.0.0.1:8000/health` odpowiada. Kopię z dysku Windows (np. po reinstalacji WSL) przywracasz tak samo, zamieniając `~/cg-data/backups/$K` na `/mnt/c/Users/<nazwa>/CG-kopie/$K`.
+
+> Tokeny Garmina w bazie są zaszyfrowane kluczem z `server/.env` (`CG_ENCRYPTION_KEY`), którego kopia **nie zawiera** (to sekret). Przy przywracaniu na tym samym serwerze nic nie trzeba robić. Na nowej instalacji bez starego `.env` treningi i ustawienia wrócą, ale każdy użytkownik musi ponownie połączyć konto Garmin.
 
 ---
 

@@ -97,13 +97,26 @@ class PruneTest(unittest.TestCase):
             self.assertEqual(cg_backup.prune(root, 14, now=datetime(2026, 11, 18)), [])
 
 
+class MirrorTest(unittest.TestCase):
+    def test_kopiuje_katalog_bez_sladow_tymczasowych(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dest = Path(tmp) / "src", Path(tmp) / "nowy" / "CG-kopie"
+            (src / "2026-11-18_143000").mkdir(parents=True)
+            make_db(src / "2026-11-18_143000" / "cg.sqlite")
+            final = cg_backup.mirror(src, dest, "2026-11-18_143000")
+            self.assertEqual(count_rows(final / "cg.sqlite"), 3)
+            self.assertEqual([p.name for p in dest.iterdir()], ["2026-11-18_143000"])
+            with self.assertRaises(FileNotFoundError):
+                cg_backup.mirror(src, dest, "2026-11-19_143000")
+
+
 class BackupShTest(unittest.TestCase):
     """backup.sh z atrapą `docker` (uruchamia skrypt lokalnie zamiast w kontenerze)."""
 
     def test_kopia_i_rotacja(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_p = Path(tmp)
-            server, data, bin_dir = (tmp_p / n for n in ("server", "data", "bin"))
+            server, data, bin_dir, win = (tmp_p / n for n in ("server", "data", "bin", "win"))
             for d in (server, data, bin_dir):
                 d.mkdir()
             (server / "compose.yaml").write_text("services: {}\n")
@@ -112,6 +125,7 @@ class BackupShTest(unittest.TestCase):
             # Stare kopie do usunięcia przez rotację.
             for old in ("2020-01-01_000000", "2026-01-01_000000"):
                 (data / "backups" / old).mkdir(parents=True)
+                (win / old).mkdir(parents=True)
 
             docker = bin_dir / "docker"
             docker.write_text(
@@ -133,6 +147,7 @@ class BackupShTest(unittest.TestCase):
                 PATH=f"{bin_dir}:{os.environ['PATH']}",
                 CG_SERVER_DIR=str(server),
                 CG_BACKUP_RETENTION_DAYS="14",
+                CG_BACKUP_WINDOWS_DIR=str(win),  # "dysk Windows"
             )
             out = subprocess.run(
                 ["bash", str(OPS / "wsl" / "backup.sh")],
@@ -147,6 +162,9 @@ class BackupShTest(unittest.TestCase):
             local = list((data / "backups").iterdir())
             self.assertEqual(len(local), 1, "stare kopie powinny zostać usunięte")
             self.assertEqual(count_rows(local[0] / "cg.sqlite"), 5)
+            mirrored = list(win.iterdir())
+            self.assertEqual([p.name for p in mirrored], [local[0].name])
+            self.assertEqual(count_rows(mirrored[0] / "cg.sqlite"), 5)
 
     def test_zla_retencja(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

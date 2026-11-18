@@ -1,11 +1,17 @@
 """Kopie zapasowe baz SQLite CG-connector (tylko biblioteka standardowa Pythona).
 
-snapshot: spójna kopia "online" każdej bazy z folderu danych (API backup SQLite, to samo
-co `sqlite3 baza ".backup plik"`), PRAGMA integrity_check kopii i rotacja. Uruchamiane
-w kontenerze cg-server (ten sam użytkownik co serwer), patrz backup.sh.
+Dwa polecenia:
+
+  snapshot  spójna kopia "online" każdej bazy z folderu danych (API backup SQLite,
+            to samo co `sqlite3 baza ".backup plik"`), sprawdzenie integralności kopii
+            i usunięcie kopii starszych niż --keep-days. Uruchamiane w kontenerze cg-server
+            (ten sam użytkownik co serwer), patrz backup.sh.
+  mirror    skopiowanie jednej kopii (katalogu z datą) do drugiego miejsca, np. na dysk
+            Windows (/mnt/c/...), i rotacja kopii w tym miejscu. Uruchamiane w WSL.
 
 Rotacja dotyczy wyłącznie katalogów o nazwie RRRR-MM-DD_GGMMSS (tworzonych przez ten
-skrypt); wiek liczony jest z nazwy, nie z daty modyfikacji. Najnowsza kopia zostaje zawsze.
+skrypt); wiek liczony jest z nazwy, nie z daty modyfikacji (dysk Windows jej nie
+zachowuje wiarygodnie). Najnowsza kopia nie jest usuwana nigdy.
 """
 
 from __future__ import annotations
@@ -75,13 +81,31 @@ def prune(root: Path, keep_days: int, now: datetime) -> list[str]:
     return removed
 
 
+def mirror(src_root: Path, dest_root: Path, stamp: str) -> Path:
+    """Kopiuje src_root/<stamp> do dest_root/<stamp> (przez katalog tymczasowy)."""
+    src = src_root / stamp
+    if not src.is_dir():
+        raise FileNotFoundError(f"brak kopii {src}")
+    dest_root.mkdir(parents=True, exist_ok=True)
+    final = dest_root / stamp
+    tmp = dest_root / f".{stamp}.czesciowa"
+    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.copytree(src, tmp)
+    tmp.rename(final)
+    return final
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_snap = sub.add_parser("snapshot")
     p_snap.add_argument("--data", type=Path, required=True)
-    p_snap.add_argument("--stamp", required=True)
-    p_snap.add_argument("--keep-days", type=int, default=14)
+    p_mirror = sub.add_parser("mirror")
+    p_mirror.add_argument("--src", type=Path, required=True)
+    p_mirror.add_argument("--dest", type=Path, required=True)
+    for p in (p_snap, p_mirror):
+        p.add_argument("--stamp", required=True)
+        p.add_argument("--keep-days", type=int, default=14)
     args = parser.parse_args(argv)
 
     if parse_stamp(args.stamp) is None:
@@ -92,12 +116,17 @@ def main(argv: list[str] | None = None) -> int:
     os.umask(0o077)
     now = datetime.now()
 
-    copies = snapshot(args.data, args.stamp)
-    if not copies:
-        print("Brak baz SQLite w folderze danych - nic do skopiowania.")
-    for c in copies:
-        print(f"OK: {c.name} -> backups/{args.stamp}/{c.name} (integrity_check: ok)")
-    root = args.data / "backups"
+    if args.cmd == "snapshot":
+        copies = snapshot(args.data, args.stamp)
+        if not copies:
+            print("Brak baz SQLite w folderze danych - nic do skopiowania.")
+        for c in copies:
+            print(f"OK: {c.name} -> backups/{args.stamp}/{c.name} (integrity_check: ok)")
+        root = args.data / "backups"
+    else:
+        final = mirror(args.src, args.dest, args.stamp)
+        print(f"OK: kopia {args.stamp} -> {final}")
+        root = args.dest
 
     for name in prune(root, args.keep_days, now):
         print(f"Usunięto starą kopię: {root / name}")
