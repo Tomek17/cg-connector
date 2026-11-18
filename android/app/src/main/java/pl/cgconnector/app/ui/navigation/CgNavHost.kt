@@ -26,9 +26,13 @@ import kotlinx.serialization.Serializable
 import pl.cgconnector.app.R
 import pl.cgconnector.app.ui.activities.ActivitiesRoute
 import pl.cgconnector.app.ui.detail.ActivityDetailRoute
+import pl.cgconnector.app.ui.queue.QueueRoute
 import pl.cgconnector.app.ui.settings.SettingsRoute
 import pl.cgconnector.app.ui.status.StatusRoute
 import pl.cgconnector.app.ui.vo2max.Vo2MaxRoute
+import pl.cgconnector.app.ui.workout.NewWorkoutButton
+import pl.cgconnector.app.ui.workout.RunningWizardRoute
+import pl.cgconnector.app.ui.workout.StrengthWizardRoute
 import kotlin.reflect.KClass
 
 @Serializable
@@ -47,6 +51,15 @@ data object Vo2MaxDestination
 @Serializable
 data object StatusDestination
 
+@Serializable
+data object QueueDestination
+
+@Serializable
+data object RunningWizardDestination
+
+@Serializable
+data object StrengthWizardDestination
+
 /** Zakładki dolnego paska. */
 private enum class TopLevel(
     val destination: Any,
@@ -55,6 +68,7 @@ private enum class TopLevel(
     @param:DrawableRes val icon: Int,
 ) {
     ACTIVITIES(ActivitiesDestination, ActivitiesDestination::class, R.string.nav_activities, R.drawable.ic_nav_activities),
+    QUEUE(QueueDestination, QueueDestination::class, R.string.nav_queue, R.drawable.ic_nav_queue),
     VO2MAX(Vo2MaxDestination, Vo2MaxDestination::class, R.string.nav_vo2max, R.drawable.ic_nav_vo2max),
     STATUS(StatusDestination, StatusDestination::class, R.string.nav_status, R.drawable.ic_nav_status),
     SETTINGS(SettingsDestination, SettingsDestination::class, R.string.nav_settings, R.drawable.ic_nav_settings),
@@ -111,6 +125,18 @@ fun CgNavHost(isConfigured: Boolean) {
             }
             composable<Vo2MaxDestination> { Vo2MaxRoute() }
             composable<StatusDestination> { StatusRoute() }
+            composable<QueueDestination> {
+                QueueRoute(
+                    floatingActionButton = {
+                        NewWorkoutButton(
+                            onNewRunning = { navController.navigate(RunningWizardDestination) },
+                            onNewStrength = { navController.navigate(StrengthWizardDestination) },
+                        )
+                    },
+                )
+            }
+            composable<RunningWizardDestination> { RunningWizardRoute(onDone = { navController.popBackStack() }) }
+            composable<StrengthWizardDestination> { StrengthWizardRoute(onDone = { navController.popBackStack() }) }
         }
     }
 }
