@@ -17,13 +17,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import pl.cgconnector.app.R
+import pl.cgconnector.app.domain.Freshness
 import pl.cgconnector.app.domain.PeriodSummary
 import pl.cgconnector.app.domain.RefreshOutcome
 import pl.cgconnector.app.domain.ServerState
@@ -35,6 +41,16 @@ import java.time.Instant
 @Composable
 fun StatusRoute(viewModel: StatusViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Przeliczanie świeżości tylko, gdy ekran jest widoczny (co najmniej RESUMED).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                viewModel.tick()
+                delay(StatusViewModel.TICK_INTERVAL_MS)
+            }
+        }
+    }
     StatusScreen(state = state, onRefresh = viewModel::refresh)
 }
 
@@ -62,17 +78,23 @@ fun StatusScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (state.isStale) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors =
-                        CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ),
-                ) {
-                    Text(stringResource(R.string.status_stale_warning), modifier = Modifier.padding(16.dp))
-                }
+            when (state.freshness) {
+                Freshness.FRESH -> Unit
+                Freshness.NEVER_FETCHED ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.status_never_fetched), modifier = Modifier.padding(16.dp))
+                    }
+                Freshness.STALE ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
+                    ) {
+                        Text(stringResource(R.string.status_stale_warning), modifier = Modifier.padding(16.dp))
+                    }
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

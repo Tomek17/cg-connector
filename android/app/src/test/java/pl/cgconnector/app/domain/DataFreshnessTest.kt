@@ -6,35 +6,54 @@ import java.time.Duration
 import java.time.Instant
 
 class DataFreshnessTest {
-    private val now = Instant.parse("2026-11-18T15:00:00Z")
+    private val now = Instant.parse("2026-11-18T13:10:00Z") // 14:10 czasu polskiego
 
     private fun ago(hours: Long) = now.minus(Duration.ofHours(hours))
 
+    private fun evaluate(
+        app: Instant?,
+        server: Instant?,
+    ) = DataFreshness.evaluate(now, app, server)
+
     @Test
-    fun `fresh when both app refresh and server sync are within 24 h`() {
-        assertThat(DataFreshness.isStale(now, ago(1), ago(2))).isFalse()
+    fun `daily cycle - server synced yesterday 14_03, now 14_10 before today's sync is still fresh`() {
+        val serverYesterday = Instant.parse("2026-11-17T13:03:00Z") // wczoraj 14:03
+        val appYesterday = Instant.parse("2026-11-17T13:20:00Z") // wczoraj 14:20
+
+        assertThat(evaluate(appYesterday, serverYesterday)).isEqualTo(Freshness.FRESH)
     }
 
     @Test
-    fun `exactly 24 h is still fresh, one second more is stale`() {
-        assertThat(DataFreshness.isStale(now, ago(24), ago(1))).isFalse()
-        assertThat(DataFreshness.isStale(now, ago(24).minusSeconds(1), ago(1))).isTrue()
+    fun `fresh when both are recent`() {
+        assertThat(evaluate(ago(1), ago(2))).isEqualTo(Freshness.FRESH)
     }
 
     @Test
-    fun `stale when app has not refreshed for over 24 h`() {
-        assertThat(DataFreshness.isStale(now, ago(25), ago(1))).isTrue()
+    fun `server sync threshold is 26 h`() {
+        assertThat(evaluate(ago(1), ago(26))).isEqualTo(Freshness.FRESH)
+        assertThat(evaluate(ago(1), ago(26).minusSeconds(1))).isEqualTo(Freshness.STALE)
     }
 
     @Test
-    fun `stale when server has not synced with Garmin for over 24 h even after app refresh`() {
-        assertThat(DataFreshness.isStale(now, ago(0), ago(30))).isTrue()
+    fun `app refresh threshold is 30 h`() {
+        assertThat(evaluate(ago(30), ago(1))).isEqualTo(Freshness.FRESH)
+        assertThat(evaluate(ago(30).minusSeconds(1), ago(1))).isEqualTo(Freshness.STALE)
     }
 
     @Test
-    fun `stale when never refreshed or never synced`() {
-        assertThat(DataFreshness.isStale(now, null, ago(1))).isTrue()
-        assertThat(DataFreshness.isStale(now, ago(1), null)).isTrue()
+    fun `server not synced for days is stale even after app refresh`() {
+        assertThat(evaluate(ago(0), ago(50))).isEqualTo(Freshness.STALE)
+    }
+
+    @Test
+    fun `fresh install is reported separately`() {
+        assertThat(evaluate(null, null)).isEqualTo(Freshness.NEVER_FETCHED)
+        assertThat(evaluate(null, ago(1))).isEqualTo(Freshness.NEVER_FETCHED)
+    }
+
+    @Test
+    fun `server never synced with Garmin is stale`() {
+        assertThat(evaluate(ago(1), null)).isEqualTo(Freshness.STALE)
     }
 
     @Test

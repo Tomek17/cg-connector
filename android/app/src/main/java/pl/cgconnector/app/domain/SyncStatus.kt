@@ -34,20 +34,36 @@ fun SyncStatus.serverState(): ServerState =
         RefreshOutcome.NOT_CONFIGURED, null -> ServerState.UNKNOWN
     }
 
-object DataFreshness {
-    val MAX_AGE: Duration = Duration.ofHours(24)
+enum class Freshness {
+    FRESH,
 
-    /**
-     * Dane są stare, gdy aplikacja nie odświeżyła ich od ponad [MAX_AGE] albo serwer od ponad [MAX_AGE]
-     * nie zsynchronizował się z Garminem. Brak którejkolwiek daty (nigdy) też oznacza dane stare.
-     */
-    fun isStale(
+    /** Aplikacja nigdy nie pobrała danych z serwera (świeża instalacja). */
+    NEVER_FETCHED,
+
+    STALE,
+}
+
+/**
+ * Progi „dane stare”. Serwer synchronizuje się z Garminem raz dziennie ok. 14:00, a aplikacja odświeża
+ * ok. 14:20, więc próg 24 h dawałby codzienny fałszywy alarm (np. sync wczoraj 14:03, teraz 14:10).
+ * Progi mają zapas: [SERVER_SYNC_MAX_AGE] na opóźniony sync, [APP_REFRESH_MAX_AGE] na ponowienia
+ * odświeżania do 23:00 i pominięty dzień przy wyłączonym telefonie.
+ */
+object DataFreshness {
+    val SERVER_SYNC_MAX_AGE: Duration = Duration.ofHours(26)
+    val APP_REFRESH_MAX_AGE: Duration = Duration.ofHours(30)
+
+    fun evaluate(
         now: Instant,
         lastRefreshSuccessAt: Instant?,
         serverLastSyncAt: Instant?,
-    ): Boolean {
-        if (lastRefreshSuccessAt == null || serverLastSyncAt == null) return true
-        val oldest = minOf(lastRefreshSuccessAt, serverLastSyncAt)
-        return Duration.between(oldest, now) > MAX_AGE
-    }
+    ): Freshness =
+        when {
+            lastRefreshSuccessAt == null -> Freshness.NEVER_FETCHED
+            Duration.between(lastRefreshSuccessAt, now) > APP_REFRESH_MAX_AGE -> Freshness.STALE
+            // Serwer nigdy nie zsynchronizował się z Garminem: dane z serwera nic nie znaczą.
+            serverLastSyncAt == null -> Freshness.STALE
+            Duration.between(serverLastSyncAt, now) > SERVER_SYNC_MAX_AGE -> Freshness.STALE
+            else -> Freshness.FRESH
+        }
 }

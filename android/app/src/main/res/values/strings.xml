@@ -115,7 +115,8 @@
     <!-- Status -->
     <string name="status_title">Status</string>
     <string name="status_check_now">Sprawdź teraz</string>
-    <string name="status_stale_warning">Dane mogą być nieaktualne: ostatnia synchronizacja lub odświeżenie było ponad 24 godziny temu.</string>
+    <string name="status_stale_warning">Dane mogą być nieaktualne: serwer nie zsynchronizował się z Garminem od ponad 26 godzin albo aplikacja nie odświeżyła danych od ponad 30 godzin.</string>
+    <string name="status_never_fetched">Dane nie były jeszcze pobrane. Pojawią się po pierwszym połączeniu z serwerem.</string>
     <string name="status_server">Serwer</string>
     <string name="status_server_online">Online</string>
     <string name="status_server_offline">Offline</string>

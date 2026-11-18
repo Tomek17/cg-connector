@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import pl.cgconnector.app.domain.ActivityType
+import pl.cgconnector.app.domain.Freshness
 import pl.cgconnector.app.domain.PeriodSummary
 import pl.cgconnector.app.domain.RefreshOutcome
 import pl.cgconnector.app.domain.ServerState
@@ -18,6 +19,7 @@ import pl.cgconnector.app.testing.MainDispatcherRule
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -53,7 +55,7 @@ class StatusViewModelTest {
             val state = viewModel.uiState.value
             assertThat(state.isLoading).isFalse()
             assertThat(state.serverState).isEqualTo(ServerState.ONLINE)
-            assertThat(state.isStale).isFalse()
+            assertThat(state.freshness).isEqualTo(Freshness.FRESH)
             assertThat(state.currentWeek.map { it.type })
                 .containsExactly(ActivityType.RUNNING, ActivityType.STRENGTH)
                 .inOrder()
@@ -76,18 +78,51 @@ class StatusViewModelTest {
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.serverState).isEqualTo(ServerState.OFFLINE)
-            assertThat(viewModel.uiState.value.isStale).isTrue()
+            assertThat(viewModel.uiState.value.freshness).isEqualTo(Freshness.STALE)
         }
 
     @Test
-    fun `never refreshed is unknown and stale`() =
+    fun `fresh install is unknown and never fetched`() =
         runTest {
             val viewModel = StatusViewModel(FakeStatsRepository(), FakeActivityRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.serverState).isEqualTo(ServerState.UNKNOWN)
-            assertThat(viewModel.uiState.value.isStale).isTrue()
+            assertThat(viewModel.uiState.value.freshness).isEqualTo(Freshness.NEVER_FETCHED)
         }
+
+    @Test
+    fun `tick re-evaluates freshness without new data`() =
+        runTest {
+            val clock = MutableClock(now)
+            val stats =
+                FakeStatsRepository(
+                    status =
+                        SyncStatus(
+                            serverLastSyncAt = now.minusSeconds(3_600),
+                            lastRefreshOutcome = RefreshOutcome.SUCCESS,
+                            lastRefreshSuccessAt = now.minusSeconds(600),
+                        ),
+                )
+            val viewModel = StatusViewModel(stats, FakeActivityRepository(), clock)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            assertThat(viewModel.uiState.value.freshness).isEqualTo(Freshness.FRESH)
+
+            clock.current = now.plusSeconds(26 * 3_600)
+            viewModel.tick()
+
+            assertThat(viewModel.uiState.value.freshness).isEqualTo(Freshness.STALE)
+        }
+
+    private class MutableClock(
+        var current: Instant,
+    ) : Clock() {
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+
+        override fun withZone(zone: ZoneId?): Clock = this
+
+        override fun instant(): Instant = current
+    }
 
     @Test
     fun `check now triggers full refresh`() =
