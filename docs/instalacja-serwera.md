@@ -137,7 +137,7 @@ https://cg-server.tail1234.ts.net (Funnel on)
 
 Zapisz ten adres — to adres serwera, którego użyjesz w Claude i w aplikacji.
 
-> **Co jest widoczne z internetu.** Tunel przepuszcza tylko ścieżki wpisane w `ops/tailscale/serve.json`: `/health`, `/api/v1/…`, `/mcp` oraz ścieżki logowania OAuth (`/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`, `/authorize`, `/token`, `/register`, `/revoke`, `/oauth/login`). Każdy inny adres (np. `/`, `/docs`) dostaje błąd 404 od Tailscale i w ogóle nie trafia do serwera.
+> **Co jest widoczne z internetu.** Tunel przepuszcza tylko ścieżki wpisane w `ops/tailscale/serve.json`: `/health`, `/api/v1/…`, `/mcp` oraz ścieżki logowania OAuth (`/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`, `/authorize` (razem ze stroną logowania `/authorize/login`), `/token`, `/register`, `/revoke`). Każdy inny adres (np. `/`, `/docs`) dostaje błąd 404 od Tailscale i w ogóle nie trafia do serwera.
 >
 > Dla programistów: Tailscale Serve obcina prefiks punktu montowania przed przekazaniem żądania (`http.StripPrefix`) i dokleja resztę do ścieżki z `Proxy`. Dlatego każdy handler ma w `Proxy` pełną ścieżkę, np. `"/mcp": {"Proxy": "http://cg-server:8000/mcp"}`. Według kodu Tailscale v1.104.7 (sprawdzone symulacją): `/mcp` → `/mcp`, `/mcp/` → `/mcp/`, `/api/v1/x?y=1` → `/api/v1/x?y=1`, `/.well-known/oauth-protected-resource/mcp` → ta sama ścieżka, `/mcpx` → 404. **Test `/mcp` i `/mcp/` przez prawdziwy Funnel (z claude.ai) jest częścią spike'u M0** — zwróć uwagę na przekierowania 307 między `/mcp` a `/mcp/` w FastAPI/Starlette.
 

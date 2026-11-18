@@ -15,8 +15,7 @@
         "/authorize": { "Proxy": "http://cg-server:8000/authorize" },
         "/token": { "Proxy": "http://cg-server:8000/token" },
         "/register": { "Proxy": "http://cg-server:8000/register" },
-        "/revoke": { "Proxy": "http://cg-server:8000/revoke" },
-        "/oauth/login": { "Proxy": "http://cg-server:8000/oauth/login" }
+        "/revoke": { "Proxy": "http://cg-server:8000/revoke" }
       }
     }
   },
