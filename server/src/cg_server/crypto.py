@@ -22,6 +22,11 @@ def _fernet(key: str) -> Fernet:
         raise CryptoError("Nieprawidłowy klucz szyfrowania (CG_ENCRYPTION_KEY)") from e
 
 
+def validate_key(key: str) -> None:
+    """Raise `CryptoError` if the key is missing or not a valid Fernet key."""
+    _fernet(key)
+
+
 def encrypt(plaintext: str, key: str) -> str:
     return _fernet(key).encrypt(plaintext.encode()).decode()
 

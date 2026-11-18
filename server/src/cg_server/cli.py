@@ -9,7 +9,7 @@ import uvicorn
 from sqlalchemy.orm import Session
 
 from cg_server.config import Settings, get_settings
-from cg_server.crypto import CryptoError, encrypt, generate_key
+from cg_server.crypto import CryptoError, generate_key, validate_key
 from cg_server.db import open_db
 from cg_server.garmin import accounts
 from cg_server.garmin.gateway import (
@@ -41,7 +41,7 @@ def _require_user(session: Session, name: str) -> User:
 
 
 def _require_key(settings: Settings) -> str:
-    encrypt("", settings.encryption_key)  # fail early on a missing/invalid key
+    validate_key(settings.encryption_key)  # fail before contacting Garmin
     return settings.encryption_key
 
 
