@@ -35,8 +35,8 @@ def credentials(settings: Settings, name: str = "tomek") -> GarminCredentials | 
         return user.garmin_credentials
 
 
-def login(fake: FakeGarminGateway, name: str = "tomek") -> int:
-    return main(["garmin-login", "--user", name], gateway_factory=lambda: fake)
+def login(fake: FakeGarminGateway, name: str = "tomek", *extra: str) -> int:
+    return main(["garmin-login", "--user", name, *extra], gateway_factory=lambda: fake)
 
 
 def check(fake: FakeGarminGateway, name: str = "tomek") -> int:
@@ -193,3 +193,33 @@ def test_check_rejected_tokens_set_needs_login(
     creds = credentials(settings)
     assert creds is not None and creds.status == GarminStatus.NEEDS_LOGIN
     assert WAIT_HINT in capsys.readouterr().err
+
+
+def test_login_refused_for_24h_after_429_unless_forced(
+    settings: Settings, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["user-add", "--name", "tomek"])
+    login(FakeGarminGateway(error=GarminRateLimited()))
+    creds = credentials(settings)
+    assert creds is not None and creds.rate_limited_at is not None
+    capsys.readouterr()
+
+    blocked = FakeGarminGateway(tokens=TOKENS)
+    assert login(blocked) == 1
+    assert blocked.calls == []
+    assert "--force" in capsys.readouterr().err
+
+    forced = FakeGarminGateway(tokens=TOKENS)
+    assert login(forced, "tomek", "--force") == 0
+    assert forced.calls == ["login"]
+    creds = credentials(settings)
+    assert creds is not None and creds.status == GarminStatus.OK
+    assert creds.rate_limited_at is None
+
+
+def test_check_429_records_time(settings: Settings) -> None:
+    main(["user-add", "--name", "tomek"])
+    login(FakeGarminGateway(tokens=TOKENS))
+    check(FakeGarminGateway(error=GarminRateLimited()))
+    creds = credentials(settings)
+    assert creds is not None and creds.rate_limited_at is not None

@@ -52,6 +52,8 @@ class GarminCredentials(Base):
             values_callable=lambda e: [m.value for m in e],
         )
     )
+    # Last HTTP 429 from Garmin; password login is refused for 24 h after it.
+    rate_limited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

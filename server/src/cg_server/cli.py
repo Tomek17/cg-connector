@@ -4,6 +4,7 @@ import argparse
 import getpass
 import sys
 from collections.abc import Callable
+from datetime import datetime
 
 import uvicorn
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ from cg_server.garmin.gateway import (
     GarminRateLimited,
     RealGarminGateway,
 )
-from cg_server.models import User
+from cg_server.models import User, utcnow
 from cg_server.users import UserError, add_user, get_user
 
 GatewayFactory = Callable[[], GarminGateway]
@@ -54,15 +55,29 @@ def cmd_user_add(settings: Settings, name: str) -> None:
     print(f"Dodano użytkownika „{name}”.")
 
 
-def cmd_garmin_login(settings: Settings, name: str, gateway: GarminGateway) -> None:
+def _cooldown_message(until: datetime) -> str:
+    minutes = max(1, int((until - utcnow()).total_seconds() // 60))
+    return (
+        f"Garmin niedawno odrzucił zapytanie (HTTP 429). Logowanie hasłem wstrzymane "
+        f"jeszcze przez ok. {minutes // 60} h {minutes % 60} min, żeby nie ryzykować "
+        "blokady konta. Jeśli musisz, dodaj --force."
+    )
+
+
+def cmd_garmin_login(
+    settings: Settings, name: str, gateway: GarminGateway, *, force: bool = False
+) -> None:
     key = _require_key(settings)
     with open_db(settings)() as session:
         user = _require_user(session, name)
-        _login(session, user, gateway, key)
+        until = accounts.rate_limit_cooldown_until(user)
+        if until is not None and not force:
+            raise CliError(_cooldown_message(until))
+        _login(session, user, gateway, key, force=force)
     print("Zalogowano do Garmin Connect. Tokeny zapisane (zaszyfrowane).")
 
 
-def _login(session: Session, user: User, gateway: GarminGateway, key: str) -> None:
+def _login(session: Session, user: User, gateway: GarminGateway, key: str, *, force: bool) -> None:
     name = user.name
     print(f"Logowanie do Garmin Connect dla użytkownika „{name}”.")
     print("Hasło nie jest nigdzie zapisywane; zapisujemy tylko zaszyfrowane tokeny.")
@@ -77,7 +92,10 @@ def _login(session: Session, user: User, gateway: GarminGateway, key: str) -> No
             password=password,
             prompt_mfa=lambda: input("Kod MFA z Garmina: ").strip(),
             key=key,
+            force=force,
         )
+    except accounts.RateLimitCooldown as e:
+        raise CliError(_cooldown_message(e.until)) from e
     except GarminRateLimited as e:
         raise CliError(RATE_LIMITED_MSG) from e
     except GarminAuthError as e:
@@ -118,11 +136,16 @@ def main(
     serve.add_argument("--port", type=int, default=8000)
     sub.add_parser("gen-key", help="wypisz nowy klucz szyfrowania (CG_ENCRYPTION_KEY)")
     sub.add_parser("user-add", help="dodaj użytkownika").add_argument("--name", required=True)
-    for command, help_text in [
-        ("garmin-login", "zaloguj użytkownika do Garmin Connect (jednorazowo, hasło + MFA)"),
-        ("garmin-check", "sprawdź zapisane tokeny Garmina i odśwież je"),
-    ]:
-        sub.add_parser(command, help=help_text).add_argument("--user", required=True)
+    garmin_login = sub.add_parser(
+        "garmin-login", help="zaloguj użytkownika do Garmin Connect (jednorazowo, hasło + MFA)"
+    )
+    garmin_login.add_argument("--user", required=True)
+    garmin_login.add_argument(
+        "--force", action="store_true", help="loguj mimo błędu 429 w ciągu ostatnich 24 h"
+    )
+    sub.add_parser(
+        "garmin-check", help="sprawdź zapisane tokeny Garmina i odśwież je"
+    ).add_argument("--user", required=True)
     args = parser.parse_args(argv)
 
     try:
@@ -133,7 +156,7 @@ def main(
         elif args.command == "user-add":
             cmd_user_add(get_settings(), args.name)
         elif args.command == "garmin-login":
-            cmd_garmin_login(get_settings(), args.user, gateway_factory())
+            cmd_garmin_login(get_settings(), args.user, gateway_factory(), force=args.force)
         elif args.command == "garmin-check":
             cmd_garmin_check(get_settings(), args.user, gateway_factory())
     except (CliError, UserError, CryptoError) as e:

@@ -5,6 +5,8 @@ issue a new refresh token. On HTTP 429 the status becomes `rate_limited` and not
 retried. The Garmin password only passes through `login()` and is never stored.
 """
 
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy.orm import Session
 
 from cg_server.crypto import decrypt, encrypt
@@ -14,11 +16,36 @@ from cg_server.garmin.gateway import (
     GarminRateLimited,
     MfaPrompt,
 )
-from cg_server.models import GarminCredentials, GarminStatus, User
+from cg_server.models import GarminCredentials, GarminStatus, User, utcnow
+
+RATE_LIMIT_COOLDOWN = timedelta(hours=24)
 
 
 class NotLoggedIn(GarminAuthError):
     """No stored Garmin tokens for the user."""
+
+
+class RateLimitCooldown(Exception):
+    """Password login refused: Garmin answered 429 less than 24 h ago."""
+
+    def __init__(self, until: datetime) -> None:
+        super().__init__(f"Logowanie wstrzymane do {until.isoformat()} po błędzie 429")
+        self.until = until
+
+
+def rate_limit_cooldown_until(user: User, now: datetime | None = None) -> datetime | None:
+    """End of the 24 h pause after the last 429, or None if Garmin may be contacted.
+
+    Use before any request that could hit Garmin's login (garmin-login, future sync).
+    """
+    creds = user.garmin_credentials
+    if creds is None or creds.rate_limited_at is None:
+        return None
+    at = creds.rate_limited_at
+    if at.tzinfo is None:  # SQLite returns naive datetimes; we always store UTC
+        at = at.replace(tzinfo=UTC)
+    until = at + RATE_LIMIT_COOLDOWN
+    return until if until > (now or utcnow()) else None
 
 
 def _credentials(user: User) -> GarminCredentials:
@@ -38,10 +65,18 @@ def _set_status(session: Session, user: User, status: GarminStatus) -> None:
     session.commit()
 
 
+def _mark_rate_limited(session: Session, user: User) -> None:
+    creds = _credentials(user)
+    creds.status = GarminStatus.RATE_LIMITED
+    creds.rate_limited_at = utcnow()
+    session.commit()
+
+
 def _save_tokens(session: Session, user: User, tokens: str, key: str) -> None:
     creds = _credentials(user)
     creds.encrypted_tokens = encrypt(tokens, key)
     creds.status = GarminStatus.OK
+    creds.rate_limited_at = None
     session.commit()
 
 
@@ -54,11 +89,15 @@ def login(
     password: str,
     prompt_mfa: MfaPrompt,
     key: str,
+    force: bool = False,
 ) -> None:
+    """Password login. Refused (RateLimitCooldown) within 24 h of a 429 unless `force`."""
+    if not force and (until := rate_limit_cooldown_until(user)) is not None:
+        raise RateLimitCooldown(until)
     try:
         tokens = gateway.login(email, password, prompt_mfa)
     except GarminRateLimited:
-        _set_status(session, user, GarminStatus.RATE_LIMITED)
+        _mark_rate_limited(session, user)
         raise
     except GarminAuthError:
         # A failed re-login (e.g. mistyped password) must not discard working tokens.
@@ -81,7 +120,7 @@ def check(session: Session, user: User, gateway: GarminGateway, *, key: str) -> 
         gateway.resume(tokens)
         gateway.get_profile()
     except GarminRateLimited:
-        _set_status(session, user, GarminStatus.RATE_LIMITED)
+        _mark_rate_limited(session, user)
         raise
     except GarminAuthError:
         _set_status(session, user, GarminStatus.NEEDS_LOGIN)
