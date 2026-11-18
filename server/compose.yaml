@@ -9,6 +9,10 @@ services:
     image: cg-server:local
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Klucz Tailscale jest tylko dla kontenera tailscale; nadpisujemy go pustym,
+      # żeby nie trafił do środowiska serwera (env_file wczytuje cały .env).
+      TS_AUTHKEY: ""
     volumes:
       - ${CG_HOST_DATA_DIR:-./data}:/data
     # Port tylko na 127.0.0.1 (lokalny podgląd /health, status.ps1).
