@@ -4,7 +4,7 @@ from html import escape
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from cg_server.oauth import (
@@ -12,6 +12,7 @@ from cg_server.oauth import (
     CgOAuthProvider,
     LoginRequestInvalid,
     PendingLogin,
+    TooManyFailures,
     WrongCode,
 )
 
@@ -45,6 +46,9 @@ FORM = """<p>Aplikacja „{client}” chce połączyć się z Twoimi danymi z Ga
 <button type="submit">Połącz z Claude</button>
 </form>
 <p><small>Kod dostajesz od administratora serwera (polecenie cg-server user-code).</small></p>
+"""
+
+LOCKED = """<p class="error">Zbyt wiele nieudanych prób. Odczekaj 15 minut i spróbuj ponownie.</p>
 """
 
 EXPIRED = """<p class="error">Link logowania wygasł albo jest nieprawidłowy.</p>
@@ -82,10 +86,13 @@ def login_router(provider: CgOAuthProvider) -> APIRouter:
 
     @router.post(LOGIN_PATH)
     def login_submit(
-        request: Annotated[str, Form()] = "", code: Annotated[str, Form()] = ""
+        http: Request, request: Annotated[str, Form()] = "", code: Annotated[str, Form()] = ""
     ) -> Response:
+        client_ip = http.client.host if http.client else "?"
         try:
-            url = provider.complete_login(request, code)
+            url = provider.complete_login(request, code, client_ip)
+        except TooManyFailures:
+            return _html(LOCKED, 429)
         except LoginRequestInvalid:
             return _html(EXPIRED, 400)
         except WrongCode:

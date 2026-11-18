@@ -32,6 +32,11 @@ MAX_DAYS_AHEAD = 365
 # Saved workouts per user; at the limit the oldest ones that are not in use are removed.
 MAX_WORKOUTS = 200
 ACTIVE = (ScheduleStatus.PENDING, ScheduleStatus.SENT, ScheduleStatus.FAILED)
+# Upcoming calendar entries per user (today or later, not deleted). Every entry costs Garmin
+# requests, so a runaway client (or Claude after a prompt injection) cannot queue thousands
+# of uploads (MASTER_PROMPT 7.10).
+MAX_UPCOMING_SCHEDULED = 30
+UPCOMING = (*ACTIVE, ScheduleStatus.DELETING)
 
 
 class WorkoutError(ValueError):
@@ -175,6 +180,20 @@ def schedule_workout(
             existing.next_attempt_at = None
             session.commit()
         return existing, False
+    upcoming = session.scalar(
+        select(func.count())
+        .select_from(ScheduledWorkout)
+        .where(
+            ScheduledWorkout.user_id == user.id,
+            ScheduledWorkout.date >= today,
+            ScheduledWorkout.status.in_(UPCOMING),
+        )
+    )
+    if (upcoming or 0) >= MAX_UPCOMING_SCHEDULED:
+        raise WorkoutError(
+            f"Too many upcoming scheduled workouts (limit {MAX_UPCOMING_SCHEDULED}); "
+            "delete some first."
+        )
     item = ScheduledWorkout(
         user_id=user.id, workout_id=workout.id, date=day, status=ScheduleStatus.PENDING
     )

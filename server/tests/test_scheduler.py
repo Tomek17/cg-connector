@@ -292,7 +292,7 @@ def test_app_lifespan_starts_scheduler_only_when_enabled(
 
     monkeypatch.setattr(scheduler_module, "start_scheduler", spy)
 
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url="https://cg.example.ts.net") as client:
         assert client.get("/health").status_code == 200
 
     assert started == ([True] if enabled else [])

@@ -6,9 +6,12 @@ in SQLite (hashes only) and lets the user log in with the personal CG code.
 """
 
 import secrets
+import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 from urllib.parse import urlsplit
 
 from mcp.server.auth.provider import (
@@ -41,16 +44,25 @@ CLAUDE_CALLBACKS = (
 LOGIN_PATH = "/authorize/login"
 # Kind of a rotated refresh token, kept until expiry to detect replay.
 USED_REFRESH = "refresh_used"
+# Kind of an exchanged authorization code, kept until the code's expiry: if the code comes
+# back, it was copied, and the tokens issued for it are revoked (OAuth 2.1, 4.1.3).
+USED_CODE = "code_used"
 ACCESS_TTL = 60 * 60
 REFRESH_TTL = 60 * 24 * 60 * 60
 CODE_TTL = 5 * 60
 LOGIN_TTL = 10 * 60
 MAX_LOGIN_ATTEMPTS = 5
 MAX_PENDING_LOGINS = 1000
+# Wrong CG codes per client IP: after this many in the window the IP is locked out until
+# the window passes (on top of the per-request limit above and the HTTP rate limit).
+MAX_FAILED_CODES_PER_IP = 10
+FAILED_CODES_WINDOW = 15 * 60
 # Dynamic client registration is open to anyone: bound what it can store.
 MAX_CLIENTS = 100
 MAX_CLIENT_METADATA_BYTES = 4096
-STALE_CLIENT_AGE = timedelta(days=7)
+# A client that never got a code or token is removed after this time; when the table is
+# full, the oldest such client older than LOGIN_TTL (not in the middle of a login) gives way.
+STALE_CLIENT_AGE = timedelta(hours=1)
 
 
 class LoginRequestInvalid(Exception):
@@ -59,6 +71,10 @@ class LoginRequestInvalid(Exception):
 
 class WrongCode(Exception):
     """The CG code does not match any user."""
+
+
+class TooManyFailures(Exception):
+    """Too many wrong CG codes from this client IP; try again later."""
 
 
 class _Rejected(Exception):
@@ -97,6 +113,9 @@ class CgOAuthProvider(
         self._sessions = sessions
         # Short-lived browser login requests; losing them on restart only means "try again".
         self._pending: dict[str, PendingLogin] = {}
+        self._failures: dict[str, deque[float]] = {}
+        # complete_login runs in the threadpool, authorize on the event loop.
+        self._lock = threading.Lock()
 
     # --- clients (DCR) -------------------------------------------------------------------
 
@@ -128,7 +147,7 @@ class CgOAuthProvider(
             with self._sessions.begin() as session:
                 self._delete_stale_clients(session)
                 count = session.scalar(select(func.count()).select_from(OAuthClient)) or 0
-                if count >= MAX_CLIENTS:
+                if count >= MAX_CLIENTS and not self._evict_unused_client(session):
                     raise _Rejected
                 session.add(
                     OAuthClient(
@@ -145,15 +164,30 @@ class CgOAuthProvider(
         raise RegistrationError("invalid_client_metadata", "too many registered clients")
 
     @staticmethod
-    def _delete_stale_clients(session: Session) -> None:
-        """Clients older than 7 days that never got (or no longer have) tokens or codes."""
-        session.execute(
-            delete(OAuthClient).where(
-                OAuthClient.created_at < utcnow() - STALE_CLIENT_AGE,
-                ~exists().where(OAuthToken.client_id == OAuthClient.client_id),
-                ~exists().where(OAuthCode.client_id == OAuthClient.client_id),
-            )
+    def _unused(older_than: timedelta) -> list[Any]:
+        return [
+            OAuthClient.created_at < utcnow() - older_than,
+            ~exists().where(OAuthToken.client_id == OAuthClient.client_id),
+            ~exists().where(OAuthCode.client_id == OAuthClient.client_id),
+        ]
+
+    def _delete_stale_clients(self, session: Session) -> None:
+        """Clients older than an hour that never got (or no longer have) tokens or codes."""
+        session.execute(delete(OAuthClient).where(*self._unused(STALE_CLIENT_AGE)))
+
+    def _evict_unused_client(self, session: Session) -> bool:
+        """Table full: remove the oldest unused client that is past its login window, so a
+        flood of registrations cannot lock out a new connector for long."""
+        oldest = session.scalar(
+            select(OAuthClient.client_id)
+            .where(*self._unused(timedelta(seconds=LOGIN_TTL)))
+            .order_by(OAuthClient.created_at)
+            .limit(1)
         )
+        if oldest is None:
+            return False
+        session.execute(delete(OAuthClient).where(OAuthClient.client_id == oldest))
+        return True
 
     # --- browser login with the CG code --------------------------------------------------
 
@@ -164,14 +198,15 @@ class CgOAuthProvider(
         if not redirect_uri_allowed(str(params.redirect_uri), allow_localhost=allow_localhost):
             raise AuthorizeError("invalid_request", "redirect_uri not allowed")
         now = time.time()
-        self._pending = {k: v for k, v in self._pending.items() if v.expires_at > now}
-        if len(self._pending) >= MAX_PENDING_LOGINS:
-            raise AuthorizeError("temporarily_unavailable", "Too many pending logins")
         assert client.client_id is not None  # noqa: S101 - always set for registered clients
         request_id = secrets.token_urlsafe(32)
-        self._pending[request_id] = PendingLogin(
-            client.client_id, client.client_name or "", params, now + LOGIN_TTL
-        )
+        with self._lock:
+            self._pending = {k: v for k, v in self._pending.items() if v.expires_at > now}
+            if len(self._pending) >= MAX_PENDING_LOGINS:
+                raise AuthorizeError("temporarily_unavailable", "Too many pending logins")
+            self._pending[request_id] = PendingLogin(
+                client.client_id, client.client_name or "", params, now + LOGIN_TTL
+            )
         return construct_redirect_uri(
             f"{self._settings.public_url}{LOGIN_PATH}", request=request_id
         )
@@ -183,20 +218,44 @@ class CgOAuthProvider(
     def login_request_valid(self, request_id: str) -> bool:
         return self.pending_login(request_id) is not None
 
-    def complete_login(self, request_id: str, cg_code: str) -> str:
+    def locked_out(self, client_ip: str) -> bool:
+        with self._lock:
+            return self._recent_failures(client_ip, time.time()) >= MAX_FAILED_CODES_PER_IP
+
+    def _recent_failures(self, client_ip: str, now: float) -> int:
+        """Caller holds the lock. Also drops old entries (bounded memory)."""
+        if len(self._failures) > 10_000:
+            self._failures = {
+                k: v for k, v in self._failures.items() if v and v[-1] > now - FAILED_CODES_WINDOW
+            }
+        window = self._failures.get(client_ip)
+        if window is None:
+            return 0
+        while window and window[0] <= now - FAILED_CODES_WINDOW:
+            window.popleft()
+        return len(window)
+
+    def complete_login(self, request_id: str, cg_code: str, client_ip: str = "?") -> str:
         """Check the CG code; return the redirect URL (to Claude) with a new authorization code."""
-        if not self.login_request_valid(request_id):
-            self._pending.pop(request_id, None)
-            raise LoginRequestInvalid
-        pending = self._pending[request_id]
+        with self._lock:
+            if self._recent_failures(client_ip, time.time()) >= MAX_FAILED_CODES_PER_IP:
+                raise TooManyFailures
+            pending = self.pending_login(request_id)
+            if pending is None:
+                self._pending.pop(request_id, None)
+                raise LoginRequestInvalid
         with self._sessions.begin() as session:
             user = user_for_secret(session, SecretKind.CG_CODE, cg_code.strip())
-            if user is None:
-                pending.attempts += 1
-                if pending.attempts >= MAX_LOGIN_ATTEMPTS:
-                    del self._pending[request_id]
-                raise WrongCode
-            del self._pending[request_id]
+            with self._lock:
+                if self._pending.get(request_id) is not pending:  # used up meanwhile
+                    raise LoginRequestInvalid
+                if user is None:
+                    pending.attempts += 1
+                    if pending.attempts >= MAX_LOGIN_ATTEMPTS:
+                        del self._pending[request_id]
+                    self._failures.setdefault(client_ip, deque()).append(time.time())
+                    raise WrongCode
+                del self._pending[request_id]
             if session.get(OAuthClient, pending.client_id) is None:
                 raise LoginRequestInvalid
             code = new_secret()
@@ -221,8 +280,15 @@ class CgOAuthProvider(
     async def load_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: str
     ) -> AuthorizationCode | None:
+        code_hash = hash_secret(authorization_code)
+        with self._sessions.begin() as session:
+            used = session.get(OAuthToken, code_hash)
+            if used is not None and used.kind == USED_CODE:
+                # The code came back after it was exchanged: revoke what it was exchanged for.
+                session.execute(delete(OAuthToken).where(OAuthToken.grant_id == used.grant_id))
+                return None
         with self._sessions() as session:
-            row = session.get(OAuthCode, hash_secret(authorization_code))
+            row = session.get(OAuthCode, code_hash)
             if row is None or row.client_id != client.client_id:
                 return None
             return AuthorizationCode(
@@ -241,25 +307,40 @@ class CgOAuthProvider(
         self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> TokenResponse:
         subject = authorization_code.subject
+        code_hash = hash_secret(authorization_code.code)
         try:
             with self._sessions.begin() as session:
                 # Atomic single use: only the request that really deletes the row gets tokens.
                 deleted = session.execute(
                     delete(OAuthCode).where(
-                        OAuthCode.code_hash == hash_secret(authorization_code.code),
+                        OAuthCode.code_hash == code_hash,
                         OAuthCode.client_id == client.client_id,
                     )
                 )
                 if _rowcount(deleted) != 1 or subject is None:
                     raise _Rejected
-                return self._issue(
+                grant_id = secrets.token_hex(16)
+                tokens = self._issue(
                     session,
                     authorization_code.client_id,
                     int(subject),
                     authorization_code.scopes,
                     authorization_code.resource,
-                    grant_id=secrets.token_hex(16),
+                    grant_id=grant_id,
                 )
+                session.add(
+                    OAuthToken(
+                        token_hash=code_hash,
+                        kind=USED_CODE,
+                        grant_id=grant_id,
+                        client_id=authorization_code.client_id,
+                        user_id=int(subject),
+                        scopes=" ".join(authorization_code.scopes),
+                        resource=authorization_code.resource,
+                        expires_at=int(authorization_code.expires_at),
+                    )
+                )
+                return tokens
         except _Rejected:
             pass
         raise TokenError("invalid_grant", "authorization code already used")
