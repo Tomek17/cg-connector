@@ -98,15 +98,21 @@ SECRET_INFO = {
 }
 
 
+def _show_secret_once(secret: str) -> None:
+    # Intentional: the freshly generated secret is shown to the operator exactly once, on the
+    # terminal (stdout), so they can hand it to the user. It is not logged and not stored
+    # anywhere in plaintext (the database keeps only its hash).
+    sys.stdout.write(f"\n    {secret}\n\n")
+    sys.stdout.flush()
+
+
 def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> None:
     with open_db(settings)() as session:
         user = _require_user(session, name)
         secret = issue_secret(session, user, kind)
     title, hint = SECRET_INFO[kind]
     print(f"{title} dla „{name}” (pokazywany tylko raz, zapisz go w bezpiecznym miejscu):")
-    print()
-    print(f"    {secret}")
-    print()
+    _show_secret_once(secret)
     print(hint)
     print("Poprzedni kod/token (jeśli był) przestał działać.")
     if kind is SecretKind.CG_CODE:
