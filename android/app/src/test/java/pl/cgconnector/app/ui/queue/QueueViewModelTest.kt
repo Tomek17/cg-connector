@@ -66,6 +66,21 @@ class QueueViewModelTest {
         }
 
     @Test
+    fun `retry only for failed entries`() =
+        runTest {
+            val repository =
+                FakeWorkoutQueueRepository(
+                    listOf(queued(1, "Błąd", status = QueueStatus.FAILED), queued(2, "Wysłany", status = QueueStatus.SENT)),
+                )
+            val viewModel = QueueViewModel(repository)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            viewModel.uiState.value.items.forEach { viewModel.retry(it) }
+
+            assertThat(repository.retryRequests).containsExactly(1L)
+        }
+
+    @Test
     fun `refresh triggers background sync`() {
         val repository = FakeWorkoutQueueRepository()
         QueueViewModel(repository).refresh()

@@ -153,7 +153,9 @@
     <string name="queue_status_failed">Błąd wysyłki</string>
     <string name="queue_status_deleting">Usuwanie…</string>
     <string name="queue_status_deleted">Usunięty</string>
-    <string name="queue_error">Serwer: %1$s</string>
+    <string name="queue_error_intro">Serwer nie przyjął treningu albo nie wysłał go do Garmin Connect. Szczegóły błędu z serwera:</string>
+    <string name="queue_retry">Ponów</string>
+    <string name="queue_retry_description">Ponów wysyłkę treningu %1$s</string>
     <string name="queue_created_elsewhere">Utworzony przez CG-connector poza aplikacją (np. przez Claude)</string>
     <string name="queue_delete">Usuń</string>
     <string name="queue_delete_description">Usuń trening %1$s</string>
