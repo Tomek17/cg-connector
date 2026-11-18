@@ -114,6 +114,7 @@ def upgrade() -> None:
         sa.Column("laps_json", sa.JSON(), nullable=True),
         sa.Column("hr_zones_json", sa.JSON(), nullable=True),
         sa.Column("exercise_sets_json", sa.JSON(), nullable=True),
+        sa.Column("fetch_failed", sa.Boolean(), nullable=False),
         sa.Column("fetched_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["activity_id"], ["activities.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),

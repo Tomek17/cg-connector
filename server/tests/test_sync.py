@@ -12,7 +12,7 @@ from cg_server.config import Settings
 from cg_server.crypto import decrypt, encrypt
 from cg_server.db import open_db
 from cg_server.garmin.fake import FakeGarminGateway, make_activity
-from cg_server.garmin.gateway import GarminAuthError, GarminRateLimited
+from cg_server.garmin.gateway import GarminAuthError, GarminNotFound, GarminRateLimited
 from cg_server.models import (
     Activity,
     ActivityDetails,
@@ -426,3 +426,29 @@ def test_users_are_isolated(session: Session, settings: Settings) -> None:
     )
     result = run(session, tomek, FakeGarminGateway(activities=[]), key, now=NOW + timedelta(days=1))
     assert result.status == SyncStatus.OK
+
+
+@pytest.mark.parametrize("error", [GarminNotFound("404"), ConnectionError("HTTP 500")])
+def test_details_error_of_one_activity_does_not_stop_sync(
+    session: Session, settings: Settings, error: Exception
+) -> None:
+    user = make_user(session, settings.encryption_key)
+
+    def fail_for_activity_2(name: str, args: tuple[Any, ...]) -> None:
+        if name == "get_activity_exercise_sets" and args[0] == 2:
+            raise error
+
+    fake = FakeGarminGateway(activities=activities_fixture(), on_call=fail_for_activity_2)
+    result = run(session, user, fake, settings.encryption_key)
+
+    assert result.status == SyncStatus.OK
+    assert count(session, Activity, user) == 5
+    details = {d.activity.garmin_activity_id: d for d in session.scalars(select(ActivityDetails))}
+    assert details[2].fetch_failed is True
+    assert details[2].laps_json is None and details[2].exercise_sets_json is None
+    assert details[1].fetch_failed is False and details[1].laps_json is not None
+
+    # Not fetched again on the next sync (no hammering on a 404).
+    again = FakeGarminGateway(activities=activities_fixture())
+    run(session, user, again, settings.encryption_key, now=NOW + timedelta(hours=1))
+    assert detail_calls(again) == []

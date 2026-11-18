@@ -76,6 +76,10 @@ class SyncResult:
     error: str | None = None
 
 
+class RequestLimitReached(Exception):
+    """The per-run request limit is used up; the sync continues next time."""
+
+
 class _Paced:
     """Calls the gateway with a pause before every request except the first."""
 
@@ -221,16 +225,25 @@ class _UserSync:
         self.session.commit()  # one transaction per activity
 
     def details(self, garmin_id: int, kind: ActivityKind) -> ActivityDetails:
-        laps = self.paced(self.gateway.get_activity_splits, garmin_id)
-        zones = self.paced(self.gateway.get_activity_hr_in_timezones, garmin_id)
-        sets = None
-        if kind == ActivityKind.STRENGTH:
-            sets = self.paced(self.gateway.get_activity_exercise_sets, garmin_id)
+        """Details of one activity. An error here (404, 5xx, bad data) only marks these
+        details as failed; 429, rejected tokens and the request limit stop the sync."""
+        try:
+            laps = self.paced(self.gateway.get_activity_splits, garmin_id)
+            zones = self.paced(self.gateway.get_activity_hr_in_timezones, garmin_id)
+            sets = None
+            if kind == ActivityKind.STRENGTH:
+                sets = self.paced(self.gateway.get_activity_exercise_sets, garmin_id)
+        except (GarminRateLimited, GarminAuthError, RequestLimitReached):
+            raise
+        except Exception as e:
+            log.warning("details of one activity failed: %s", type(e).__name__)
+            return ActivityDetails(user_id=self.user.id, fetch_failed=True)
         return ActivityDetails(
             user_id=self.user.id,
             laps_json=scrub(laps),
             hr_zones_json=scrub(zones),
             exercise_sets_json=scrub(sets),
+            fetch_failed=False,
         )
 
     def vo2max(self, start: date, end: date) -> None:
