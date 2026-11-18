@@ -8,6 +8,12 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic-settings>=2.4",
+    "garminconnect[workout]==0.3.20",
+    "cryptography>=43",
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.13",
+    "apscheduler>=3.10,<4",
+    "tzdata>=2024.1",
 ]
 
 [project.scripts]
