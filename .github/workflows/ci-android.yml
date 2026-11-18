@@ -26,7 +26,7 @@ jobs:
       # Runner ma preinstalowany Android SDK (ANDROID_HOME) z zaakceptowanymi licencjami;
       # brakującą platformę i build-tools AGP dociąga sam, z właściwą nazwą pakietu.
       # setup-gradle domyślnie weryfikuje sumę gradle-wrapper.jar i cache'uje zależności.
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Build (debug + release bez podpisu, R8), testy jednostkowe, lint
         run: ./gradlew assembleDebug assembleRelease testDebugUnitTest lintDebug --stacktrace
       # Jak działa kontrola schematu: plugin Room podaje KSP app/schemas/ jako wejście.
