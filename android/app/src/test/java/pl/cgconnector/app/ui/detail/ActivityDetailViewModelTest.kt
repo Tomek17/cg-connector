@@ -16,7 +16,10 @@ import pl.cgconnector.app.domain.Lap
 import pl.cgconnector.app.testing.FakeActivityRepository
 import pl.cgconnector.app.testing.MainDispatcherRule
 import pl.cgconnector.app.testing.testActivity
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
 
 /** Robolectric, bo SavedStateHandle należy do warstwy Androida. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -24,6 +27,9 @@ import java.time.Instant
 class ActivityDetailViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    private val now = Instant.parse("2026-11-18T13:00:00Z")
+    private val clock = Clock.fixed(now, ZoneOffset.UTC)
 
     private val handle = SavedStateHandle(mapOf(ActivityDetailViewModel.ARG_ACTIVITY_ID to 1L))
 
@@ -44,7 +50,7 @@ class ActivityDetailViewModelTest {
             repo.details.value = mapOf(1L to detail(fetched = false))
             repo.onDetailFetched = { id -> repo.details.value = mapOf(id to detail(fetched = true)) }
 
-            val viewModel = ActivityDetailViewModel(handle, repo)
+            val viewModel = ActivityDetailViewModel(handle, repo, clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(repo.detailRequests).containsExactly(1L)
@@ -61,7 +67,7 @@ class ActivityDetailViewModelTest {
             val repo = FakeActivityRepository()
             repo.details.value = mapOf(1L to detail(fetched = true))
 
-            val viewModel = ActivityDetailViewModel(handle, repo)
+            val viewModel = ActivityDetailViewModel(handle, repo, clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(repo.detailRequests).isEmpty()
@@ -74,7 +80,7 @@ class ActivityDetailViewModelTest {
             val repo = FakeActivityRepository(detailResult = RefreshResult.Unavailable)
             repo.details.value = mapOf(1L to detail(fetched = false))
 
-            val viewModel = ActivityDetailViewModel(handle, repo)
+            val viewModel = ActivityDetailViewModel(handle, repo, clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.error).isEqualTo(DetailError.OFFLINE)
@@ -93,7 +99,7 @@ class ActivityDetailViewModelTest {
             val repo = FakeActivityRepository(detailResult = RefreshResult.Unauthorized)
             repo.details.value = mapOf(1L to detail(fetched = false))
 
-            val viewModel = ActivityDetailViewModel(handle, repo)
+            val viewModel = ActivityDetailViewModel(handle, repo, clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.error).isEqualTo(DetailError.UNAUTHORIZED)
@@ -104,11 +110,53 @@ class ActivityDetailViewModelTest {
         runTest {
             val repo = FakeActivityRepository(detailResult = RefreshResult.InvalidResponse)
 
-            val viewModel = ActivityDetailViewModel(handle, repo)
+            val viewModel = ActivityDetailViewModel(handle, repo, clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.isLoading).isFalse()
             assertThat(viewModel.uiState.value.detail).isNull()
             assertThat(viewModel.uiState.value.error).isEqualTo(DetailError.INVALID_RESPONSE)
+        }
+
+    @Test
+    fun `details unavailable on server are retried only after 24 h`() {
+        val unavailable =
+            detail(fetched = true).copy(detailsAvailable = false, detailsFetchedAt = now.minus(Duration.ofHours(23)))
+
+        assertThat(ActivityDetailViewModel.shouldAutoFetch(unavailable, now)).isFalse()
+        assertThat(
+            ActivityDetailViewModel.shouldAutoFetch(unavailable.copy(detailsFetchedAt = now.minus(Duration.ofHours(25))), now),
+        ).isTrue()
+        assertThat(ActivityDetailViewModel.shouldAutoFetch(detail(fetched = true), now)).isFalse()
+        assertThat(ActivityDetailViewModel.shouldAutoFetch(detail(fetched = false), now)).isTrue()
+        assertThat(ActivityDetailViewModel.shouldAutoFetch(null, now)).isTrue()
+    }
+
+    @Test
+    fun `old unavailable details are fetched again on open`() =
+        runTest {
+            val repo = FakeActivityRepository()
+            repo.details.value =
+                mapOf(1L to detail(fetched = true).copy(detailsAvailable = false, detailsFetchedAt = now.minus(Duration.ofHours(30))))
+
+            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertThat(repo.detailRequests).containsExactly(1L)
+        }
+
+    @Test
+    fun `fetching flag is cleared when repository throws`() =
+        runTest {
+            val repo = FakeActivityRepository()
+            repo.details.value = mapOf(1L to detail(fetched = true))
+            repo.onDetailFetched = { throw IllegalStateException("boom") }
+            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            val failure = runCatching { viewModel.fetch() }
+
+            assertThat(failure.isFailure).isTrue()
+            assertThat(viewModel.uiState.value.isFetching).isFalse()
         }
 }

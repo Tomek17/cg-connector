@@ -1,5 +1,6 @@
 package pl.cgconnector.app.ui.detail
 
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,9 @@ import kotlinx.coroutines.launch
 import pl.cgconnector.app.data.repository.ActivityRepository
 import pl.cgconnector.app.data.repository.RefreshResult
 import pl.cgconnector.app.domain.ActivityDetail
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 
 /** Dlaczego nie udało się pobrać szczegółów. Dane z Room (jeśli są) zostają na ekranie. */
@@ -32,6 +36,7 @@ class ActivityDetailViewModel
     constructor(
         savedStateHandle: SavedStateHandle,
         private val repository: ActivityRepository,
+        private val clock: Clock,
     ) : ViewModel() {
         /** Argument trasy `ActivityDetailDestination.activityId`. */
         private val activityId: Long = checkNotNull(savedStateHandle[ARG_ACTIVITY_ID])
@@ -45,9 +50,8 @@ class ActivityDetailViewModel
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ActivityDetailUiState())
 
         init {
-            // Na żądanie: z serwera tylko wtedy, gdy w Room nie ma jeszcze szczegółów.
             viewModelScope.launch {
-                if (repository.observeActivityDetail(activityId).first()?.hasDetails != true) fetch()
+                if (shouldAutoFetch(repository.observeActivityDetail(activityId).first(), clock.instant())) fetch()
             }
         }
 
@@ -55,22 +59,45 @@ class ActivityDetailViewModel
             viewModelScope.launch { fetch() }
         }
 
-        private suspend fun fetch() {
+        @VisibleForTesting
+        internal suspend fun fetch() {
             if (isFetching.value) return
             isFetching.value = true
-            error.value =
-                when (repository.refreshActivityDetail(activityId)) {
-                    is RefreshResult.Success -> null
-                    RefreshResult.Unavailable -> DetailError.OFFLINE
-                    RefreshResult.Unauthorized -> DetailError.UNAUTHORIZED
-                    RefreshResult.NotConfigured -> DetailError.NOT_CONFIGURED
-                    RefreshResult.InvalidResponse -> DetailError.INVALID_RESPONSE
-                }
-            isFetching.value = false
+            try {
+                error.value =
+                    when (repository.refreshActivityDetail(activityId)) {
+                        is RefreshResult.Success -> null
+                        RefreshResult.Unavailable -> DetailError.OFFLINE
+                        RefreshResult.Unauthorized -> DetailError.UNAUTHORIZED
+                        RefreshResult.NotConfigured -> DetailError.NOT_CONFIGURED
+                        RefreshResult.InvalidResponse -> DetailError.INVALID_RESPONSE
+                    }
+            } finally {
+                // Także przy anulowaniu (zamknięcie ekranu) albo nieoczekiwanym wyjątku.
+                isFetching.value = false
+            }
         }
 
         companion object {
             const val ARG_ACTIVITY_ID = "activityId"
+
+            /** Po tylu godzinach ponawiamy pobranie, jeśli serwer wcześniej nie miał szczegółów z Garmina. */
+            val UNAVAILABLE_RETRY_AFTER: Duration = Duration.ofHours(24)
+
+            /**
+             * Pobieranie na żądanie: gdy w Room nie ma jeszcze szczegółów albo serwer poprzednio ich nie miał
+             * (`details_available = false`) i od tamtej próby minęło ponad [UNAVAILABLE_RETRY_AFTER].
+             * Brak treningu w bazie też próbujemy pobrać (np. otwarty z powiadomienia przed odświeżeniem listy).
+             */
+            fun shouldAutoFetch(
+                detail: ActivityDetail?,
+                now: Instant,
+            ): Boolean {
+                val fetchedAt = detail?.detailsFetchedAt ?: return true
+                if (detail.detailsAvailable) return false
+                return Duration.between(fetchedAt, now) > UNAVAILABLE_RETRY_AFTER
+            }
+
             private const val STOP_TIMEOUT_MS = 5_000L
         }
     }
