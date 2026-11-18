@@ -89,6 +89,7 @@ def upgrade() -> None:
         sa.Column("cursor_date", sa.Date(), nullable=True),
         sa.Column("activities_new", sa.Integer(), nullable=False),
         sa.Column("activities_updated", sa.Integer(), nullable=False),
+        sa.Column("request_limit_reached", sa.Boolean(), nullable=False),
         sa.Column("error", sa.String(length=200), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),

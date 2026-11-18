@@ -189,5 +189,7 @@ class SyncRun(Base):
     cursor_date: Mapped[date | None] = mapped_column(Date)
     activities_new: Mapped[int] = mapped_column(default=0)
     activities_updated: Mapped[int] = mapped_column(default=0)
+    # Stopped at the per-run request limit: counts as today's sync, the rest comes next time.
+    request_limit_reached: Mapped[bool] = mapped_column(default=False)
     # Short, fixed description of the failure; never response bodies or personal data.
     error: Mapped[str | None] = mapped_column(String(200))

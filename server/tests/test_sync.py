@@ -453,3 +453,39 @@ def test_details_error_of_one_activity_does_not_stop_sync(
     again = FakeGarminGateway(activities=activities_fixture())
     run(session, user, again, settings.encryption_key, now=NOW + timedelta(hours=1))
     assert detail_calls(again) == []
+
+
+def test_request_limit_stops_run_and_history_continues_next_time(
+    session: Session, settings: Settings
+) -> None:
+    user = make_user(session, settings.encryption_key)
+    key = settings.encryption_key
+    options = SyncOptions(request_delay_s=0, max_requests=12)
+
+    first = FakeGarminGateway(activities=activities_fixture())
+    result = run(session, user, first, key, options=options)
+
+    assert 0 < len(first.calls) <= 12
+    assert result.status == SyncStatus.PARTIAL
+    assert result.error is not None and "Limit" in result.error
+    first_run = session.scalars(select(SyncRun)).one()
+    assert first_run.request_limit_reached is True
+    assert first_run.cursor_date is not None and first_run.cursor_date < TODAY
+
+    statuses = []
+    all_details: list[tuple[str, Any]] = detail_calls(first)
+    for day in range(1, 10):
+        fake = FakeGarminGateway(activities=activities_fixture())
+        res = run(session, user, fake, key, now=NOW + timedelta(days=day), options=options)
+        assert len(fake.calls) <= 12
+        all_details += detail_calls(fake)
+        statuses.append(res.status)
+        if res.status == SyncStatus.OK:
+            break
+
+    assert statuses[-1] == SyncStatus.OK
+    assert count(session, Activity, user) == 5
+    assert count(session, ActivityDetails, user) == 5
+    # Details of each activity fetched once, even across runs.
+    splits = [aid for name, aid in all_details if name == "get_activity_splits"]
+    assert sorted(splits) == sorted(set(splits))

@@ -57,6 +57,8 @@ class SyncOptions:
     chunk_days: int = 30
     overlap_days: int = 3
     request_delay_s: float = 2.0
+    # Requests per run; a longer history is finished by the following runs.
+    max_requests: int = 300
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "SyncOptions":
@@ -64,6 +66,7 @@ class SyncOptions:
             timezone=settings.timezone,
             history_days=settings.sync_history_days,
             request_delay_s=settings.sync_request_delay_s,
+            max_requests=settings.sync_max_requests_per_run,
         )
 
 
@@ -81,12 +84,20 @@ class RequestLimitReached(Exception):
 
 
 class _Paced:
-    """Calls the gateway with a pause before every request except the first."""
+    """Calls the gateway with a pause before every request except the first, and stops
+    (RequestLimitReached) once `max_requests` requests were made in this run."""
 
-    def __init__(self, delay_s: float, sleep: Callable[[float], None]) -> None:
-        self.delay_s, self.sleep, self.requests = delay_s, sleep, 0
+    def __init__(self, delay_s: float, sleep: Callable[[float], None], max_requests: int) -> None:
+        self.delay_s, self.sleep, self.max_requests = delay_s, sleep, max_requests
+        self.requests = 0
+
+    def reserve(self, n: int) -> None:
+        """Make sure `n` more requests fit in the limit, so a group is never cut in half."""
+        if self.requests + n > self.max_requests:
+            raise RequestLimitReached
 
     def __call__(self, fn: Callable[..., T], *args: Any) -> T:
+        self.reserve(1)
         if self.requests and self.delay_s > 0:
             self.sleep(self.delay_s)
         self.requests += 1
@@ -228,6 +239,7 @@ class _UserSync:
     def details(self, garmin_id: int, kind: ActivityKind) -> ActivityDetails:
         """Details of one activity. An error here (404, 5xx, bad data) only marks these
         details as failed; 429, rejected tokens and the request limit stop the sync."""
+        self.paced.reserve(3 if kind == ActivityKind.STRENGTH else 2)
         try:
             laps = self.paced(self.gateway.get_activity_splits, garmin_id)
             zones = self.paced(self.gateway.get_activity_hr_in_timezones, garmin_id)
@@ -327,15 +339,20 @@ def sync_user(
         start = today - timedelta(days=options.history_days)
     else:
         start = min(cursor, today) - timedelta(days=options.overlap_days)
-    paced = _Paced(options.request_delay_s, sleep)
+    paced = _Paced(options.request_delay_s, sleep, options.max_requests)
     job = _UserSync(session, user, gateway, run, options, paced)
-    resumed = False
+    resumed = limit_reached = False
     status, error = SyncStatus.OK, None
     try:
         paced(gateway.resume, decrypt(creds.encrypted_tokens, key))
         resumed = True
         for chunk_start, chunk_end in _date_range(start, today, options.chunk_days):
             job.chunk(chunk_start, chunk_end)
+    except RequestLimitReached:
+        session.rollback()
+        limit_reached = True
+        status = SyncStatus.PARTIAL
+        error = f"Limit {options.max_requests} zapytań na przebieg: reszta przy następnym syncu"
     except GarminRateLimited:
         session.rollback()
         accounts.mark_rate_limited(session, user)
@@ -357,6 +374,7 @@ def sync_user(
                 session.rollback()
                 log.warning("saving Garmin tokens failed: %s", type(e).__name__)
 
+    run.request_limit_reached = limit_reached
     if status == SyncStatus.OK and creds.status != GarminStatus.OK:
         creds.status = GarminStatus.OK
     progressed = run.activities_new or run.activities_updated or run.cursor_date is not None
