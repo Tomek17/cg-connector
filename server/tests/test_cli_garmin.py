@@ -2,6 +2,7 @@
 
 import builtins
 import getpass
+import itertools
 from collections.abc import Iterator
 
 import pytest
@@ -22,7 +23,7 @@ TOKENS = '{"di_token": "fake-access-1", "di_refresh_token": "fake-refresh-1"}'
 def env(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("CG_DATA_DIR", str(settings.data_dir))
     monkeypatch.setenv("CG_ENCRYPTION_KEY", settings.encryption_key)
-    answers = iter(["jan@example.com", "123456"])
+    answers = itertools.cycle(["jan@example.com", "123456"])
     monkeypatch.setattr(builtins, "input", lambda _prompt="": next(answers))
     monkeypatch.setattr(getpass, "getpass", lambda _prompt="": PASSWORD)
     yield
@@ -112,11 +113,32 @@ def test_login_rate_limited_sets_status_and_does_not_retry(
     assert "429" in capsys.readouterr().err
 
 
-def test_login_auth_error_sets_needs_login(settings: Settings) -> None:
+WAIT_HINT = "Jeśli niedawno był błąd 429, odczekaj 24 h przed ponownym logowaniem hasłem."
+
+
+def test_login_auth_error_sets_needs_login(
+    settings: Settings, capsys: pytest.CaptureFixture[str]
+) -> None:
     main(["user-add", "--name", "tomek"])
     assert login(FakeGarminGateway(error=GarminAuthError())) == 1
     creds = credentials(settings)
     assert creds is not None and creds.status == GarminStatus.NEEDS_LOGIN
+    assert WAIT_HINT in capsys.readouterr().err
+
+
+def test_failed_relogin_keeps_saved_tokens_and_status(
+    settings: Settings, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["user-add", "--name", "tomek"])
+    login(FakeGarminGateway(tokens=TOKENS))
+
+    assert login(FakeGarminGateway(error=GarminAuthError())) == 1
+
+    creds = credentials(settings)
+    assert creds is not None and creds.status == GarminStatus.OK
+    assert creds.encrypted_tokens is not None
+    assert decrypt(creds.encrypted_tokens, settings.encryption_key) == TOKENS
+    assert "garmin-check --user tomek" in capsys.readouterr().err
 
 
 def test_check_saves_refreshed_tokens(
@@ -161,9 +183,13 @@ def test_check_rate_limited_sets_status_and_keeps_tokens(settings: Settings) -> 
     assert decrypt(creds.encrypted_tokens, settings.encryption_key) == TOKENS
 
 
-def test_check_rejected_tokens_set_needs_login(settings: Settings) -> None:
+def test_check_rejected_tokens_set_needs_login(
+    settings: Settings, capsys: pytest.CaptureFixture[str]
+) -> None:
     main(["user-add", "--name", "tomek"])
     login(FakeGarminGateway(tokens=TOKENS))
+    capsys.readouterr()
     assert check(FakeGarminGateway(error=GarminAuthError())) == 1
     creds = credentials(settings)
     assert creds is not None and creds.status == GarminStatus.NEEDS_LOGIN
+    assert WAIT_HINT in capsys.readouterr().err

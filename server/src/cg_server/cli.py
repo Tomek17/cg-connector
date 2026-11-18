@@ -29,6 +29,9 @@ RATE_LIMITED_MSG = (
 )
 
 
+WAIT_HINT = "Jeśli niedawno był błąd 429, odczekaj 24 h przed ponownym logowaniem hasłem."
+
+
 class CliError(Exception):
     """Expected failure; the message is printed to stderr and the exit code is 1."""
 
@@ -78,7 +81,13 @@ def _login(session: Session, user: User, gateway: GarminGateway, key: str) -> No
     except GarminRateLimited as e:
         raise CliError(RATE_LIMITED_MSG) from e
     except GarminAuthError as e:
-        raise CliError("Logowanie nieudane: błędny e-mail, hasło albo kod MFA.") from e
+        msg = f"Logowanie nieudane: błędny e-mail, hasło albo kod MFA. {WAIT_HINT}"
+        if accounts.has_tokens(user):
+            msg += (
+                " Wcześniej zapisane tokeny pozostały bez zmian; sprawdź je: "
+                f"cg-server garmin-check --user {user.name}"
+            )
+        raise CliError(msg) from e
 
 
 def cmd_garmin_check(settings: Settings, name: str, gateway: GarminGateway) -> None:
@@ -93,7 +102,9 @@ def cmd_garmin_check(settings: Settings, name: str, gateway: GarminGateway) -> N
         except GarminRateLimited as e:
             raise CliError(RATE_LIMITED_MSG) from e
         except GarminAuthError as e:
-            raise CliError(f"Tokeny Garmina wygasły lub zostały odrzucone. {relogin}") from e
+            raise CliError(
+                f"Tokeny Garmina wygasły lub zostały odrzucone. {relogin}. {WAIT_HINT}"
+            ) from e
     print(f"OK, zalogowano jako {full_name or '(brak nazwy w profilu Garmin)'}.")
 
 

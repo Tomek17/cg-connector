@@ -27,6 +27,12 @@ def _credentials(user: User) -> GarminCredentials:
     return user.garmin_credentials
 
 
+def has_tokens(user: User) -> bool:
+    return (
+        user.garmin_credentials is not None and user.garmin_credentials.encrypted_tokens is not None
+    )
+
+
 def _set_status(session: Session, user: User, status: GarminStatus) -> None:
     _credentials(user).status = status
     session.commit()
@@ -55,7 +61,9 @@ def login(
         _set_status(session, user, GarminStatus.RATE_LIMITED)
         raise
     except GarminAuthError:
-        _set_status(session, user, GarminStatus.NEEDS_LOGIN)
+        # A failed re-login (e.g. mistyped password) must not discard working tokens.
+        if not has_tokens(user):
+            _set_status(session, user, GarminStatus.NEEDS_LOGIN)
         raise
     _save_tokens(session, user, tokens, key)
 
