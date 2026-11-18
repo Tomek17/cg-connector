@@ -25,11 +25,15 @@ from garminconnect import (
     Garmin,
     GarminConnectAuthenticationError,
     GarminConnectConnectionError,
+    GarminConnectNotFoundError,
     GarminConnectTooManyRequestsError,
 )
 
 MfaPrompt = Callable[[], str]
 MaxMetrics = dict[str, Any] | list[dict[str, Any]]
+# `hrTimeInZones`: garminconnect annotates dict, but Garmin returns a list of zones
+# ({"zoneNumber", "secsInZone", "zoneLowBoundary"}); accept both.
+HrZones = dict[str, Any] | list[dict[str, Any]]
 
 
 class GarminError(Exception):
@@ -38,6 +42,10 @@ class GarminError(Exception):
 
 class GarminRateLimited(GarminError):
     """Garmin answered HTTP 429 (or the SSO equivalent). Do not retry."""
+
+
+class GarminNotFound(GarminError):
+    """HTTP 404: the resource does not exist (e.g. no details for this activity)."""
 
 
 class GarminAuthError(GarminError):
@@ -84,7 +92,7 @@ class GarminGateway(Protocol):
         """Laps of an activity (`lapDTOs`)."""
         ...
 
-    def get_activity_hr_in_timezones(self, activity_id: int) -> Any:
+    def get_activity_hr_in_timezones(self, activity_id: int) -> HrZones:
         """Time in heart rate zones (Garmin returns a list of zones)."""
         ...
 
@@ -101,9 +109,14 @@ def _translate_errors() -> Iterator[None]:
         raise GarminRateLimited("Garmin: zbyt wiele zapytań (HTTP 429)") from e
     except GarminConnectAuthenticationError as e:
         raise GarminAuthError("Garmin: błąd uwierzytelnienia") from e
+    except GarminConnectNotFoundError as e:
+        raise GarminNotFound("Garmin: nie znaleziono (HTTP 404)") from e
     except GarminConnectConnectionError as e:
-        if getattr(e.response, "status_code", None) == 429:
+        status = getattr(e.response, "status_code", None)
+        if status == 429:
             raise GarminRateLimited("Garmin: zbyt wiele zapytań (HTTP 429)") from e
+        if status == 404:
+            raise GarminNotFound("Garmin: nie znaleziono (HTTP 404)") from e
         raise
 
 
@@ -170,7 +183,7 @@ class RealGarminGateway:
         with _translate_errors():
             return self._session().get_activity_splits(str(activity_id))
 
-    def get_activity_hr_in_timezones(self, activity_id: int) -> Any:
+    def get_activity_hr_in_timezones(self, activity_id: int) -> HrZones:
         with _translate_errors():
             return self._session().get_activity_hr_in_timezones(str(activity_id))
 

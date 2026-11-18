@@ -9,6 +9,7 @@ import pytest
 from garminconnect import (
     GarminConnectAuthenticationError,
     GarminConnectConnectionError,
+    GarminConnectNotFoundError,
     GarminConnectTooManyRequestsError,
 )
 
@@ -17,6 +18,7 @@ from cg_server.garmin.fake import FakeGarminGateway
 from cg_server.garmin.gateway import (
     GarminAuthError,
     GarminGateway,
+    GarminNotFound,
     GarminRateLimited,
     RealGarminGateway,
 )
@@ -197,3 +199,15 @@ def test_activity_detail_429_is_rate_limited() -> None:
     StubGarmin.error = GarminConnectTooManyRequestsError("429")
     with pytest.raises(GarminRateLimited):
         gw.get_activity_splits(17)
+
+
+@pytest.mark.parametrize(
+    "library_error",
+    [GarminConnectNotFoundError("404"), connection_error(404)],
+)
+def test_404_is_not_found(library_error: Exception) -> None:
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    StubGarmin.error = library_error
+    with pytest.raises(GarminNotFound):
+        gw.get_activity_exercise_sets(17)

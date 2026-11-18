@@ -9,7 +9,7 @@ from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from cg_server.garmin.gateway import GarminAuthError, MaxMetrics, MfaPrompt
+from cg_server.garmin.gateway import GarminAuthError, HrZones, MaxMetrics, MfaPrompt
 
 CallHook = Callable[[str, tuple[Any, ...]], None]
 
@@ -198,7 +198,7 @@ class FakeGarminGateway:
             ],
         }
 
-    def get_activity_hr_in_timezones(self, activity_id: int) -> Any:
+    def get_activity_hr_in_timezones(self, activity_id: int) -> HrZones:
         self._call("get_activity_hr_in_timezones", activity_id)
         self._require_session()
         return [
