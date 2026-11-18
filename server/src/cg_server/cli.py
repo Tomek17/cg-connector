@@ -4,7 +4,7 @@ import argparse
 import getpass
 import sys
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -15,6 +15,7 @@ from garminconnect import GarminConnectConnectionError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from cg_server import workouts
 from cg_server.config import ConfigError, Settings, get_settings
 from cg_server.crypto import CryptoError, generate_key, validate_key
 from cg_server.db import open_db
@@ -27,11 +28,21 @@ from cg_server.garmin.gateway import (
     RealGarminGateway,
 )
 from cg_server.logging_filter import uvicorn_log_config
-from cg_server.models import Activity, SyncRun, SyncStatus, User, utcnow
+from cg_server.models import (
+    Activity,
+    ScheduleStatus,
+    SyncRun,
+    SyncStatus,
+    User,
+    WorkoutOrigin,
+    utcnow,
+)
+from cg_server.outbox import process_user_outbox
 from cg_server.sync import SyncOptions, sync_user
 from cg_server.synclock import SyncBusy
 from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import UserError, add_user, get_user
+from cg_server.workout_definition import preview
 
 GatewayFactory = Callable[[], GarminGateway]
 
@@ -217,6 +228,88 @@ def cmd_sync(settings: Settings, name: str, gateway: GarminGateway) -> None:
     print(summary)
 
 
+TEST_WORKOUTS: dict[str, dict[str, Any]] = {
+    "run": {
+        "sport": "running",
+        "name": "Test bieg",
+        "description": "Trening testowy CG-connector",
+        "steps": [
+            {"type": "warmup", "seconds": 300},
+            {
+                "type": "repeat",
+                "times": 3,
+                "steps": [
+                    {
+                        "type": "interval",
+                        "distance_km": 0.4,
+                        "target": {"type": "pace", "from": "5:30", "to": "5:00"},
+                    },
+                    {"type": "recovery", "seconds": 90, "target": {"type": "hr_zone", "zone": 1}},
+                ],
+            },
+            {"type": "cooldown", "lap_button": True},
+        ],
+    },
+    "strength": {
+        "sport": "strength",
+        "name": "Test siła",
+        "description": "Trening testowy CG-connector",
+        "exercises": [
+            {
+                "exercise": "Barbell Back Squat",
+                "sets": 3,
+                "reps": 5,
+                "weight_kg": 20,
+                "rest_seconds": 90,
+            },
+            {"exercise": "Plank", "sets": 2, "seconds": 30, "rest_seconds": 60},
+        ],
+    },
+}
+
+
+def cmd_workout_test(
+    settings: Settings, name: str, day: str, kind: str, gateway: GarminGateway
+) -> None:
+    """Create a small test workout and send it to the Garmin calendar now (watch spike)."""
+    key = _require_key(settings)
+    try:
+        when = date.fromisoformat(day)
+    except ValueError:
+        raise CliError("Data w formacie RRRR-MM-DD, np. 2026-11-20.") from None
+    today = datetime.now(ZoneInfo(settings.timezone)).date()
+    with open_db(settings)() as session:
+        user = _require_user(session, name)
+        definition = TEST_WORKOUTS[kind]
+        try:
+            workout, _ = workouts.create_workout(
+                session, user, definition, origin=WorkoutOrigin.APP
+            )
+            item, _ = workouts.schedule_workout(session, user, workout.id, when, today=today)
+        except workouts.WorkoutError as e:
+            raise CliError(f"Nie można zaplanować: {e}") from e
+        print(preview(workouts.definition_of(workout)))
+        try:
+            process_user_outbox(
+                session,
+                user,
+                gateway,
+                key=key,
+                delay_s=settings.sync_request_delay_s,
+                lock_dir=settings.data_dir,
+            )
+        except SyncBusy as e:
+            raise CliError(
+                "Trwa synchronizacja z Garminem; trening czeka w kolejce i zostanie wysłany "
+                "automatycznie."
+            ) from e
+        session.refresh(item)
+        print(f"Status: {item.status.value} (id wpisu: {item.id}, data: {item.date}).")
+        if item.status != ScheduleStatus.SENT:
+            raise CliError(item.last_error or "Trening nie został jeszcze wysłany.")
+    print("Na zegarku: zsynchronizuj go z aplikacją Garmin Connect i sprawdź kalendarz.")
+
+
 def _local(value: datetime | None, tz: ZoneInfo) -> str:
     if value is None:
         return "nigdy"
@@ -288,6 +381,12 @@ def main(
         "--user", required=True
     )
     sub.add_parser("sync-status", help="pokaż stan synchronizacji wszystkich użytkowników")
+    workout_test = sub.add_parser(
+        "workout-test", help="utwórz i wyślij do kalendarza Garmin mały trening testowy"
+    )
+    workout_test.add_argument("--user", required=True)
+    workout_test.add_argument("--date", required=True, help="RRRR-MM-DD")
+    workout_test.add_argument("--kind", choices=sorted(TEST_WORKOUTS), default="run")
     args = parser.parse_args(argv)
 
     try:
@@ -316,6 +415,8 @@ def main(
             cmd_sync(get_settings(), args.user, gateway_factory())
         elif args.command == "sync-status":
             cmd_sync_status(get_settings())
+        elif args.command == "workout-test":
+            cmd_workout_test(get_settings(), args.user, args.date, args.kind, gateway_factory())
     except (CliError, UserError, CryptoError, ConfigError) as e:
         print(f"Błąd: {e}", file=sys.stderr)
         return 1
