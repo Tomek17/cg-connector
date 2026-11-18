@@ -11,6 +11,7 @@ from mcp.server.auth.routes import build_metadata, cors_middleware
 from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.routing import Route
 
 from cg_server import __version__
@@ -124,6 +125,12 @@ def create_app(
     )
     app.add_middleware(
         PathAllowlistMiddleware, extra_paths=() if settings.is_production else [OPENAPI_PATH]
+    )
+    # DNS rebinding: only the tunnel host (Tailscale keeps the original Host) and local checks
+    # (healthcheck, status.ps1). /mcp checks the host again in the SDK.
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=[settings.public_host.split(":")[0], "localhost", "127.0.0.1"],
     )
     app.add_middleware(
         SecurityHeadersMiddleware,

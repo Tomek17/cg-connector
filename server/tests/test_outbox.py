@@ -26,7 +26,14 @@ from cg_server.models import (
     Workout,
     WorkoutOrigin,
 )
-from cg_server.outbox import MAX_ATTEMPTS, MAX_RETRY, OutboxRunner, process_user_outbox, retry_delay
+from cg_server.outbox import (
+    MAX_ATTEMPTS,
+    MAX_ITEMS_PER_RUN,
+    MAX_RETRY,
+    OutboxRunner,
+    process_user_outbox,
+    retry_delay,
+)
 from cg_server.synclock import SyncBusy, sync_lock
 from cg_server.workout_definition import DefinitionError
 
@@ -576,3 +583,38 @@ def test_limit_reached_with_everything_in_use(
     schedule(session, day=DAY + timedelta(1))
     with pytest.raises(workouts.WorkoutError, match="limit 2"):
         workouts.create_workout(session, user(session), RUN, origin="mcp")
+
+
+def test_upcoming_scheduled_entries_are_limited_per_user(session: Session) -> None:
+    for i in range(workouts.MAX_UPCOMING_SCHEDULED):
+        schedule(session, day=TODAY + timedelta(days=i))
+    with pytest.raises(workouts.WorkoutError, match="Too many upcoming"):
+        schedule(session, day=DAY)
+    # Another user has their own limit.
+    schedule(session, "brat")
+
+
+def test_limit_counts_only_upcoming_not_deleted_entries(session: Session) -> None:
+    items = [
+        schedule(session, day=TODAY + timedelta(days=i))
+        for i in range(workouts.MAX_UPCOMING_SCHEDULED)
+    ]
+    workouts.request_delete(session, user(session), items[0].id)  # not sent yet: deleted
+    schedule(session, day=DAY)
+    session.execute(
+        ScheduledWorkout.__table__.update()
+        .where(ScheduledWorkout.id == items[1].id)
+        .values(date=TODAY - timedelta(days=1))
+    )
+    session.commit()
+    schedule(session, day=DAY)
+
+
+def test_one_outbox_run_sends_a_limited_number_of_entries(
+    session: Session, settings: Settings
+) -> None:
+    for i in range(MAX_ITEMS_PER_RUN + 3):
+        schedule(session, day=TODAY + timedelta(days=i + 1))
+    fake = FakeGarminGateway()
+    assert run(session, settings, fake).sent == MAX_ITEMS_PER_RUN
+    assert run(session, settings, fake).sent == 3

@@ -1,6 +1,7 @@
 """OAuth 2.1 (DCR + PKCE) with the personal CG code, and the MCP endpoint behind it."""
 
 import time
+from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -10,7 +11,7 @@ import httpx2
 import pytest
 from fastapi import FastAPI
 from mcp.server.auth.provider import TokenError
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from cg_server.app import create_app
 from cg_server.config import Settings
@@ -25,7 +26,12 @@ from cg_server.models import (
     User,
     utcnow,
 )
-from cg_server.oauth import MAX_CLIENTS, CgOAuthProvider
+from cg_server.oauth import (
+    FAILED_CODES_WINDOW,
+    MAX_CLIENTS,
+    MAX_FAILED_CODES_PER_IP,
+    CgOAuthProvider,
+)
 from cg_server.user_secrets import SecretKind, hash_secret, issue_secret
 from cg_server.users import add_user
 from tests.helpers import (
@@ -103,6 +109,26 @@ async def test_mcp_without_token_returns_401_with_resource_metadata(app: FastAPI
         assert f'resource_metadata="{BASE}/.well-known/oauth-protected-resource/mcp"' in challenge
 
 
+async def test_reused_code_is_rejected_and_revokes_its_tokens(
+    app: FastAPI, accounts: dict[str, Account]
+) -> None:
+    async with running(app) as http:
+        client = await register(http)
+        pkce = Pkce.new()
+        code = await authorize(http, client["client_id"], pkce, accounts["tomek"].cg_code)
+        tokens = (await exchange_code(http, client, code, pkce)).json()
+
+        again = await exchange_code(http, client, code, pkce)
+        assert again.status_code == 400
+        assert again.json()["error"] == "invalid_grant"
+        # A code used twice was copied: the tokens issued for it stop working (OAuth 2.1).
+        response = await http.post(
+            "/mcp", json={}, headers={"Authorization": f"Bearer {tokens['access_token']}"}
+        )
+        assert response.status_code == 401
+        assert (await refresh(http, client, tokens["refresh_token"])).status_code == 400
+
+
 async def test_full_flow_tool_call_and_refresh_rotation(
     app: FastAPI, accounts: dict[str, Account]
 ) -> None:
@@ -120,11 +146,6 @@ async def test_full_flow_tool_call_and_refresh_rotation(
         profile = await call_tool(http, tokens["access_token"], "get_profile")
         assert profile["user"] == "tomek"
         assert profile["last_sync_at"] is None
-
-        # The code is single-use.
-        again = await exchange_code(http, client, code, pkce)
-        assert again.status_code == 400
-        assert again.json()["error"] == "invalid_grant"
 
         # Refresh rotates both tokens; the old refresh token stops working.
         rotated = await refresh(http, client, tokens["refresh_token"])
@@ -376,7 +397,8 @@ async def test_mcp_rejects_foreign_host(app: FastAPI, accounts: dict[str, Accoun
                 "Accept": "application/json, text/event-stream",
             },
         )
-        assert response.status_code == 421
+        # Rejected before the SDK by TrustedHostMiddleware (the SDK alone would answer 421).
+        assert response.status_code == 400
 
 
 async def test_reused_refresh_token_revokes_whole_grant(
@@ -468,6 +490,56 @@ async def test_register_limits_number_of_clients(app_settings: Settings) -> None
         assert response.json()["error"] == "invalid_client_metadata"
 
 
+async def test_full_client_table_evicts_oldest_unused_client(
+    app_settings: Settings, accounts: dict[str, Account]
+) -> None:
+    app = create_app(app_settings.model_copy(update={"rate_limit_per_minute": 1000}))
+    async with running(app) as http:
+        active = await login_tokens(http, accounts["tomek"].cg_code)
+        flood = [(await register(http))["client_id"] for _ in range(MAX_CLIENTS - 1)]
+        with open_db(app_settings)() as session:
+            # Past the login window (10 min) but not yet stale (1 h).
+            for i, client_id in enumerate([active["client"]["client_id"], *flood]):
+                row = session.get(OAuthClient, client_id)
+                assert row is not None
+                row.created_at = utcnow() - timedelta(minutes=50) + timedelta(seconds=i)
+            session.commit()
+        new = await register(http)
+    with open_db(app_settings)() as session:
+        assert session.scalar(select(func.count()).select_from(OAuthClient)) == MAX_CLIENTS
+        assert session.get(OAuthClient, flood[0]) is None  # the oldest unused one
+        assert session.get(OAuthClient, active["client"]["client_id"]) is not None
+        assert session.get(OAuthClient, new["client_id"]) is not None
+
+
+async def test_wrong_cg_codes_lock_out_the_client_ip(
+    app: FastAPI, accounts: dict[str, Account]
+) -> None:
+    async with running(app) as http:
+        client = await register(http)
+        for _ in range(MAX_FAILED_CODES_PER_IP):
+            request_id = await start_authorize(http, client["client_id"], Pkce.new())
+            assert (await submit_code(http, request_id, "cgc_wrong")).status_code == 401
+        # Even the right code is refused now, from this IP.
+        request_id = await start_authorize(http, client["client_id"], Pkce.new())
+        response = await submit_code(http, request_id, accounts["tomek"].cg_code)
+        assert response.status_code == 429
+        assert "Zbyt wiele nieudanych prób" in response.text
+
+
+def test_lockout_is_per_ip_and_expires(
+    app_settings: Settings, accounts: dict[str, Account], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider = CgOAuthProvider(app_settings, open_db(app_settings))
+    for _ in range(MAX_FAILED_CODES_PER_IP):
+        provider._failures.setdefault("198.51.100.7", deque()).append(time.time())
+    assert provider.locked_out("198.51.100.7")
+    assert not provider.locked_out("198.51.100.8")
+    later = time.time() + FAILED_CODES_WINDOW + 1
+    monkeypatch.setattr(time, "time", lambda: later)
+    assert not provider.locked_out("198.51.100.7")
+
+
 async def test_register_cleans_up_stale_clients_without_tokens(
     app_settings: Settings, accounts: dict[str, Account]
 ) -> None:
@@ -480,7 +552,7 @@ async def test_register_cleans_up_stale_clients_without_tokens(
             for client_id in (stale["client_id"], active["client"]["client_id"]):
                 row = session.get(OAuthClient, client_id)
                 assert row is not None
-                row.created_at = utcnow() - timedelta(days=8)
+                row.created_at = utcnow() - timedelta(hours=2)
             session.commit()
         await register(http)
     with open_db(app_settings)() as session:

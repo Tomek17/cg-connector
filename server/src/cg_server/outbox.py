@@ -60,6 +60,9 @@ MAX_ATTEMPTS = 6
 FIRST_RETRY = timedelta(minutes=5)
 MAX_RETRY = timedelta(hours=6)
 DUE = (ScheduleStatus.PENDING, ScheduleStatus.DELETING)
+# Entries handled in one run (each is a few Garmin requests); the rest waits for the next
+# run (scheduler: every 15 min). Keeps one run short and gentle on Garmin (MP 7.10).
+MAX_ITEMS_PER_RUN = 10
 
 # `last_error`: "<code>: <short English detail>" (read by Claude and the app). Codes:
 # send_failed, delete_failed, rate_limited, garmin_login_needed, date_passed.
@@ -388,7 +391,7 @@ def _process_locked(
     delay_s: float,
     sleep: Callable[[float], None],
 ) -> OutboxResult:
-    items = due_items(session, user, now)
+    items = due_items(session, user, now)[:MAX_ITEMS_PER_RUN]
     if not items:
         return OutboxResult()
     if accounts.rate_limit_cooldown_until(user, now) is not None:

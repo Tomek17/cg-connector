@@ -185,3 +185,16 @@ def test_cli_serve_reports_missing_public_host(
     err = capsys.readouterr().err
     assert "CG_PUBLIC_HOST" in err
     assert "Traceback" not in err
+
+
+@pytest.mark.parametrize("path", ["/health", "/api/v1/me", "/authorize/login", "/token"])
+def test_foreign_host_is_rejected_everywhere(settings: Settings, path: str) -> None:
+    """DNS rebinding: only the tunnel host and local addresses reach the app."""
+    response = make_client(settings).get(path, headers={"Host": "evil.example.com"})
+    assert response.status_code == 400
+
+
+@pytest.mark.parametrize("host", [PUBLIC_HOST, "127.0.0.1:8000", "localhost:8000"])
+def test_tunnel_and_local_hosts_are_allowed(settings: Settings, host: str) -> None:
+    response = make_client(settings).get("/health", headers={"Host": host})
+    assert response.status_code == 200
