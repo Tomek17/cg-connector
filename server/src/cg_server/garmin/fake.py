@@ -9,7 +9,13 @@ from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from cg_server.garmin.gateway import GarminAuthError, HrZones, MaxMetrics, MfaPrompt
+from cg_server.garmin.gateway import (
+    GarminAuthError,
+    GarminNotFound,
+    HrZones,
+    MaxMetrics,
+    MfaPrompt,
+)
 
 CallHook = Callable[[str, tuple[Any, ...]], None]
 
@@ -101,6 +107,13 @@ class FakeGarminGateway:
         self.call_args: list[tuple[str, tuple[Any, ...]]] = []
         self.mfa_code: str | None = None
         self._session_tokens: str | None = None
+        # Garmin side of workouts: library {workoutId: json}, calendar {scheduleId: entry}.
+        self.workouts: dict[int, dict[str, Any]] = {}
+        self.calendar: dict[int, dict[str, Any]] = {}
+        self._next_id = 9000
+        # Simulate Garmin answers without the (unverified) schedule id fields.
+        self.schedule_answer_has_id = True
+        self.calendar_entries_have_id = True
 
     def _call(self, name: str, *args: Any) -> None:
         self.calls.append(name)
@@ -221,3 +234,48 @@ class FakeGarminGateway:
                 }
             ],
         }
+
+    def _new_id(self) -> int:
+        self._next_id += 1
+        return self._next_id
+
+    def upload_workout(self, workout: dict[str, Any]) -> int:
+        self._call("upload_workout", workout.get("workoutName"))
+        self._require_session()
+        workout_id = self._new_id()
+        self.workouts[workout_id] = workout
+        return workout_id
+
+    def schedule_workout(self, workout_id: int, date: str) -> int | None:
+        self._call("schedule_workout", workout_id, date)
+        self._require_session()
+        if workout_id not in self.workouts:
+            raise GarminNotFound("Garmin: nie znaleziono (HTTP 404)")
+        schedule_id = self._new_id()
+        self.calendar[schedule_id] = {
+            "workoutScheduleId": schedule_id,
+            "workoutId": workout_id,
+            "date": date,
+        }
+        return schedule_id if self.schedule_answer_has_id else None
+
+    def unschedule_workout(self, schedule_id: int) -> None:
+        self._call("unschedule_workout", schedule_id)
+        self._require_session()
+        if self.calendar.pop(schedule_id, None) is None:
+            raise GarminNotFound("Garmin: nie znaleziono (HTTP 404)")
+
+    def delete_workout(self, workout_id: int) -> None:
+        self._call("delete_workout", workout_id)
+        self._require_session()
+        if self.workouts.pop(workout_id, None) is None:
+            raise GarminNotFound("Garmin: nie znaleziono (HTTP 404)")
+
+    def get_scheduled_workouts_by_period(self, start: str, end: str) -> list[dict[str, Any]]:
+        self._call("get_scheduled_workouts_by_period", start, end)
+        self._require_session()
+        entries = [dict(e) for e in self.calendar.values() if start <= e["date"] <= end]
+        if not self.calendar_entries_have_id:
+            for entry in entries:
+                del entry["workoutScheduleId"]
+        return entries
