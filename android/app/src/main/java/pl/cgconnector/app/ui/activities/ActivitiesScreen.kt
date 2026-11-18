@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.Activity
 import pl.cgconnector.app.domain.ActivityType
+import pl.cgconnector.app.ui.format.Formatters
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -47,6 +48,7 @@ import java.util.Locale
 @Composable
 fun ActivitiesRoute(
     onOpenSettings: () -> Unit,
+    onOpenActivity: (Long) -> Unit,
     viewModel: ActivitiesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -81,7 +83,7 @@ fun ActivitiesRoute(
         snackbarHostState = snackbarHostState,
         onTypeSelected = viewModel::onTypeSelected,
         onRefresh = viewModel::refresh,
-        onOpenSettings = onOpenSettings,
+        onOpenActivity = onOpenActivity,
     )
 }
 
@@ -92,7 +94,7 @@ fun ActivitiesScreen(
     snackbarHostState: SnackbarHostState,
     onTypeSelected: (ActivityType?) -> Unit,
     onRefresh: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenActivity: (Long) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -101,9 +103,6 @@ fun ActivitiesScreen(
                 actions = {
                     TextButton(onClick = onRefresh, enabled = !state.isRefreshing) {
                         Text(stringResource(R.string.activities_refresh))
-                    }
-                    TextButton(onClick = onOpenSettings) {
-                        Text(stringResource(R.string.activities_settings))
                     }
                 },
             )
@@ -135,7 +134,9 @@ fun ActivitiesScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(16.dp),
                     ) {
-                        items(state.activities, key = { it.id }) { activity -> ActivityRow(activity) }
+                        items(state.activities, key = { it.id }) { activity ->
+                            ActivityRow(activity, onClick = { onOpenActivity(activity.id) })
+                        }
                     }
                 }
             }
@@ -172,8 +173,11 @@ private fun TypeFilter(
 }
 
 @Composable
-private fun ActivityRow(activity: Activity) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun ActivityRow(
+    activity: Activity,
+    onClick: () -> Unit,
+) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = activity.name ?: stringResource(R.string.activity_untitled),
@@ -185,7 +189,7 @@ private fun ActivityRow(activity: Activity) {
             )
             val details =
                 buildList {
-                    add(formatDuration(activity.durationSec))
+                    add(Formatters.duration(activity.durationSec))
                     activity.distanceM?.let { add(stringResource(R.string.activity_distance_km, it / 1000.0)) }
                     activity.avgHr?.let { add(stringResource(R.string.activity_avg_hr, it)) }
                 }
@@ -194,20 +198,8 @@ private fun ActivityRow(activity: Activity) {
     }
 }
 
-@Composable
-private fun formatDuration(totalSec: Long): String {
-    val hours = (totalSec / 3600).toInt()
-    val minutes = ((totalSec % 3600) / 60).toInt()
-    val seconds = (totalSec % 60).toInt()
-    return if (hours > 0) {
-        stringResource(R.string.activity_duration_hms, hours, minutes, seconds)
-    } else {
-        stringResource(R.string.activity_duration_ms, minutes, seconds)
-    }
-}
-
 @StringRes
-private fun ActivityType.labelRes(): Int =
+internal fun ActivityType.labelRes(): Int =
     when (this) {
         ActivityType.RUNNING -> R.string.activity_type_running
         ActivityType.STRENGTH -> R.string.activity_type_strength

@@ -43,6 +43,99 @@
     <string name="activity_untitled">Trening bez nazwy</string>
     <string name="activity_distance_km">%1$.2f km</string>
     <string name="activity_avg_hr">śr. tętno %1$d bpm</string>
-    <string name="activity_duration_hms">%1$d:%2$02d:%3$02d</string>
-    <string name="activity_duration_ms">%1$d:%2$02d</string>
+
+    <!-- Nawigacja -->
+    <string name="nav_activities">Treningi</string>
+    <string name="nav_vo2max">VO2max</string>
+    <string name="nav_status">Status</string>
+    <string name="nav_settings">Ustawienia</string>
+    <string name="back">Wstecz</string>
+
+    <!-- Szczegóły treningu -->
+    <string name="detail_title">Szczegóły treningu</string>
+    <string name="detail_refresh">Odśwież</string>
+    <string name="detail_not_found">Nie ma tego treningu w telefonie. Odśwież listę treningów.</string>
+    <string name="detail_summary">Podsumowanie</string>
+    <string name="detail_duration">Czas</string>
+    <string name="detail_moving_duration">Czas w ruchu</string>
+    <string name="detail_distance">Dystans</string>
+    <string name="detail_avg_pace">Średnie tempo</string>
+    <string name="detail_avg_hr">Średnie tętno</string>
+    <string name="detail_max_hr">Maks. tętno</string>
+    <string name="detail_elevation">Przewyższenie</string>
+    <string name="detail_power">Średnia moc</string>
+    <string name="detail_cadence">Średnia kadencja</string>
+    <string name="detail_aerobic_te">Efekt aerobowy</string>
+    <string name="detail_anaerobic_te">Efekt anaerobowy</string>
+    <string name="detail_training_load">Obciążenie</string>
+    <string name="detail_laps">Okrążenia</string>
+    <string name="detail_lap_header_no">Nr</string>
+    <string name="detail_lap_header_distance">Dystans</string>
+    <string name="detail_lap_header_time">Czas</string>
+    <string name="detail_lap_header_pace">Tempo</string>
+    <string name="detail_lap_header_hr">Tętno</string>
+    <string name="detail_hr_zones">Strefy tętna</string>
+    <string name="detail_zone_label">Strefa %1$d</string>
+    <string name="detail_zone_label_from">Strefa %1$d (od %2$d bpm)</string>
+    <string name="detail_zone_value">%1$s · %2$d%%</string>
+    <string name="detail_sets">Serie</string>
+    <string name="detail_set_unknown_exercise">Ćwiczenie</string>
+    <string name="detail_set_reps_weight">%1$d × %2$s kg</string>
+    <string name="detail_set_reps">%1$d powt.</string>
+    <string name="detail_set_duration">czas %1$s</string>
+    <string name="detail_rest">Przerwa %1$s</string>
+    <string name="detail_loading">Pobieram szczegóły z serwera…</string>
+    <string name="detail_offline">Serwer niedostępny. Szczegóły pobiorą się, gdy serwer będzie online.</string>
+    <string name="detail_unauthorized">Serwer odrzucił token. Wklej nowy token w ustawieniach.</string>
+    <string name="detail_not_configured">Aplikacja nie jest skonfigurowana.</string>
+    <string name="detail_invalid_response">Nieprawidłowa odpowiedź serwera. Zaktualizuj aplikację lub serwer.</string>
+    <string name="detail_unavailable_on_server">Serwer nie zdołał pobrać szczegółów z Garmin Connect.</string>
+    <string name="detail_retry">Spróbuj ponownie</string>
+    <string name="detail_fetched_at">Szczegóły z %1$s</string>
+    <string name="unit_km">%1$s km</string>
+    <string name="unit_pace">%1$s min/km</string>
+    <string name="unit_bpm">%1$d bpm</string>
+    <string name="unit_m">%1$.0f m</string>
+    <string name="unit_w">%1$d W</string>
+    <string name="unit_spm">%1$d kr./min</string>
+    <string name="unit_decimal">%1$.1f</string>
+    <string name="unit_integer">%1$.0f</string>
+
+    <!-- VO2max -->
+    <string name="vo2_title">VO2max</string>
+    <string name="vo2_empty">Brak pomiarów VO2max. Pojawią się po odświeżeniu danych z serwera.</string>
+    <string name="vo2_current">Aktualnie</string>
+    <string name="vo2_value">%1$.1f</string>
+    <string name="vo2_measured_at">pomiar z %1$s</string>
+    <string name="vo2_change">Zmiana w ostatnich %1$d dniach: %2$s</string>
+    <string name="vo2_chart_description">Wykres VO2max od %1$s do %2$s, wartości od %3$.1f do %4$.1f</string>
+    <string name="vo2_sport_running">Bieg</string>
+    <string name="vo2_sport_cycling">Rower</string>
+
+    <!-- Status -->
+    <string name="status_title">Status</string>
+    <string name="status_check_now">Sprawdź teraz</string>
+    <string name="status_stale_warning">Dane mogą być nieaktualne: ostatnia synchronizacja lub odświeżenie było ponad 24 godziny temu.</string>
+    <string name="status_server">Serwer</string>
+    <string name="status_server_online">Online</string>
+    <string name="status_server_offline">Offline</string>
+    <string name="status_server_unknown">Nie sprawdzono</string>
+    <string name="status_last_check">Ostatnia próba połączenia</string>
+    <string name="status_server_sync">Ostatnia synchronizacja serwera z Garmin</string>
+    <string name="status_app_refresh">Ostatnie odświeżenie aplikacji</string>
+    <string name="status_never">Nigdy</string>
+    <string name="status_garmin">Konto Garmin</string>
+    <string name="status_garmin_ok">Połączone</string>
+    <string name="status_garmin_needs_login">Wymaga ponownego logowania na serwerze</string>
+    <string name="status_garmin_rate_limited">Garmin ogranicza zapytania, serwer spróbuje później</string>
+    <string name="status_garmin_unknown">Brak danych</string>
+    <string name="status_last_result">Wynik ostatniego odświeżenia</string>
+    <string name="status_result_success">OK</string>
+    <string name="status_result_unavailable">Serwer niedostępny</string>
+    <string name="status_result_unauthorized">Token odrzucony</string>
+    <string name="status_result_invalid">Nieprawidłowa odpowiedź serwera</string>
+    <string name="status_result_not_configured">Brak konfiguracji</string>
+    <string name="status_this_week">Ten tydzień</string>
+    <string name="status_week_empty">Brak treningów w tym tygodniu.</string>
+    <string name="status_week_row">%1$s: %2$d× · %3$s</string>
 </resources>
