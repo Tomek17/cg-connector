@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from cg_server.config import Settings
+from cg_server.mcp_workouts import register_workout_tools
 from cg_server.models import Activity, SyncRun, SyncStatus, User
 from cg_server.oauth import SCOPE, CgOAuthProvider
 from cg_server.outbox import OutboxRunner
@@ -100,4 +101,5 @@ def build_mcp(
                 latest_activity_date=latest_activity_date(session, user),
             )
 
+    register_workout_tools(mcp, settings, sessions, current_user, outbox)
     return mcp
