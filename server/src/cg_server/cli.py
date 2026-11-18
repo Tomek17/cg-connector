@@ -24,6 +24,7 @@ from cg_server.garmin.gateway import (
     RealGarminGateway,
 )
 from cg_server.models import User, utcnow
+from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import UserError, add_user, get_user
 
 GatewayFactory = Callable[[], GarminGateway]
@@ -67,6 +68,33 @@ def cmd_user_add(settings: Settings, name: str) -> None:
     with open_db(settings)() as session:
         add_user(session, name)
     print(f"Dodano użytkownika „{name}”.")
+
+
+SECRET_INFO = {
+    SecretKind.CG_CODE: (
+        "Osobisty kod CG-connector",
+        "Wklej go na stronie logowania przy dodawaniu konektora w claude.ai.",
+    ),
+    SecretKind.APP_TOKEN: (
+        "Token aplikacji Android",
+        "Wpisz go w ustawieniach aplikacji CG-connector na telefonie.",
+    ),
+}
+
+
+def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> None:
+    with open_db(settings)() as session:
+        user = _require_user(session, name)
+        secret = issue_secret(session, user, kind)
+    title, hint = SECRET_INFO[kind]
+    print(f"{title} dla „{name}” (pokazywany tylko raz, zapisz go w bezpiecznym miejscu):")
+    print()
+    print(f"    {secret}")
+    print()
+    print(hint)
+    print("Poprzedni kod/token (jeśli był) przestał działać.")
+    if kind is SecretKind.CG_CODE:
+        print("Wcześniejsze połączenia claude.ai zostały rozłączone; połącz konektor ponownie.")
 
 
 def _cooldown_message(until: datetime) -> str:
@@ -160,6 +188,12 @@ def main(
     sub.add_parser(
         "garmin-check", help="sprawdź zapisane tokeny Garmina i odśwież je"
     ).add_argument("--user", required=True)
+    sub.add_parser(
+        "user-code", help="wygeneruj nowy osobisty kod CG (logowanie konektora w claude.ai)"
+    ).add_argument("--user", required=True)
+    sub.add_parser("app-token", help="wygeneruj nowy token aplikacji Android").add_argument(
+        "--user", required=True
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -169,6 +203,10 @@ def main(
             print(generate_key())
         elif args.command == "user-add":
             cmd_user_add(get_settings(), args.name)
+        elif args.command == "user-code":
+            cmd_issue_secret(get_settings(), args.user, SecretKind.CG_CODE)
+        elif args.command == "app-token":
+            cmd_issue_secret(get_settings(), args.user, SecretKind.APP_TOKEN)
         elif args.command == "garmin-login":
             cmd_garmin_login(get_settings(), args.user, gateway_factory(), force=args.force)
         elif args.command == "garmin-check":
