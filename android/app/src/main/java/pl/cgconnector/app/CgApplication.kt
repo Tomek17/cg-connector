@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
+import pl.cgconnector.app.data.repository.WorkoutQueueTrigger
 import pl.cgconnector.app.work.RefreshScheduler
 import javax.inject.Inject
 
@@ -15,11 +16,15 @@ class CgApplication :
 
     @Inject lateinit var refreshScheduler: RefreshScheduler
 
+    @Inject lateinit var workoutQueueTrigger: WorkoutQueueTrigger
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
     override fun onCreate() {
         super.onCreate()
         refreshScheduler.ensureScheduled()
+        // Szkice czekające z poprzedniego uruchomienia (np. aplikacja zamknięta bez sieci).
+        workoutQueueTrigger.trigger()
     }
 }
