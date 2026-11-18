@@ -45,10 +45,10 @@ Cały stan leży poza kontenerami, w dwóch folderach:
 - `~/cg-tailscale` — stan Tailscale (tożsamość maszyny `cg-server`). Osobno, żeby serwer nie miał do niego dostępu.
 
 ```bash
-mkdir -p ~/cg-data ~/cg-tailscale && sudo chown 10001:10001 ~/cg-data && sudo chown root:root ~/cg-tailscale && ls -ld ~/cg-data ~/cg-tailscale
+mkdir -p ~/cg-data ~/cg-tailscale && sudo chown 10001:10001 ~/cg-data && sudo chown root:root ~/cg-tailscale && sudo chmod 700 ~/cg-data ~/cg-tailscale && sudo ls -ld ~/cg-data ~/cg-tailscale
 ```
 
-Ubuntu zapyta o Twoje hasło do Linuksa (litery się nie wyświetlają — to normalne). Oczekiwany wynik: dwie linie zaczynające się od `drwx`; przy `cg-data` w środku `10001 10001`, przy `cg-tailscale` — `root root`.
+Ubuntu zapyta o Twoje hasło do Linuksa (litery się nie wyświetlają — to normalne). Oczekiwany wynik: dwie linie zaczynające się od `drwx------` (dostęp tylko dla właściciela); przy `cg-data` w środku `10001 10001`, przy `cg-tailscale` — `root root`. Dlatego do zaglądania do tych folderów potrzebne jest `sudo` (np. `sudo ls ~/cg-data`).
 
 ## Krok 3. Plik `.env` (ustawienia i sekrety)
 
@@ -315,7 +315,7 @@ Zamknij wszystkie okna Ubuntu, w PowerShell wykonaj `wsl --shutdown`, otwórz Ub
 Folder danych ma złego właściciela (np. został utworzony przez Dockera jako `root`):
 
 ```bash
-sudo chown 10001:10001 ~/cg-data && cd ~/cg-connector/server && docker compose restart cg-server
+sudo chown 10001:10001 ~/cg-data && sudo chmod 700 ~/cg-data && cd ~/cg-connector/server && docker compose restart cg-server
 ```
 
 Sprawdź też, czy w `.env` jest pełna ścieżka: `grep CG_HOST_DATA_DIR ~/cg-connector/server/.env`.
