@@ -50,8 +50,20 @@ def test_due_when_older_than_24h_even_before_14() -> None:
 
 def test_failed_attempt_waits_an_hour_before_next_catch_up() -> None:
     last_ok = waw(17, 9)
-    assert not needs_catch_up(last_ok, waw(18, 15), waw(18, 15, 30), tz=WAW, hour=14)
-    assert needs_catch_up(last_ok, waw(18, 15), waw(18, 16, 1), tz=WAW, hour=14)
+    assert not needs_catch_up(last_ok, waw(18, 15), waw(18, 15, 30), tz=WAW, hour=14, failures=1)
+    assert needs_catch_up(last_ok, waw(18, 15), waw(18, 16, 1), tz=WAW, hour=14, failures=1)
+
+
+@pytest.mark.parametrize(
+    ("failures", "wait_h"), [(1, 1), (2, 2), (3, 4), (4, 8), (5, 16), (6, 24), (10, 24)]
+)
+def test_backoff_doubles_after_each_failure_up_to_24h(failures: int, wait_h: int) -> None:
+    last_ok, attempt = waw(10, 14, 30), waw(17, 15)
+    just_before = attempt + timedelta(hours=wait_h) - timedelta(minutes=1)
+    just_after = attempt + timedelta(hours=wait_h) + timedelta(minutes=1)
+    kw: dict[str, Any] = {"tz": WAW, "hour": 14, "failures": failures}
+    assert not needs_catch_up(last_ok, attempt, just_before, **kw)
+    assert needs_catch_up(last_ok, attempt, just_after, **kw)
 
 
 def test_naive_utc_datetimes_from_sqlite_are_accepted() -> None:
@@ -135,15 +147,81 @@ def test_catch_up_skips_user_in_429_pause(settings: Settings) -> None:
     assert runner.created == []  # type: ignore[attr-defined]
 
 
-def test_daily_sync_runs_every_user_with_tokens(settings: Settings) -> None:
+def test_daily_job_and_wake_up_catch_up_do_not_sync_twice(settings: Settings) -> None:
     add_user(settings, "tomek")
     add_user(settings, "brat")
     runner = runner_for(settings)
+    woke_up = datetime(2026, 11, 18, 14, 10, tzinfo=WAW)
 
-    runner.sync_all(now=datetime(2026, 11, 18, 14, 0, tzinfo=WAW))
+    runner.daily(now=woke_up)  # misfired 14:00 job, run after wake-up
+    runner.catch_up(now=woke_up)  # the 15-min check fires at the same moment
 
     assert sorted(runs(settings)) == [("brat", SyncStatus.OK), ("tomek", SyncStatus.OK)]
     assert len(runner.created) == 2  # type: ignore[attr-defined]
+
+
+def test_last_ok_counts_from_finish_time(settings: Settings) -> None:
+    add_user(settings, "tomek")
+    with open_db(settings)() as session:
+        user = session.scalars(select(User)).one()
+        # Started before 14:00, finished after: today's sync is done.
+        session.add(
+            SyncRun(
+                user_id=user.id,
+                status=SyncStatus.OK,
+                started_at=datetime(2026, 11, 18, 13, 58, tzinfo=WAW).astimezone(UTC),
+                finished_at=datetime(2026, 11, 18, 14, 2, tzinfo=WAW).astimezone(UTC),
+            )
+        )
+        session.commit()
+    runner = runner_for(settings)
+
+    runner.catch_up(now=datetime(2026, 11, 18, 14, 30, tzinfo=WAW))
+
+    assert len(runs(settings)) == 1
+
+
+def test_run_stopped_by_request_limit_counts_as_todays_sync(settings: Settings) -> None:
+    add_user(settings, "tomek")
+    with open_db(settings)() as session:
+        user = session.scalars(select(User)).one()
+        session.add(
+            SyncRun(
+                user_id=user.id,
+                status=SyncStatus.PARTIAL,
+                request_limit_reached=True,
+                started_at=datetime(2026, 11, 18, 14, 0, tzinfo=WAW).astimezone(UTC),
+                finished_at=datetime(2026, 11, 18, 14, 20, tzinfo=WAW).astimezone(UTC),
+            )
+        )
+        session.commit()
+    runner = runner_for(settings)
+
+    runner.catch_up(now=datetime(2026, 11, 18, 18, 0, tzinfo=WAW))
+
+    assert len(runs(settings)) == 1
+
+
+def test_consecutive_failures_back_off(settings: Settings) -> None:
+    add_user(settings, "tomek")
+    with open_db(settings)() as session:
+        user = session.scalars(select(User)).one()
+        for hour in (14, 15, 17):  # three failures: next try 4 h after the last
+            session.add(
+                SyncRun(
+                    user_id=user.id,
+                    status=SyncStatus.FAILED,
+                    started_at=datetime(2026, 11, 18, hour, 0, tzinfo=WAW).astimezone(UTC),
+                    finished_at=datetime(2026, 11, 18, hour, 1, tzinfo=WAW).astimezone(UTC),
+                )
+            )
+        session.commit()
+    runner = runner_for(settings)
+
+    runner.catch_up(now=datetime(2026, 11, 18, 20, 0, tzinfo=WAW))
+    assert len(runs(settings)) == 3
+    runner.catch_up(now=datetime(2026, 11, 18, 21, 1, tzinfo=WAW))
+    assert len(runs(settings)) == 4
 
 
 def test_one_user_failure_does_not_stop_others(settings: Settings) -> None:
@@ -161,7 +239,7 @@ def test_one_user_failure_does_not_stop_others(settings: Settings) -> None:
     runner = SyncRunner(
         open_db(settings), settings.model_copy(update={"sync_request_delay_s": 0}), factory
     )
-    runner.sync_all(now=datetime(2026, 11, 18, 14, 0, tzinfo=WAW))
+    runner.daily(now=datetime(2026, 11, 18, 14, 0, tzinfo=WAW))
 
     statuses = sorted(status for _, status in runs(settings))
     assert statuses == [SyncStatus.FAILED, SyncStatus.OK]
@@ -177,6 +255,7 @@ def test_scheduler_jobs(settings: Settings) -> None:
         scheduler.shutdown(wait=False)
 
     assert set(jobs) == {"daily_sync", "catch_up"}
+    assert jobs["daily_sync"].func == runner.daily
     daily = jobs["daily_sync"]
     assert str(daily.trigger.timezone) == "Europe/Warsaw"
     assert "hour='14'" in str(daily.trigger)

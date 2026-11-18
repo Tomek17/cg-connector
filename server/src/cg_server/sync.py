@@ -308,7 +308,7 @@ def sync_user(
     """Sync one user. Never raises for Garmin/network errors: the outcome is in the result
     and in `sync_runs`. Process interruption leaves the run as `running` with its cursor."""
     options = options or SyncOptions()
-    now = now or utcnow()
+    now = (now or utcnow()).astimezone(UTC)  # SQLite keeps no offset: store UTC only
     today = now.astimezone(ZoneInfo(options.timezone)).date()
 
     # Runs left `running` were interrupted (process stopped); the cursor keeps their progress.

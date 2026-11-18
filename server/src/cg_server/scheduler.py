@@ -1,8 +1,9 @@
 """Background sync schedule (APScheduler, Europe/Warsaw), started in the FastAPI lifespan.
 
-- `daily_sync` at `CG_SYNC_HOUR` (14:00): every user with Garmin tokens.
-- `catch_up` every 15 min and right after start: users whose sync is due according to
-  `needs_catch_up` (missed 14:00 because the laptop was off/asleep, or >24 h old).
+- `daily_sync` at `CG_SYNC_HOUR` (14:00) and
+- `catch_up` every 15 min and right after start: both sync the users whose sync is due
+  according to `needs_catch_up` (missed 14:00 because the laptop was off/asleep, or
+  >24 h old), with backoff after failures.
 - Jobs: coalesce, max_instances=1, misfire_grace_time; a lock keeps the two jobs from
   syncing at the same time. Users are synced one after another, never in parallel.
 """
@@ -20,7 +21,7 @@ from apscheduler.schedulers.background import (  # type: ignore[import-untyped]
 from apscheduler.triggers.cron import CronTrigger  # type: ignore[import-untyped]
 from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
 from fastapi import FastAPI
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from cg_server.config import Settings, get_settings
@@ -35,11 +36,20 @@ log = logging.getLogger(__name__)
 GatewayFactory = Callable[[], GarminGateway]
 CATCH_UP_EVERY = timedelta(minutes=15)
 RETRY_AFTER_FAILURE = timedelta(hours=1)
+MAX_RETRY_DELAY = timedelta(hours=24)
 MISFIRE_GRACE_S = 6 * 3600
 
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def retry_delay(failures: int) -> timedelta:
+    """Wait after consecutive failed attempts: 1 h, 2 h, 4 h, ... at most 24 h."""
+    if failures <= 0:
+        return timedelta(0)
+    delay: timedelta = RETRY_AFTER_FAILURE * 2 ** min(failures - 1, 10)
+    return min(delay, MAX_RETRY_DELAY)
 
 
 def needs_catch_up(
@@ -49,20 +59,22 @@ def needs_catch_up(
     *,
     tz: ZoneInfo,
     hour: int = 14,
-    retry_after: timedelta = RETRY_AFTER_FAILURE,
+    failures: int = 0,
 ) -> bool:
     """Is a sync due now? (MASTER_PROMPT 3.1)
 
-    Due when there was never a successful sync, when the last one was before today's
-    `hour` and it is already past `hour`, or when it is older than 24 h. After a failed
-    attempt wait `retry_after` before trying again (no hammering Garmin every 15 min).
+    `last_ok`: when the last successful sync finished; `last_attempt`: when the last run
+    started; `failures`: failed runs since `last_ok`.
+    Due when there was never a successful sync, when the last one finished before today's
+    `hour` and it is already past `hour`, or when it is older than 24 h. After failures
+    wait `retry_delay(failures)` from the last attempt (no hammering Garmin every 15 min).
     Naive datetimes (SQLite) are UTC.
     """
     now = _aware(now)
-    if last_attempt is not None:
+    if last_attempt is not None and failures > 0:
         attempt = _aware(last_attempt)
         failed = last_ok is None or attempt > _aware(last_ok)
-        if failed and now - attempt < retry_after:
+        if failed and now - attempt < retry_delay(failures):
             return False
     if last_ok is None:
         return True
@@ -105,19 +117,31 @@ class SyncRunner:
             return False
         if accounts.rate_limit_cooldown_until(user, now) is not None:
             return False
+        # A run stopped by the request limit is today's sync too; the rest comes tomorrow.
+        done = or_(SyncRun.status == SyncStatus.OK, SyncRun.request_limit_reached.is_(True))
         last_ok = session.scalar(
-            select(func.max(SyncRun.started_at)).where(
-                SyncRun.user_id == user.id, SyncRun.status == SyncStatus.OK
-            )
+            select(func.max(SyncRun.finished_at)).where(SyncRun.user_id == user.id, done)
         )
+        since_ok = [SyncRun.user_id == user.id, ~done]
+        if last_ok is not None:
+            since_ok.append(SyncRun.started_at > last_ok)
+        failures = session.scalar(select(func.count()).select_from(SyncRun).where(*since_ok))
         last_attempt = session.scalar(
             select(func.max(SyncRun.started_at)).where(SyncRun.user_id == user.id)
         )
-        return needs_catch_up(last_ok, last_attempt, now, tz=self.tz, hour=self.settings.sync_hour)
+        return needs_catch_up(
+            last_ok,
+            last_attempt,
+            now,
+            tz=self.tz,
+            hour=self.settings.sync_hour,
+            failures=failures or 0,
+        )
 
-    def sync_all(self, now: datetime | None = None) -> None:
-        """Daily job: every user with tokens (skipped/failed runs are recorded too)."""
-        self._run(lambda session, user: True, now)
+    def daily(self, now: datetime | None = None) -> None:
+        """14:00 job. Same rule as catch-up, so a misfired daily job and the catch-up
+        check firing together after wake-up never sync a user twice."""
+        self.catch_up(now)
 
     def catch_up(self, now: datetime | None = None) -> None:
         self._run(lambda session, user: self._is_due(session, user, now or utcnow()), now)
@@ -165,7 +189,7 @@ def create_scheduler(runner: SyncRunner, settings: Settings) -> BackgroundSchedu
         },
     )
     scheduler.add_job(
-        runner.sync_all,
+        runner.daily,
         CronTrigger(hour=settings.sync_hour, minute=0, timezone=tz),
         id="daily_sync",
     )

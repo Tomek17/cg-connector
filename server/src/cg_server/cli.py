@@ -182,7 +182,7 @@ def cmd_sync_status(settings: Settings) -> None:
                 .limit(1)
             ).one_or_none()
             last_ok = session.scalar(
-                select(func.max(SyncRun.started_at)).where(
+                select(func.max(SyncRun.finished_at)).where(
                     SyncRun.user_id == user.id, SyncRun.status == SyncStatus.OK
                 )
             )
