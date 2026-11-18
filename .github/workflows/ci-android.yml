@@ -23,10 +23,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
-        with:
-          # Domyślny pakiet "tools" nie istnieje już w repozytorium SDK.
-          packages: "platform-tools platforms;android-37 build-tools;36.0.0"
+      # Runner ma preinstalowany Android SDK (ANDROID_HOME) z zaakceptowanymi licencjami;
+      # brakującą platformę i build-tools AGP dociąga sam, z właściwą nazwą pakietu.
       # setup-gradle domyślnie weryfikuje sumę gradle-wrapper.jar i cache'uje zależności.
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, testy jednostkowe, lint
