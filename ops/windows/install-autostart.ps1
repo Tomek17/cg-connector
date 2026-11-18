@@ -27,6 +27,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# RepoPath trafia do polecenia bash w WSL - odrzucamy spacje, cudzyslowy i znaki specjalne.
+if ($RepoPath -notmatch '^[A-Za-z0-9_./~-]+\z') {
+    Write-Host "BLAD: niedozwolona sciezka -RepoPath '$RepoPath'." -ForegroundColor Red
+    Write-Host "Sciezka nie moze zawierac spacji, cudzyslowow ani znakow specjalnych." -ForegroundColor Red
+    Write-Host "Przenies repozytorium np. do ~/cg-connector i podaj -RepoPath ~/cg-connector." -ForegroundColor Red
+    exit 2
+}
 # wsl.exe domyslnie wypisuje UTF-16; to wymusza zwykly UTF-8.
 $env:WSL_UTF8 = "1"
 
