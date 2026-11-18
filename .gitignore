@@ -1,0 +1,35 @@
+# Sekrety i dane — NIGDY w repo
+.env
+*.env
+!.env.example
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.keystore
+*.jks
+garth_tokens*/
+backups/
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

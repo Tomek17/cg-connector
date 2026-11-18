@@ -1,0 +1,10 @@
+services:
+  cg-server:
+    build: .
+    image: cg-server:local
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ${CG_HOST_DATA_DIR:-./data}:/data
+    ports:
+      - "127.0.0.1:8000:8000"
