@@ -192,6 +192,31 @@ async def test_other_users_workouts_are_invisible(app: FastAPI, codes: dict[str,
         assert listed["items"] == []
 
 
+async def test_workout_tools_have_safety_annotations(app: FastAPI, codes: dict[str, str]) -> None:
+    async with running(app) as http:
+        token = (await login_tokens(http, codes["tomek"]))["access_token"]
+        http.headers["Authorization"] = f"Bearer {token}"
+        async with Client(streamable_http_client(f"{BASE}/mcp", http_client=http)) as client:
+            tools = {t.name: t.annotations for t in (await client.list_tools()).tools}
+    for name in (
+        "get_profile",
+        "list_activities",
+        "get_activity",
+        "get_vo2max_trend",
+        "get_training_summary",
+        "list_scheduled_workouts",
+    ):
+        assert tools[name] is not None and tools[name].read_only_hint is True, name
+    # Only the delete tool may remove anything in Garmin Connect (MASTER_PROMPT 7.11).
+    destructive = {
+        n
+        for n, a in tools.items()
+        if a is None or (not a.read_only_hint and a.destructive_hint is not False)
+    }
+    assert destructive == {"delete_scheduled_workout"}
+    assert tools["delete_scheduled_workout"].destructive_hint is True
+
+
 async def test_workout_tools_fit_in_2_kb(app: FastAPI, codes: dict[str, str]) -> None:
     """Free plan: the tool list is in every conversation; keep ours small."""
     from cg_server.mcp_workouts import TOOLS
@@ -205,6 +230,7 @@ async def test_workout_tools_fit_in_2_kb(app: FastAPI, codes: dict[str, str]) ->
     assert set(tools) == set(TOOLS)
     dumped = [t.model_dump(mode="json", by_alias=True, exclude_none=True) for t in tools.values()]
     text = json.dumps(dumped, separators=(",", ":"))
-    assert len(text.encode()) < 2048, len(text.encode())
+    # ~2 KB of schema and descriptions plus ~120 B of safety annotations (readOnly/destructive).
+    assert len(text.encode()) < 2200, len(text.encode())
     assert '"title"' not in text and '"null"' not in text
     assert all("outputSchema" not in t for t in dumped)

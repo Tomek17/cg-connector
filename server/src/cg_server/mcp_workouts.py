@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 import anyio
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field, WithJsonSchema
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -52,6 +52,16 @@ Definition = Annotated[
 ]
 FromDate = Annotated[date | None, Field(description="First day; default today.")]
 ToDate = Annotated[date | None, Field(description="Last day; default +30 days.")]
+
+
+# Hints for the client (claude.ai may ask the user before tools that are not read-only).
+# Only hints that differ from the MCP defaults (not read-only, destructive, not idempotent,
+# open world), to keep the tool list small. Only delete_scheduled_workout removes anything in
+# Garmin Connect (MASTER_PROMPT 7.11); it is explicitly marked destructive.
+READ_ONLY = ToolAnnotations(read_only_hint=True)
+CREATE = ToolAnnotations(destructive_hint=False, open_world_hint=False)
+SEND = ToolAnnotations(destructive_hint=False, idempotent_hint=True)
+DELETE = ToolAnnotations(destructive_hint=True)
 
 
 def compact_schema(value: Any) -> Any:
@@ -112,7 +122,7 @@ def register_workout_tools(
             item = workouts.get_scheduled(session, current_user(session), scheduled_id)
             return _result({**_item(item), "note": NOTES[item.status]})
 
-    @mcp.tool()
+    @mcp.tool(annotations=CREATE)
     def create_workout(definition: Definition) -> CallToolResult:
         """Save a workout draft, return id + preview (nothing sent yet). Run: {"sport":
         "running","name":"5x1km","steps":[{"type":"warmup","seconds":600},{"type":
@@ -133,7 +143,7 @@ def register_workout_tools(
             text = preview(workouts.definition_of(workout))
             return _result({"id": workout.id, "preview": text})
 
-    @mcp.tool()
+    @mcp.tool(annotations=SEND)
     async def schedule_workout(workout_id: int, date: date) -> CallToolResult:
         """Send a workout to the user's Garmin calendar on a day (today or later); the
         watch takes it from there. Returns the status."""
@@ -150,7 +160,7 @@ def register_workout_tools(
             await try_send(user_id)
         return status_of(scheduled_id)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def list_scheduled_workouts(
         from_date: FromDate = None, to_date: ToDate = None
     ) -> CallToolResult:
@@ -163,7 +173,7 @@ def register_workout_tools(
             items = workouts.list_scheduled(session, current_user(session), start, end)
             return _result({"range": f"{start}..{end}", "items": [_item(i) for i in items]})
 
-    @mcp.tool()
+    @mcp.tool(annotations=DELETE)
     async def delete_scheduled_workout(scheduled_id: int) -> CallToolResult:
         """Remove a scheduled workout (id from list_scheduled_workouts) from the Garmin
         calendar. Only on the user's explicit request."""

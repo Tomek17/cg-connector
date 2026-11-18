@@ -10,6 +10,13 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    # Utwardzenie: system plików kontenera tylko do odczytu (zapis wyłącznie w /data
+    # i w /tmp w pamięci), bez żadnych uprawnień jądra (proces i tak nie jest rootem).
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
     env_file: .env
     environment:
       # Klucz Tailscale jest tylko dla kontenera tailscale; nadpisujemy go pustym,
@@ -23,7 +30,10 @@ services:
       - "127.0.0.1:8000:8000"
 
   tailscale:
-    image: tailscale/tailscale:v1.104.7
+    # Przypięty digestem; aktualizuje go Dependabot (ekosystem docker-compose).
+    # Bez read_only/cap_drop: tailscaled (tryb userspace, bez NET_ADMIN) nie był z nimi
+    # testowany, a awaria oznacza brak tunelu; patrz docs/bezpieczenstwo.md.
+    image: tailscale/tailscale:v1.104.7@sha256:72c1e19e0aedca96b8533bbb0b4368564410ff20b17e53b804eb6c1f04a31be4
     # Nazwa kontenera w Dockerze celowo INNA niż "cg-server": inaczej nazwa
     # cg-server wskazywałaby w tym kontenerze na niego samego (/etc/hosts),
     # a Funnel nie trafiłby do serwera. Nazwa maszyny w Tailscale to TS_HOSTNAME.
