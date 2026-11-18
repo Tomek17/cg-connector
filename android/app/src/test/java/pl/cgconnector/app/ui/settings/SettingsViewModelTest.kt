@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
+import pl.cgconnector.app.domain.ConfigState
 import pl.cgconnector.app.domain.ServerConfig
 import pl.cgconnector.app.domain.TokenError
 import pl.cgconnector.app.domain.UrlError
@@ -36,6 +37,24 @@ class SettingsViewModelTest {
         assertThat(state.serverUrl).isEqualTo("https://cg.example.ts.net")
         assertThat(state.token).isEmpty()
         assertThat(state.hasSavedToken).isTrue()
+    }
+
+    @Test
+    fun `lost token keeps url and asks for token again`() {
+        val repo = FakeServerConfigRepository(ConfigState.TokenMissing("https://cg.example.ts.net"))
+        val viewModel = SettingsViewModel(repo)
+
+        assertThat(viewModel.uiState.value.serverUrl).isEqualTo("https://cg.example.ts.net")
+        assertThat(viewModel.uiState.value.tokenLost).isTrue()
+        assertThat(viewModel.uiState.value.hasSavedToken).isFalse()
+
+        viewModel.save()
+        assertThat(viewModel.uiState.value.tokenError).isEqualTo(TokenError.EMPTY)
+
+        viewModel.onTokenChange(validToken)
+        viewModel.save()
+        assertThat(repo.saved).containsExactly(ServerConfig("https://cg.example.ts.net", validToken))
+        assertThat(viewModel.uiState.value.tokenLost).isFalse()
     }
 
     @Test

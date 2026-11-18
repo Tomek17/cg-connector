@@ -118,6 +118,14 @@ fun SettingsScreen(
         ) {
             Text(stringResource(R.string.settings_intro), style = MaterialTheme.typography.bodyMedium)
 
+            if (state.tokenLost) {
+                Text(
+                    stringResource(R.string.settings_token_lost),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             OutlinedTextField(
                 value = state.serverUrl,
                 onValueChange = onServerUrlChange,

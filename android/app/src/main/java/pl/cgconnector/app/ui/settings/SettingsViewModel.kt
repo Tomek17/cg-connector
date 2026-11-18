@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pl.cgconnector.app.data.settings.ServerConfigRepository
+import pl.cgconnector.app.domain.ConfigState
 import pl.cgconnector.app.domain.ConfigValidator
 import pl.cgconnector.app.domain.ServerConfig
 import pl.cgconnector.app.domain.TokenError
@@ -26,6 +27,8 @@ data class SettingsUiState(
     /** Nowy token wpisany przez użytkownika. Zapisany token nigdy nie wraca do pola tekstowego. */
     val token: String = "",
     val hasSavedToken: Boolean = false,
+    /** Zapisany token przepadł (np. unieważniony klucz Keystore): trzeba go wkleić ponownie. */
+    val tokenLost: Boolean = false,
     val urlError: UrlError? = null,
     val tokenError: TokenError? = null,
     val isLoading: Boolean = true,
@@ -52,13 +55,15 @@ class SettingsViewModel
 
         init {
             viewModelScope.launch {
-                val current = repository.config.first()
+                val current = repository.state.first()
                 _uiState.update {
-                    it.copy(
-                        serverUrl = current?.serverUrl.orEmpty(),
-                        hasSavedToken = current != null,
-                        isLoading = false,
-                    )
+                    when (current) {
+                        ConfigState.NotConfigured -> it.copy(isLoading = false)
+                        is ConfigState.TokenMissing ->
+                            it.copy(serverUrl = current.serverUrl, tokenLost = true, isLoading = false)
+                        is ConfigState.Configured ->
+                            it.copy(serverUrl = current.config.serverUrl, hasSavedToken = true, isLoading = false)
+                    }
                 }
             }
         }
@@ -98,7 +103,13 @@ class SettingsViewModel
                         }
                     repository.save(ServerConfig(serverUrl = normalizedUrl, token = token))
                     _uiState.update {
-                        it.copy(serverUrl = normalizedUrl, token = "", hasSavedToken = true, isSaving = false)
+                        it.copy(
+                            serverUrl = normalizedUrl,
+                            token = "",
+                            hasSavedToken = true,
+                            tokenLost = false,
+                            isSaving = false,
+                        )
                     }
                     _events.send(SettingsEvent.Saved)
                 } catch (e: CancellationException) {

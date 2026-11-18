@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
 import pl.cgconnector.app.data.settings.ServerConfigRepository
+import pl.cgconnector.app.domain.ConfigState
 import javax.inject.Inject
 
 sealed interface StartState {
@@ -25,8 +26,8 @@ class MainViewModel
         configRepository: ServerConfigRepository,
     ) : ViewModel() {
         val startState: StateFlow<StartState> =
-            configRepository.config
+            configRepository.state
                 .take(1)
-                .map { StartState.Ready(isConfigured = it != null) }
+                .map { StartState.Ready(isConfigured = it is ConfigState.Configured) }
                 .stateIn(viewModelScope, SharingStarted.Eagerly, StartState.Loading)
     }
