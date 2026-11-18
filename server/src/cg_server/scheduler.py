@@ -4,6 +4,7 @@
 - `catch_up` every 15 min and right after start: both sync the users whose sync is due
   according to `needs_catch_up` (missed 14:00 because the laptop was off/asleep, or
   >24 h old), with backoff after failures.
+- `outbox` every 15 min and right after start: sends scheduled workouts to Garmin.
 - Jobs: coalesce, max_instances=1, misfire_grace_time; a lock keeps the two jobs from
   syncing at the same time. Users are synced one after another, never in parallel.
 """
@@ -20,15 +21,15 @@ from apscheduler.schedulers.background import (  # type: ignore[import-untyped]
 )
 from apscheduler.triggers.cron import CronTrigger  # type: ignore[import-untyped]
 from apscheduler.triggers.interval import IntervalTrigger  # type: ignore[import-untyped]
-from fastapi import FastAPI
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from cg_server.config import Settings, get_settings
+from cg_server.config import Settings
 from cg_server.db import open_db
 from cg_server.garmin import accounts
 from cg_server.garmin.gateway import GarminGateway, RealGarminGateway
 from cg_server.models import GarminCredentials, GarminStatus, SyncRun, SyncStatus, User, utcnow
+from cg_server.outbox import OutboxRunner
 from cg_server.sync import SyncOptions, sync_user
 from cg_server.synclock import SyncBusy
 
@@ -182,7 +183,9 @@ class SyncRunner:
             log.warning("sync user_id=%s crashed: %s", user_id, type(e).__name__)
 
 
-def create_scheduler(runner: SyncRunner, settings: Settings) -> BackgroundScheduler:
+def create_scheduler(
+    runner: SyncRunner, settings: Settings, outbox: OutboxRunner | None = None
+) -> BackgroundScheduler:
     tz = ZoneInfo(settings.timezone)
     scheduler = BackgroundScheduler(
         timezone=tz,
@@ -203,6 +206,14 @@ def create_scheduler(runner: SyncRunner, settings: Settings) -> BackgroundSchedu
         id="catch_up",
         next_run_time=datetime.now(tz),  # catch-up right after the app starts
     )
+    if outbox is not None:
+        # Workouts waiting for Garmin (e.g. laptop was asleep, or after a failure).
+        scheduler.add_job(
+            outbox.run_all,
+            IntervalTrigger(seconds=int(CATCH_UP_EVERY.total_seconds()), timezone=tz),
+            id="outbox",
+            next_run_time=datetime.now(tz),
+        )
     return scheduler
 
 
@@ -212,16 +223,17 @@ def start_scheduler(
     if not settings.encryption_key:
         log.warning("CG_ENCRYPTION_KEY is not set: background sync disabled")
         return None
-    runner = SyncRunner(open_db(settings), settings, gateway_factory or RealGarminGateway)
-    scheduler = create_scheduler(runner, settings)
+    sessions = open_db(settings)
+    factory = gateway_factory or RealGarminGateway
+    runner = SyncRunner(sessions, settings, factory)
+    scheduler = create_scheduler(runner, settings, OutboxRunner(sessions, settings, factory))
     scheduler.start()
     return scheduler
 
 
 @asynccontextmanager
-async def scheduler_lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """FastAPI lifespan: start the sync scheduler unless CG_SCHEDULER_ENABLED=false."""
-    settings = get_settings()
+async def scheduler_running(settings: Settings) -> AsyncIterator[None]:
+    """Part of the app lifespan: run the sync scheduler unless CG_SCHEDULER_ENABLED=false."""
     scheduler = start_scheduler(settings) if settings.scheduler_enabled else None
     try:
         yield

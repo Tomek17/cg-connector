@@ -2,9 +2,13 @@
 
 import argparse
 import getpass
+import json
 import sys
+import tempfile
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
@@ -14,7 +18,9 @@ from garminconnect import GarminConnectConnectionError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from cg_server.config import Settings, get_settings
+from cg_server import workouts
+from cg_server.app import create_app
+from cg_server.config import ConfigError, Settings, get_settings
 from cg_server.crypto import CryptoError, generate_key, validate_key
 from cg_server.db import open_db
 from cg_server.garmin import accounts
@@ -25,10 +31,22 @@ from cg_server.garmin.gateway import (
     GarminRateLimited,
     RealGarminGateway,
 )
-from cg_server.models import Activity, SyncRun, SyncStatus, User, utcnow
+from cg_server.logging_filter import uvicorn_log_config
+from cg_server.models import (
+    Activity,
+    ScheduleStatus,
+    SyncRun,
+    SyncStatus,
+    User,
+    WorkoutOrigin,
+    utcnow,
+)
+from cg_server.outbox import process_user_outbox
 from cg_server.sync import SyncOptions, sync_user
 from cg_server.synclock import SyncBusy
+from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import UserError, add_user, get_user
+from cg_server.workout_definition import preview
 
 GatewayFactory = Callable[[], GarminGateway]
 
@@ -51,6 +69,16 @@ GARMIN_CONNECTION_ERRORS = (
 )
 
 
+# Port 8000 is published only on 127.0.0.1 and reached from the internet only through the
+# Tailscale container, which sets X-Forwarded-For to the real client IP. Trusting it makes the
+# rate limit per real client instead of per proxy.
+SERVE_OPTIONS: dict[str, Any] = {
+    "factory": True,
+    "proxy_headers": True,
+    "forwarded_allow_ips": "*",
+}
+
+
 class CliError(Exception):
     """Expected failure; the message is printed to stderr and the exit code is 1."""
 
@@ -71,6 +99,39 @@ def cmd_user_add(settings: Settings, name: str) -> None:
     with open_db(settings)() as session:
         add_user(session, name)
     print(f"Dodano użytkownika „{name}”.")
+
+
+SECRET_INFO = {
+    SecretKind.CG_CODE: (
+        "Osobisty kod CG-connector",
+        "Wklej go na stronie logowania przy dodawaniu konektora w claude.ai.",
+    ),
+    SecretKind.APP_TOKEN: (
+        "Token aplikacji Android",
+        "Wpisz go w ustawieniach aplikacji CG-connector na telefonie.",
+    ),
+}
+
+
+def _show_secret_once(secret: str) -> None:
+    # Intentional: the freshly generated secret is shown to the operator exactly once, on the
+    # terminal (stdout), so they can hand it to the user. It is not logged and not stored
+    # anywhere in plaintext (the database keeps only its hash).
+    sys.stdout.write(f"\n    {secret}\n\n")
+    sys.stdout.flush()
+
+
+def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> None:
+    with open_db(settings)() as session:
+        user = _require_user(session, name)
+        secret = issue_secret(session, user, kind)
+    title, hint = SECRET_INFO[kind]
+    print(f"{title} dla „{name}” (pokazywany tylko raz, zapisz go w bezpiecznym miejscu):")
+    _show_secret_once(secret)
+    print(hint)
+    print("Poprzedni kod/token (jeśli był) przestał działać.")
+    if kind is SecretKind.CG_CODE:
+        print("Wcześniejsze połączenia claude.ai zostały rozłączone; połącz konektor ponownie.")
 
 
 def _cooldown_message(until: datetime) -> str:
@@ -171,6 +232,89 @@ def cmd_sync(settings: Settings, name: str, gateway: GarminGateway) -> None:
     print(summary)
 
 
+TEST_WORKOUTS: dict[str, dict[str, Any]] = {
+    "run": {
+        "sport": "running",
+        "name": "Test bieg",
+        "description": "Trening testowy CG-connector",
+        "steps": [
+            {"type": "warmup", "seconds": 300},
+            {
+                "type": "repeat",
+                "times": 3,
+                "steps": [
+                    {
+                        "type": "interval",
+                        "distance_km": 0.4,
+                        "target": {"type": "pace", "from": "5:30", "to": "5:00"},
+                    },
+                    {"type": "recovery", "seconds": 90, "target": {"type": "hr_zone", "zone": 1}},
+                ],
+            },
+            {"type": "cooldown", "lap_button": True},
+        ],
+    },
+    "strength": {
+        "sport": "strength",
+        "name": "Test siła",
+        "description": "Trening testowy CG-connector",
+        "exercises": [
+            {
+                "exercise": "Barbell Back Squat",
+                "sets": 3,
+                "reps": 5,
+                "weight_kg": 20,
+                "rest_seconds": 90,
+            },
+            {"exercise": "Plank", "sets": 2, "seconds": 30, "rest_seconds": 60},
+        ],
+    },
+}
+
+
+def cmd_workout_test(
+    settings: Settings, name: str, day: str, kind: str, gateway: GarminGateway
+) -> None:
+    """Create a small test workout and send it to the Garmin calendar now (watch spike)."""
+    key = _require_key(settings)
+    try:
+        when = date.fromisoformat(day)
+    except ValueError:
+        raise CliError("Data w formacie RRRR-MM-DD, np. 2026-11-20.") from None
+    today = datetime.now(ZoneInfo(settings.timezone)).date()
+    with open_db(settings)() as session:
+        user = _require_user(session, name)
+        definition = TEST_WORKOUTS[kind]
+        try:
+            workout, _ = workouts.create_workout(
+                session, user, definition, origin=WorkoutOrigin.APP
+            )
+            item, _ = workouts.schedule_workout(session, user, workout.id, when, today=today)
+        except workouts.WorkoutError as e:
+            raise CliError(f"Nie można zaplanować: {e}") from e
+        print(preview(workouts.definition_of(workout)))
+        try:
+            process_user_outbox(
+                session,
+                user,
+                gateway,
+                key=key,
+                delay_s=settings.sync_request_delay_s,
+                lock_dir=settings.data_dir,
+                timezone=settings.timezone,
+            )
+        except SyncBusy as e:
+            raise CliError(
+                "Trwa synchronizacja z Garminem; trening czeka w kolejce i zostanie wysłany "
+                "automatycznie."
+            ) from e
+        session.refresh(item)
+        print(f"Status: {item.status.value} (id wpisu: {item.id}, data: {item.date}).")
+        if item.status != ScheduleStatus.SENT:
+            raise CliError(item.last_error or "Trening nie został jeszcze wysłany.")
+    print("Na zegarku: zsynchronizuj go z aplikacją Garmin Connect i sprawdź kalendarz.")
+
+
 def _local(value: datetime | None, tz: ZoneInfo) -> str:
     if value is None:
         return "nigdy"
@@ -212,6 +356,20 @@ def cmd_sync_status(settings: Settings) -> None:
             print(line)
 
 
+def cmd_export_openapi(settings: Settings, out: Path) -> None:
+    """Write the REST contract (OpenAPI, as generated by FastAPI) to `out`.
+
+    The app is built with a throw-away database in a temporary directory, so this works
+    anywhere (CI, laptop) without touching real data; CG_ENV=test exposes the schema."""
+    if settings.is_production:
+        raise CliError("Eksport OpenAPI tylko poza produkcją: uruchom z CG_ENV=test.")
+    with tempfile.TemporaryDirectory() as tmp:
+        app = create_app(settings.model_copy(update={"data_dir": Path(tmp)}))
+        spec = app.openapi()
+    out.write_text(json.dumps(spec, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"Zapisano kontrakt API: {out}")
+
+
 def main(
     argv: list[str] | None = None, *, gateway_factory: GatewayFactory = RealGarminGateway
 ) -> int:
@@ -232,19 +390,45 @@ def main(
     sub.add_parser(
         "garmin-check", help="sprawdź zapisane tokeny Garmina i odśwież je"
     ).add_argument("--user", required=True)
+    sub.add_parser(
+        "user-code", help="wygeneruj nowy osobisty kod CG (logowanie konektora w claude.ai)"
+    ).add_argument("--user", required=True)
+    sub.add_parser("app-token", help="wygeneruj nowy token aplikacji Android").add_argument(
+        "--user", required=True
+    )
     sub.add_parser("sync", help="pobierz teraz dane z Garmin Connect").add_argument(
         "--user", required=True
     )
     sub.add_parser("sync-status", help="pokaż stan synchronizacji wszystkich użytkowników")
+    workout_test = sub.add_parser(
+        "workout-test", help="utwórz i wyślij do kalendarza Garmin mały trening testowy"
+    )
+    workout_test.add_argument("--user", required=True)
+    workout_test.add_argument("--date", required=True, help="RRRR-MM-DD")
+    workout_test.add_argument("--kind", choices=sorted(TEST_WORKOUTS), default="run")
+    sub.add_parser(
+        "export-openapi", help="zapisz kontrakt REST API (OpenAPI JSON); wymaga CG_ENV=test"
+    ).add_argument("path", type=Path)
     args = parser.parse_args(argv)
 
     try:
         if args.command == "serve":
-            uvicorn.run("cg_server.app:app", host=args.host, port=args.port, proxy_headers=True)
+            get_settings().check_public_host()
+            uvicorn.run(
+                "cg_server.app:create_app",
+                host=args.host,
+                port=args.port,
+                log_config=uvicorn_log_config(),
+                **SERVE_OPTIONS,
+            )
         elif args.command == "gen-key":
             print(generate_key())
         elif args.command == "user-add":
             cmd_user_add(get_settings(), args.name)
+        elif args.command == "user-code":
+            cmd_issue_secret(get_settings(), args.user, SecretKind.CG_CODE)
+        elif args.command == "app-token":
+            cmd_issue_secret(get_settings(), args.user, SecretKind.APP_TOKEN)
         elif args.command == "garmin-login":
             cmd_garmin_login(get_settings(), args.user, gateway_factory(), force=args.force)
         elif args.command == "garmin-check":
@@ -253,7 +437,11 @@ def main(
             cmd_sync(get_settings(), args.user, gateway_factory())
         elif args.command == "sync-status":
             cmd_sync_status(get_settings())
-    except (CliError, UserError, CryptoError) as e:
+        elif args.command == "workout-test":
+            cmd_workout_test(get_settings(), args.user, args.date, args.kind, gateway_factory())
+        elif args.command == "export-openapi":
+            cmd_export_openapi(get_settings(), args.path)
+    except (CliError, UserError, CryptoError, ConfigError) as e:
         print(f"Błąd: {e}", file=sys.stderr)
         return 1
     except GARMIN_CONNECTION_ERRORS:
