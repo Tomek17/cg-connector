@@ -70,12 +70,17 @@ GARMIN_CONNECTION_ERRORS = (
 
 
 # Port 8000 is published only on 127.0.0.1 and reached from the internet only through the
-# Tailscale container, which sets X-Forwarded-For to the real client IP. Trusting it makes the
-# rate limit per real client instead of per proxy.
+# Tailscale container, which sets X-Forwarded-For to the real client IP (it replaces the
+# header, see docs/bezpieczenstwo.md). We trust X-Forwarded-* only from local and private
+# addresses (the Docker network of compose, whose subnet Docker picks), never "*": with "*"
+# uvicorn takes the LEFTMOST, client-supplied address, so a proxy that appends to the header
+# (e.g. Cloudflare Tunnel) would let anyone pick their IP and dodge the rate limits. With a
+# list, uvicorn takes the rightmost address that is not trusted, i.e. the one the proxy saw.
+TRUSTED_PROXIES = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
 SERVE_OPTIONS: dict[str, Any] = {
     "factory": True,
     "proxy_headers": True,
-    "forwarded_allow_ips": "*",
+    "forwarded_allow_ips": TRUSTED_PROXIES,
 }
 
 

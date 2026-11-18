@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -150,7 +151,8 @@ def test_rate_limit_is_per_forwarded_client_ip(settings: Settings) -> None:
         settings.model_copy(update={"public_host": PUBLIC_HOST, "rate_limit_per_minute": 2})
     )
     proxied = ProxyHeadersMiddleware(app, trusted_hosts=SERVE_OPTIONS["forwarded_allow_ips"])
-    client = TestClient(proxied, base_url=BASE)  # type: ignore[arg-type]
+    # Requests come from the Tailscale container on the compose network.
+    client = TestClient(proxied, base_url=BASE, client=("172.18.0.3", 41000))  # type: ignore[arg-type]
 
     def post(ip: str) -> int:
         return client.post("/token", data={}, headers={"X-Forwarded-For": ip}).status_code
@@ -160,9 +162,29 @@ def test_rate_limit_is_per_forwarded_client_ip(settings: Settings) -> None:
     assert post("198.51.100.7") != 429
 
 
-def test_serve_trusts_forwarded_headers() -> None:
+def test_serve_trusts_forwarded_headers_only_from_local_proxies() -> None:
     assert SERVE_OPTIONS["proxy_headers"] is True
-    assert SERVE_OPTIONS["forwarded_allow_ips"] == "*"
+    assert SERVE_OPTIONS["forwarded_allow_ips"] != "*"
+
+
+def _seen_ip(peer: str, forwarded_for: str) -> str:
+    async def echo(scope: Any, receive: Any, send: Any) -> None:
+        body = scope["client"][0].encode()
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": body})
+
+    proxied = ProxyHeadersMiddleware(echo, trusted_hosts=SERVE_OPTIONS["forwarded_allow_ips"])
+    client = TestClient(proxied, client=(peer, 41000))  # type: ignore[arg-type]
+    return client.get("/", headers={"X-Forwarded-For": forwarded_for}).text
+
+
+def test_client_ip_is_the_one_the_proxy_saw() -> None:
+    # Tailscale replaces the header: one address, the real client.
+    assert _seen_ip("172.18.0.3", "203.0.113.9") == "203.0.113.9"
+    # A proxy that appends: the client's own (spoofed) entry on the left is ignored.
+    assert _seen_ip("172.18.0.3", "1.2.3.4, 203.0.113.9") == "203.0.113.9"
+    # Not from a local proxy: the header is not trusted at all.
+    assert _seen_ip("198.51.100.20", "1.2.3.4") == "198.51.100.20"
 
 
 @pytest.mark.parametrize("host", ["", "localhost:8000", "127.0.0.1:8000", "localhost"])

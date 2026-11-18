@@ -19,3 +19,7 @@ updates:
     groups:
       android-deps:
         patterns: ["*"]
+  # Obraz tailscale/tailscale w server/compose.yaml (przypięty digestem).
+  - package-ecosystem: docker-compose
+    directory: /server
+    schedule: { interval: weekly }

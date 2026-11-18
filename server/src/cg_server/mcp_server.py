@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cg_server import mcp_read, queries
 from cg_server.config import Settings
-from cg_server.mcp_workouts import register_workout_tools
+from cg_server.mcp_workouts import READ_ONLY, register_workout_tools
 from cg_server.models import ActivityKind, User, utcnow
 from cg_server.oauth import SCOPE, CgOAuthProvider
 from cg_server.outbox import OutboxRunner
@@ -85,7 +85,7 @@ def build_mcp(
 
     tz = ZoneInfo(settings.timezone)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def get_profile() -> Profile:
         """Signed-in user, Garmin connection status, last successful sync (local time) and the
         local date of the newest synced activity."""
@@ -112,7 +112,7 @@ def build_mcp(
             raise ToolError("Activity not found.")
         return _result(data)
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def list_activities(
         from_date: FromDate = None,
         to_date: ToDate = None,
@@ -136,7 +136,7 @@ def build_mcp(
             )
         )
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def get_activity(
         activity_id: Annotated[int, Field(description="Activity id from list_activities.")],
     ) -> CallToolResult:
@@ -148,7 +148,7 @@ def build_mcp(
             )
         )
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def get_vo2max_trend(from_date: FromDate = None, to_date: ToDate = None) -> CallToolResult:
         """Running VO2max trend: latest value, change, min/max and points [date, value]
         (only changes; weekly/monthly for long ranges). Default: last 180 days."""
@@ -158,7 +158,7 @@ def build_mcp(
             )
         )
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     def get_training_summary(
         period: Annotated[Period, Field(description="week (Mon-Sun) or month.")] = Period.WEEK,
         from_date: FromDate = None,
