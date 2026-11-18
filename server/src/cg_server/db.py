@@ -18,8 +18,12 @@ def db_path(settings: Settings) -> Path:
 
 
 def create_db_engine(settings: Settings) -> Engine:
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{db_path(settings)}")
+    # The database holds encrypted Garmin tokens: owner-only access.
+    settings.data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = db_path(settings)
+    path.touch(mode=0o600, exist_ok=True)
+    path.chmod(0o600)
+    engine = create_engine(f"sqlite:///{path}")
 
     @event.listens_for(engine, "connect")
     def _enable_foreign_keys(dbapi_conn: Any, _record: Any) -> None:

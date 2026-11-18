@@ -5,7 +5,7 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from cg_server.config import Settings
-from cg_server.db import create_db_engine, open_db, upgrade_db
+from cg_server.db import create_db_engine, db_path, open_db, upgrade_db
 from cg_server.models import Base, GarminCredentials, GarminStatus, User
 
 
@@ -46,3 +46,17 @@ def test_credentials_belong_to_user(settings: Settings) -> None:
         assert user.created_at is not None
         assert user.garmin_credentials.updated_at is not None
         assert user.garmin_credentials.encrypted_tokens is None
+
+
+def test_data_dir_and_database_are_private(settings: Settings) -> None:
+    open_db(settings)
+    assert (settings.data_dir.stat().st_mode & 0o777) == 0o700
+    assert (db_path(settings).stat().st_mode & 0o777) == 0o600
+
+
+def test_existing_database_permissions_are_tightened(settings: Settings) -> None:
+    settings.data_dir.mkdir(parents=True)
+    db_path(settings).touch(mode=0o644)
+    db_path(settings).chmod(0o644)
+    open_db(settings)
+    assert (db_path(settings).stat().st_mode & 0o777) == 0o600
