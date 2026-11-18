@@ -1,5 +1,6 @@
 """MCP workout tools over the real MCP transport (OAuth token -> user), fake Garmin."""
 
+import json
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from typing import Any
@@ -96,7 +97,7 @@ async def test_create_schedule_list_delete(
             http,
             token,
             "schedule_workout",
-            {"workout_id": created["workout_id"], "date": DAY.isoformat()},
+            {"workout_id": created["id"], "date": DAY.isoformat()},
         )
         assert scheduled["status"] == "sent"
         assert scheduled["date"] == DAY.isoformat()
@@ -108,7 +109,7 @@ async def test_create_schedule_list_delete(
             http,
             token,
             "list_scheduled_workouts",
-            {"date_from": DAY.isoformat(), "date_to": DAY.isoformat()},
+            {"from_date": DAY.isoformat(), "to_date": DAY.isoformat()},
         )
         assert [(i["id"], i["status"]) for i in listed["items"]] == [(scheduled["id"], "sent")]
 
@@ -146,10 +147,10 @@ async def test_schedule_stays_pending_during_429_pause(
             http,
             token,
             "schedule_workout",
-            {"workout_id": created["workout_id"], "date": DAY.isoformat()},
+            {"workout_id": created["id"], "date": DAY.isoformat()},
         )
         assert scheduled["status"] == "pending"
-        assert "429" in scheduled["last_error"]
+        assert "429" in scheduled["error"]
         assert fake.calls == []
 
 
@@ -162,9 +163,9 @@ async def test_other_users_workouts_are_invisible(app: FastAPI, codes: dict[str,
             http,
             tomek,
             "schedule_workout",
-            {"workout_id": created["workout_id"], "date": DAY.isoformat()},
+            {"workout_id": created["id"], "date": DAY.isoformat()},
         )
-        args = {"workout_id": created["workout_id"], "date": DAY.isoformat()}
+        args = {"workout_id": created["id"], "date": DAY.isoformat()}
         assert "not found" in await call_error(http, brat, "schedule_workout", args)
         assert "not found" in await call_error(
             http, brat, "delete_scheduled_workout", {"scheduled_id": scheduled["id"]}
@@ -173,6 +174,24 @@ async def test_other_users_workouts_are_invisible(app: FastAPI, codes: dict[str,
             http,
             brat,
             "list_scheduled_workouts",
-            {"date_from": DAY.isoformat(), "date_to": DAY.isoformat()},
+            {"from_date": DAY.isoformat(), "to_date": DAY.isoformat()},
         )
         assert listed["items"] == []
+
+
+async def test_workout_tools_fit_in_2_kb(app: FastAPI, codes: dict[str, str]) -> None:
+    """Free plan: the tool list is in every conversation; keep ours small."""
+    from cg_server.mcp_workouts import TOOLS
+
+    async with running(app) as http:
+        token = (await login_tokens(http, codes["tomek"]))["access_token"]
+        http.headers["Authorization"] = f"Bearer {token}"
+        async with Client(streamable_http_client(f"{BASE}/mcp", http_client=http)) as client:
+            listed = (await client.list_tools()).tools
+    tools = {t.name: t for t in listed if t.name in TOOLS}
+    assert set(tools) == set(TOOLS)
+    dumped = [t.model_dump(mode="json", by_alias=True, exclude_none=True) for t in tools.values()]
+    text = json.dumps(dumped, separators=(",", ":"))
+    assert len(text.encode()) < 2048, len(text.encode())
+    assert '"title"' not in text and '"null"' not in text
+    assert all("outputSchema" not in t for t in dumped)

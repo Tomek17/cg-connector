@@ -131,22 +131,23 @@ class RunStep(_Model):
 class RepeatStep(_Model):
     type: Literal["repeat"]
     times: int = Field(ge=1, le=50)
-    steps: "list[Step]" = Field(min_length=1)
+    steps: list[RunStep] = Field(min_length=1)
 
-    @field_validator("steps")
+    @field_validator("steps", mode="before")
     @classmethod
-    def _flat(cls, steps: "list[Step]") -> "list[Step]":
-        if any(isinstance(s, RepeatStep) for s in steps):
+    def _flat(cls, steps: Any) -> Any:
+        if isinstance(steps, list) and any(
+            isinstance(s, dict) and s.get("type") == "repeat" for s in steps
+        ):
             raise ValueError("Nested repeats are not supported")
         return steps
 
 
 Step = Annotated[RunStep | RepeatStep, Field(discriminator="type")]
-RepeatStep.model_rebuild()
 
 
 def count_steps(steps: list[Step]) -> int:
-    return sum(1 + (count_steps(s.steps) if isinstance(s, RepeatStep) else 0) for s in steps)
+    return sum(1 + (len(s.steps) if isinstance(s, RepeatStep) else 0) for s in steps)
 
 
 class RunningDefinition(_Model):
@@ -310,10 +311,7 @@ def preview(definition: RunningDefinition | StrengthDefinition) -> str:
     for i, step in enumerate(definition.steps, 1):
         if isinstance(step, RepeatStep):
             lines.append(f"{i}. Repeat {step.times}x:")
-            lines += [
-                f"   {_letter(j)}. {_step_text(inner)}"  # type: ignore[arg-type]
-                for j, inner in enumerate(step.steps)
-            ]
+            lines += [f"   {_letter(j)}. {_step_text(inner)}" for j, inner in enumerate(step.steps)]
         else:
             lines.append(f"{i}. {_step_text(step)}")
     return "\n".join(lines)

@@ -8,6 +8,7 @@ The JSON is built only through the library's Pydantic models and helpers
 """
 
 import math
+from collections.abc import Sequence
 from typing import Any
 
 from garminconnect import exercises as catalog
@@ -111,7 +112,9 @@ def _run_step(step: wd.RunStep, order: int) -> ExecutableStep:
     )
 
 
-def _run_steps(steps: list[wd.Step], order: int) -> tuple[list[ExecutableStep | RepeatGroup], int]:
+def _run_steps(
+    steps: Sequence[wd.RunStep | wd.RepeatStep], order: int
+) -> tuple[list[ExecutableStep | RepeatGroup], int]:
     """Garmin steps for `steps`, numbered from `order`; returns them and the next order."""
     result: list[ExecutableStep | RepeatGroup] = []
     for step in steps:
@@ -125,7 +128,7 @@ def _run_steps(steps: list[wd.Step], order: int) -> tuple[list[ExecutableStep | 
     return result, order
 
 
-def _estimated_seconds(steps: list[wd.Step]) -> float:
+def _estimated_seconds(steps: Sequence[wd.RunStep | wd.RepeatStep]) -> float:
     """Time steps plus distance steps with a pace target (middle of the range)."""
     total = 0.0
     for step in steps:
