@@ -33,6 +33,7 @@ Dla użytkowników:
 Dla programistów:
 
 - [Architektura](docs/architektura.md)
+- [Bezpieczeństwo (model zagrożeń, zgłaszanie problemów)](docs/bezpieczenstwo.md)
 - [Decyzje architektoniczne (ADR)](docs/adr/)
 - [Kontrakt REST API (OpenAPI)](docs/api/)
 - [Research](docs/research/)
