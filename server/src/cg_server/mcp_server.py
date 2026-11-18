@@ -20,14 +20,16 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cg_server import mcp_read, queries
 from cg_server.config import Settings
+from cg_server.mcp_workouts import register_workout_tools
 from cg_server.models import ActivityKind, User, utcnow
 from cg_server.oauth import SCOPE, CgOAuthProvider
+from cg_server.outbox import OutboxRunner
 from cg_server.queries import Period
 
 INSTRUCTIONS = (
     "CG-connector: the user's Garmin Connect training data (activities, VO2max) "
-    "synced once a day. Units: km, min/km, bpm; times local (Europe/Warsaw). "
-    "Dates are YYYY-MM-DD."
+    "synced once a day, and workouts sent to the user's Garmin calendar/watch. "
+    "Units: km, min/km, bpm; times local (Europe/Warsaw). Dates are YYYY-MM-DD."
 )
 
 FromDate = Annotated[date | None, Field(description="First local day, YYYY-MM-DD.")]
@@ -59,7 +61,10 @@ def _result(data: dict[str, Any]) -> CallToolResult:
 
 
 def build_mcp(
-    settings: Settings, sessions: sessionmaker[Session], provider: CgOAuthProvider
+    settings: Settings,
+    sessions: sessionmaker[Session],
+    provider: CgOAuthProvider,
+    outbox: OutboxRunner | None = None,
 ) -> MCPServer:
     mcp = MCPServer(
         "CG-connector",
@@ -173,4 +178,5 @@ def build_mcp(
             )
         )
 
+    register_workout_tools(mcp, settings, sessions, current_user, outbox)
     return mcp

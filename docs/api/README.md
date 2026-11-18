@@ -30,6 +30,10 @@ CI (`ci-server.yml`) i test `tests/test_openapi.py` sprawdzają, czy plik jest a
 | `GET /activities/{id}` | szczegóły: okrążenia, czas w strefach HR, serie siłowe | |
 | `GET /vo2max?from&to` | punkty VO2max (wszystkie sporty, pole `sport`) | ostatnie 365 dni; maks. 2 lata |
 | `GET /summary?period=week\|month&from&to` | sumy per okres i typ | 12 ostatnich okresów; maks. 2 lata |
+| `POST /workouts` | zapis treningu (szkic), idempotentnie po `client_id` | |
+| `POST /workouts/{id}/schedule` | zaplanowanie na dzień w kalendarzu Garmin (outbox) | |
+| `GET /scheduled?from&to` | zaplanowane treningi CG-connector ze statusem | od dziś, 30 dni; maks. 366 dni |
+| `DELETE /scheduled/{id}` | usunięcie zaplanowanego treningu (tylko własnego) | |
 
 ### `GET /me`
 
@@ -65,6 +69,40 @@ Garmina, `details_available` = `false`, a listy są puste.
 dystans). Sumowane są tylko aktywności z dni `[from, to]`, więc pierwszy i ostatni okres mogą być
 niepełne. Okresy bez aktywności są pomijane.
 
+### Treningi (`POST /workouts`, outbox)
+
+Body: `{"client_id": "<UUID z aplikacji>", "definition": {...}}`. Ten sam `client_id` drugi raz
+zwraca istniejący trening (`200` zamiast `201`), więc kolejka w aplikacji może bezpiecznie
+ponawiać. Definicja (wersja 1, `version` domyślnie `1`), schemat w `openapi.json`:
+
+- bieg: `{"sport": "running", "name": "5x1km", "steps": [...]}`; krok: `type` `warmup` /
+  `interval` / `recovery` / `cooldown` / `rest`, koniec dokładnie jednym z `seconds`,
+  `distance_km`, `lap_button: true`, opcjonalny `target`: `{"type": "pace", "from": "4:30",
+  "to": "4:15"}` (min/km), `{"type": "hr_zone", "zone": 1-5}`, `{"type": "hr_range", "from": 140,
+  "to": 155}`; powtórzenie `{"type": "repeat", "times": 5, "steps": [...]}` (bez zagnieżdżania);
+  maks. 50 kroków;
+- siła: `{"sport": "strength", "name": "...", "exercises": [{"exercise": "Barbell Back Squat",
+  "sets": 3, "reps": 5, "weight_kg": 80, "rest_seconds": 120}]}`; `reps` albo `seconds`; nazwy z
+  katalogu Garmina (`garminconnect.exercises`), nieznana nazwa daje `422` z podpowiedziami;
+  maks. 30 ćwiczeń.
+
+Odpowiedź: `id`, `client_id`, `name`, `sport`, `created_by` (`app`/`mcp`), `created_at`,
+`preview` (tekst), `definition`. Na użytkownika najwyżej 200 treningów; przy limicie znikają
+najstarsze niezaplanowane szkice.
+
+`POST /workouts/{id}/schedule` z `{"date": "YYYY-MM-DD"}` (dziś … +365 dni): jeden wpis na trening
+i dzień (powtórzenie zwraca ten sam, `200`). Wysyłka do Garmin Connect zaczyna się od razu w tle,
+potem co 15 min. `GET /scheduled` zwraca `{"items": [...]}`, element: `id`, `workout_id`, `name`,
+`sport`, `date`, `status`, `last_error`. Statusy: `pending` (w kolejce), `sent` (w kalendarzu
+Garmina, zegarek pobierze przy synchronizacji), `failed` (nie wysłano, patrz `last_error`; ponowne
+zaplanowanie ponawia), `deleting` (usuwanie z kalendarza Garmina w toku), `deleted` (pomijane na
+liście). `last_error` to `<kod>: <opis po angielsku>`, kody: `send_failed`, `delete_failed`,
+`rate_limited` (HTTP 429, pauza 24 h), `garmin_login_needed`, `date_passed`.
+
+`DELETE /scheduled/{id}` zwraca wpis ze statusem `deleting` albo `deleted` (`404` dla cudzego).
+Po usunięciu ostatniego wpisu danego treningu serwer usuwa też trening „CG …” z biblioteki Garmina
+(tylko obiekty utworzone przez CG-connector).
+
 ## Rozbieżności z propozycją z `android/README.md`
 
 | Propozycja aplikacji | Stan w API | Powód / co zrobić w aplikacji |
@@ -97,7 +135,12 @@ Garmina, odpowiedź ma krótkie pole `note`.
 | `get_activity` | `activity_id` (ID z `list_activities`) | do 30 okrążeń, minuty w strefach HR, serie siłowe jako `"5x80kg"` |
 | `get_vo2max_trend` | `from_date?`, `to_date?` | ostatnie 180 dni, bieg; tylko zmiany wartości, przy >60 punktach tygodniowo/miesięcznie; maks. 2 lata |
 | `get_training_summary` | `period` (`week`/`month`), `from_date?`, `to_date?` | 8 tygodni / 6 miesięcy; pełne okresy; maks. 26 tygodni / 24 miesiące |
+| `create_workout` | `definition` (jak w REST, przykład w opisie narzędzia) | zwraca `id` i `preview`; nic nie idzie jeszcze do Garmina |
+| `schedule_workout` | `workout_id`, `date` | próba wysyłki od razu; zwraca `status`, `error?`, `note` |
+| `list_scheduled_workouts` | `from_date?`, `to_date?` | od dziś, 30 dni; maks. 366 dni |
+| `delete_scheduled_workout` | `scheduled_id` | tylko treningi CG-connector, na wyraźne polecenie |
 
 Daty jak w REST: 2000-01-01 … dziś + 1 rok, inaczej czytelny błąd narzędzia.
 Argumenty nazywają się `from_date`/`to_date`, bo `from` jest słowem kluczowym Pythona.
+Cztery narzędzia treningowe razem opisują się w < 2 kB (test `test_workout_tools_fit_in_2_kb`).
 Lista 20 aktywności mieści się w ok. 3–4 kB JSON (test `test_list_of_20_activities_is_small`).

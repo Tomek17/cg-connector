@@ -263,3 +263,70 @@ class SyncRun(Base):
     request_limit_reached: Mapped[bool] = mapped_column(default=False)
     # Short, fixed description of the failure; never response bodies or personal data.
     error: Mapped[str | None] = mapped_column(String(200))
+
+
+class WorkoutSport(StrEnum):
+    RUNNING = "running"
+    STRENGTH = "strength"
+
+
+class WorkoutOrigin(StrEnum):
+    APP = "app"
+    MCP = "mcp"
+
+
+class Workout(Base):
+    """A workout created in CG-connector (our definition, `cg_server.workout_definition`).
+
+    `client_id` (UUID, unique per user) makes creation idempotent. `garmin_workout_id` is
+    saved right after the upload, before scheduling, so a retry never uploads it twice.
+    """
+
+    __tablename__ = "workouts"
+    __table_args__ = (UniqueConstraint("user_id", "client_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    client_id: Mapped[str] = mapped_column(String(36))
+    name: Mapped[str] = mapped_column(String(60))
+    sport: Mapped[WorkoutSport] = mapped_column(_str_enum(WorkoutSport, "workout_sport"))
+    definition_json: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_by: Mapped[WorkoutOrigin] = mapped_column(_str_enum(WorkoutOrigin, "workout_origin"))
+    garmin_workout_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    user: Mapped[User] = relationship()
+
+
+class ScheduleStatus(StrEnum):
+    PENDING = "pending"  # waiting in the outbox to be sent to Garmin
+    SENT = "sent"  # in the Garmin calendar
+    FAILED = "failed"  # gave up after too many attempts
+    DELETING = "deleting"  # delete requested; removing it from the Garmin calendar
+    DELETED = "deleted"
+
+
+class ScheduledWorkout(Base):
+    """Outbox: a workout planned on a day of the Garmin calendar."""
+
+    __tablename__ = "scheduled_workouts"
+    __table_args__ = (Index("ix_scheduled_workouts_user_date", "user_id", "date"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    workout_id: Mapped[int] = mapped_column(
+        ForeignKey("workouts.id", ondelete="CASCADE"), index=True
+    )
+    date: Mapped[date] = mapped_column(Date)
+    status: Mapped[ScheduleStatus] = mapped_column(_str_enum(ScheduleStatus, "schedule_status"))
+    attempts: Mapped[int] = mapped_column(default=0)
+    # Short, fixed description of the last failure; never response bodies.
+    last_error: Mapped[str | None] = mapped_column(String(200))
+    garmin_schedule_id: Mapped[int | None] = mapped_column(BigInteger)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    workout: Mapped[Workout] = relationship()

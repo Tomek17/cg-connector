@@ -1,0 +1,31 @@
+{
+ "workoutName": "CG Sila A",
+ "sportType": {"sportTypeId": 5, "sportTypeKey": "strength_training", "displayOrder": 5},
+ "estimatedDurationInSecs": 0,
+ "workoutSegments": [{
+  "segmentOrder": 1,
+  "sportType": {"sportTypeId": 5, "sportTypeKey": "strength_training"},
+  "workoutSteps": [
+   {"type": "RepeatGroupDTO", "stepOrder": 1,
+    "stepType": {"stepTypeId": 6, "stepTypeKey": "repeat", "displayOrder": 6},
+    "numberOfIterations": 3, "smartRepeat": false,
+    "endCondition": {"conditionTypeId": 7, "conditionTypeKey": "iterations", "displayOrder": 7, "displayable": false},
+    "endConditionValue": 3.0,
+    "workoutSteps": [
+     {"type": "ExecutableStepDTO", "stepOrder": 2,
+      "stepType": {"stepTypeId": 3, "stepTypeKey": "interval", "displayOrder": 3},
+      "endCondition": {"conditionTypeId": 10, "conditionTypeKey": "reps", "displayOrder": 10, "displayable": true},
+      "endConditionValue": 5.0,
+      "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1},
+      "category": "SQUAT", "exerciseName": "BARBELL_BACK_SQUAT",
+      "weightValue": 80000.0,
+      "weightUnit": {"unitId": 8, "unitKey": "kilogram", "factor": 1000.0}},
+     {"type": "ExecutableStepDTO", "stepOrder": 3,
+      "stepType": {"stepTypeId": 5, "stepTypeKey": "rest", "displayOrder": 5},
+      "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time", "displayOrder": 2, "displayable": true},
+      "endConditionValue": 120.0,
+      "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target", "displayOrder": 1}}
+    ]}
+  ]}],
+ "author": {}
+}

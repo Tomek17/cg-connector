@@ -358,6 +358,220 @@
           }
         }
       }
+    },
+    "/api/v1/workouts": {
+      "post": {
+        "summary": "Create Workout",
+        "operationId": "create_workout_api_v1_workouts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewWorkout"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workouts/{workout_id}/schedule": {
+      "post": {
+        "summary": "Schedule Workout",
+        "operationId": "schedule_workout_api_v1_workouts__workout_id__schedule_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workout_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Workout Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scheduled": {
+      "get": {
+        "summary": "List Scheduled",
+        "operationId": "list_scheduled_api_v1_scheduled_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Pierwszy dzień, włącznie; domyślnie dziś",
+              "title": "From"
+            },
+            "description": "Pierwszy dzień, włącznie; domyślnie dziś"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ostatni dzień, włącznie; domyślnie from + 30 dni",
+              "title": "To"
+            },
+            "description": "Ostatni dzień, włącznie; domyślnie from + 30 dni"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/scheduled/{scheduled_id}": {
+      "delete": {
+        "summary": "Delete Scheduled",
+        "operationId": "delete_scheduled_api_v1_scheduled__scheduled_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scheduled_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Scheduled Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -809,6 +1023,74 @@
         ],
         "title": "ActivitySummary"
       },
+      "Exercise": {
+        "properties": {
+          "exercise": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Exercise"
+          },
+          "sets": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Sets"
+          },
+          "reps": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reps"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3600.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 500.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "rest_seconds": {
+            "type": "integer",
+            "maximum": 900.0,
+            "minimum": 0.0,
+            "title": "Rest Seconds",
+            "default": 60
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "exercise",
+          "sets"
+        ],
+        "title": "Exercise"
+      },
       "ExerciseSet": {
         "properties": {
           "set_type": {
@@ -903,6 +1185,36 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HrRangeTarget": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "hr_range",
+            "title": "Type"
+          },
+          "from": {
+            "type": "integer",
+            "maximum": 250.0,
+            "minimum": 30.0,
+            "title": "From"
+          },
+          "to": {
+            "type": "integer",
+            "maximum": 250.0,
+            "minimum": 30.0,
+            "title": "To"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "from",
+          "to"
+        ],
+        "title": "HrRangeTarget",
+        "description": "Heart rate range in bpm."
+      },
       "HrZone": {
         "properties": {
           "zone": {
@@ -932,6 +1244,29 @@
           "low_bpm"
         ],
         "title": "HrZone"
+      },
+      "HrZoneTarget": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "hr_zone",
+            "title": "Type"
+          },
+          "zone": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Zone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "zone"
+        ],
+        "title": "HrZoneTarget",
+        "description": "One of the heart rate zones configured on the watch."
       },
       "Lap": {
         "properties": {
@@ -1140,6 +1475,66 @@
         ],
         "title": "Me"
       },
+      "NewWorkout": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "format": "uuid4",
+            "title": "Client Id",
+            "description": "Generated by the app; repeating it is a no-op."
+          },
+          "definition": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RunningDefinition"
+              },
+              {
+                "$ref": "#/components/schemas/StrengthDefinition"
+              }
+            ],
+            "title": "Definition",
+            "discriminator": {
+              "propertyName": "sport",
+              "mapping": {
+                "running": "#/components/schemas/RunningDefinition",
+                "strength": "#/components/schemas/StrengthDefinition"
+              }
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "definition"
+        ],
+        "title": "NewWorkout"
+      },
+      "PaceTarget": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "pace",
+            "title": "Type"
+          },
+          "from": {
+            "type": "string",
+            "title": "From"
+          },
+          "to": {
+            "type": "string",
+            "title": "To"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "from",
+          "to"
+        ],
+        "title": "PaceTarget",
+        "description": "Pace range in min/km, e.g. from '4:30' to '4:15' (order does not matter)."
+      },
       "Period": {
         "type": "string",
         "enum": [
@@ -1147,6 +1542,321 @@
           "month"
         ],
         "title": "Period"
+      },
+      "RepeatStep": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "repeat",
+            "title": "Type"
+          },
+          "times": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Times"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RunStep"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Steps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "times",
+          "steps"
+        ],
+        "title": "RepeatStep"
+      },
+      "RunStep": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "warmup",
+              "interval",
+              "recovery",
+              "cooldown",
+              "rest"
+            ],
+            "title": "Type"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 21600.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "lap_button": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lap Button"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PaceTarget"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HrZoneTarget"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HrRangeTarget"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "type",
+                  "mapping": {
+                    "hr_range": "#/components/schemas/HrRangeTarget",
+                    "hr_zone": "#/components/schemas/HrZoneTarget",
+                    "pace": "#/components/schemas/PaceTarget"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "RunStep"
+      },
+      "RunningDefinition": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Version",
+            "default": 1
+          },
+          "sport": {
+            "type": "string",
+            "const": "running",
+            "title": "Sport"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "steps": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/RunStep"
+                },
+                {
+                  "$ref": "#/components/schemas/RepeatStep"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "cooldown": "#/components/schemas/RunStep",
+                  "interval": "#/components/schemas/RunStep",
+                  "recovery": "#/components/schemas/RunStep",
+                  "repeat": "#/components/schemas/RepeatStep",
+                  "rest": "#/components/schemas/RunStep",
+                  "warmup": "#/components/schemas/RunStep"
+                }
+              }
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Steps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sport",
+          "name",
+          "steps"
+        ],
+        "title": "RunningDefinition"
+      },
+      "ScheduleRequest": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "ScheduleRequest"
+      },
+      "ScheduledList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduledOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ScheduledList"
+      },
+      "ScheduledOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "workout_id": {
+            "type": "integer",
+            "title": "Workout Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workout_id",
+          "name",
+          "sport",
+          "date",
+          "status"
+        ],
+        "title": "ScheduledOut"
+      },
+      "StrengthDefinition": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Version",
+            "default": 1
+          },
+          "sport": {
+            "type": "string",
+            "const": "strength",
+            "title": "Sport"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "exercises": {
+            "items": {
+              "$ref": "#/components/schemas/Exercise"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Exercises"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sport",
+          "name",
+          "exercises"
+        ],
+        "title": "StrengthDefinition"
       },
       "Summary": {
         "properties": {
@@ -1330,6 +2040,56 @@
           "sport"
         ],
         "title": "Vo2MaxPoint"
+      },
+      "WorkoutOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "preview": {
+            "type": "string",
+            "title": "Preview"
+          },
+          "definition": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Definition"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "client_id",
+          "name",
+          "sport",
+          "created_by",
+          "created_at",
+          "preview",
+          "definition"
+        ],
+        "title": "WorkoutOut"
       }
     },
     "securitySchemes": {
