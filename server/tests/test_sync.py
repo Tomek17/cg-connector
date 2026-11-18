@@ -186,6 +186,7 @@ def test_sync_is_idempotent_and_fetches_details_only_once(
     assert count(session, ActivityDetails, user) == 5
     assert detail_calls(again) == []
     assert result.activities_new == 0
+    assert result.activities_updated == 0  # seen again, but nothing changed
 
 
 def test_next_sync_starts_3_days_before_last_successful_one(

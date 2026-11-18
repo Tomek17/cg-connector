@@ -217,7 +217,8 @@ class _UserSync:
             activity = Activity(user_id=self.user.id, garmin_activity_id=garmin_id)
             self.session.add(activity)
             self.run.activities_new += 1
-        else:
+        elif activity.summary_json != trimmed_summary(raw):
+            # Every stored column is derived from the trimmed summary, so this is a real edit.
             self.run.activities_updated += 1
         _apply_summary(activity, raw, self.tz)
         if activity.details is None:
