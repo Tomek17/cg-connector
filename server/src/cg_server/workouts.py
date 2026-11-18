@@ -9,7 +9,7 @@ import uuid
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import case, or_, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -29,6 +29,8 @@ from cg_server.workout_definition import (
 )
 
 MAX_DAYS_AHEAD = 365
+# Saved workouts per user; at the limit the oldest ones that are not in use are removed.
+MAX_WORKOUTS = 200
 ACTIVE = (ScheduleStatus.PENDING, ScheduleStatus.SENT, ScheduleStatus.FAILED)
 
 
@@ -70,6 +72,7 @@ def create_workout(
     if existing is not None:
         return existing, False
     parsed = parse_definition(definition)
+    _make_room(session, user)
     sport = (
         WorkoutSport.STRENGTH if isinstance(parsed, StrengthDefinition) else WorkoutSport.RUNNING
     )
@@ -91,6 +94,38 @@ def create_workout(
             raise
         return existing, False
     return workout, True
+
+
+def _make_room(session: Session, user: User) -> None:
+    """Keep at most MAX_WORKOUTS - 1 before adding one: delete the oldest drafts that are
+    neither scheduled (any entry not deleted) nor in the Garmin library."""
+    count = session.scalar(
+        select(func.count()).select_from(Workout).where(Workout.user_id == user.id)
+    )
+    excess = (count or 0) - MAX_WORKOUTS + 1
+    if excess <= 0:
+        return
+    in_use = select(ScheduledWorkout.workout_id).where(
+        ScheduledWorkout.user_id == user.id, ScheduledWorkout.status != ScheduleStatus.DELETED
+    )
+    old = list(
+        session.scalars(
+            select(Workout.id)
+            .where(
+                Workout.user_id == user.id,
+                Workout.garmin_workout_id.is_(None),
+                Workout.id.not_in(in_use),
+            )
+            .order_by(Workout.created_at, Workout.id)
+            .limit(excess)
+        )
+    )
+    if len(old) < excess:
+        raise WorkoutError(
+            f"Too many saved workouts (limit {MAX_WORKOUTS}); delete scheduled ones first."
+        )
+    session.execute(delete(Workout).where(Workout.id.in_(old)))
+    session.commit()
 
 
 def definition_of(workout: Workout) -> RunningDefinition | StrengthDefinition:

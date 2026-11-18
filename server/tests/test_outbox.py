@@ -551,3 +551,28 @@ def test_template_stays_while_another_day_uses_it(session: Session, settings: Se
     run(session, settings, fake)
     assert fake.workouts == {} and fake.calendar == {}
     assert "delete_workout" in fake.calls
+
+
+def test_oldest_unused_drafts_are_removed_at_the_limit(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(workouts, "MAX_WORKOUTS", 3)
+    scheduled = schedule(session)  # oldest, but in use
+    first, _ = workouts.create_workout(session, user(session), RUN, origin="mcp")
+    second, _ = workouts.create_workout(session, user(session), RUN, origin="mcp")
+    workouts.create_workout(session, user(session, "brat"), RUN, origin="mcp")
+    third, _ = workouts.create_workout(session, user(session), RUN, origin="mcp")
+    ids = set(session.scalars(select(Workout.id).where(Workout.user_id == user(session).id)))
+    assert ids == {scheduled.workout_id, second.id, third.id}
+    assert first.id not in ids
+    assert session.query(Workout).count() == 4  # the other user's draft is untouched
+
+
+def test_limit_reached_with_everything_in_use(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(workouts, "MAX_WORKOUTS", 2)
+    schedule(session)
+    schedule(session, day=DAY + timedelta(1))
+    with pytest.raises(workouts.WorkoutError, match="limit 2"):
+        workouts.create_workout(session, user(session), RUN, origin="mcp")
