@@ -7,9 +7,16 @@
   "Web": {
     "${TS_CERT_DOMAIN}:443": {
       "Handlers": {
-        "/": {
-          "Proxy": "http://cg-server:8000"
-        }
+        "/health": { "Proxy": "http://cg-server:8000/health" },
+        "/api/v1/": { "Proxy": "http://cg-server:8000/api/v1" },
+        "/mcp": { "Proxy": "http://cg-server:8000/mcp" },
+        "/.well-known/oauth-authorization-server": { "Proxy": "http://cg-server:8000/.well-known/oauth-authorization-server" },
+        "/.well-known/oauth-protected-resource": { "Proxy": "http://cg-server:8000/.well-known/oauth-protected-resource" },
+        "/authorize": { "Proxy": "http://cg-server:8000/authorize" },
+        "/token": { "Proxy": "http://cg-server:8000/token" },
+        "/register": { "Proxy": "http://cg-server:8000/register" },
+        "/revoke": { "Proxy": "http://cg-server:8000/revoke" },
+        "/oauth/login": { "Proxy": "http://cg-server:8000/oauth/login" }
       }
     }
   },

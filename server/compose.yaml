@@ -32,6 +32,9 @@ services:
       TS_AUTHKEY: ${TS_AUTHKEY:-}       # z .env; potrzebny tylko przy pierwszym logowaniu
       TS_AUTH_ONCE: "true"              # nie loguj ponownie, jeśli stan już istnieje
       TS_STATE_DIR: /var/lib/tailscale  # trwały stan = ta sama maszyna i adres po restarcie
+      # serve.json: Funnel wystawia TYLKO wybrane ścieżki (/health, /api/v1/, /mcp,
+      # OAuth z ADR-0003); reszta dostaje 404 od Tailscale i nie dociera do serwera.
+      # Serve obcina prefiks punktu montowania, dlatego każdy Proxy ma pełną ścieżkę.
       TS_SERVE_CONFIG: /config/serve.json
       TS_USERSPACE: "true"              # bez /dev/net/tun i bez uprawnień NET_ADMIN
     volumes:
