@@ -47,6 +47,7 @@
     <!-- Nawigacja -->
     <string name="nav_activities">Treningi</string>
     <string name="nav_vo2max">VO2max</string>
+    <string name="nav_queue">Plan</string>
     <string name="nav_status">Status</string>
     <string name="nav_settings">Ustawienia</string>
     <string name="back">Wstecz</string>
@@ -141,4 +142,25 @@
     <string name="status_this_week">Ten tydzień</string>
     <string name="status_week_empty">Brak treningów w tym tygodniu.</string>
     <string name="status_week_row">%1$s: %2$d× · %3$s</string>
+
+    <!-- Kolejka treningów -->
+    <string name="queue_title">Zaplanowane treningi</string>
+    <string name="queue_refresh">Odśwież</string>
+    <string name="queue_empty">Brak zaplanowanych treningów.</string>
+    <string name="queue_watch_hint">Trening trafia do kalendarza Garmin Connect, a na zegarek po jego synchronizacji z aplikacją Garmin Connect na telefonie.</string>
+    <string name="queue_status_pending">Oczekuje na wysłanie</string>
+    <string name="queue_status_sent">Wysłany do Garmin Connect</string>
+    <string name="queue_status_failed">Błąd wysyłki</string>
+    <string name="queue_status_deleting">Usuwanie…</string>
+    <string name="queue_status_deleted">Usunięty</string>
+    <string name="queue_error">Serwer: %1$s</string>
+    <string name="queue_created_elsewhere">Utworzony przez CG-connector poza aplikacją (np. przez Claude)</string>
+    <string name="queue_delete">Usuń</string>
+    <string name="queue_delete_description">Usuń trening %1$s</string>
+    <string name="queue_delete_title">Usunąć trening?</string>
+    <string name="queue_delete_text">„%1$s” zostanie usunięty z kolejki i z kalendarza Garmin Connect. Usuwamy tylko treningi utworzone przez CG-connector.</string>
+    <string name="queue_delete_confirm">Usuń</string>
+    <string name="queue_delete_cancel">Anuluj</string>
+    <string name="workout_sport_running">Bieg</string>
+    <string name="workout_sport_strength">Siłownia</string>
 </resources>
