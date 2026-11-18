@@ -4,8 +4,19 @@ Method signatures follow `garminconnect` 0.3.20. Tokens are the DI token JSON fr
 `client.dumps()`; the caller stores them encrypted and saves them again after every
 session (the refresh token may change). Errors are never retried here: a 429 must stop
 all traffic to Garmin (risk of account blocking, docs/research/garmin.md section 5).
+
+Known limitation (garminconnect 0.3.20): when resuming from tokens, a failed token refresh
+(including HTTP 429 on the refresh endpoint) is swallowed by the library, which then
+reports "Username and password are required" as `GarminConnectAuthenticationError`.
+So a 429 during refresh surfaces here as `GarminAuthError` (status `needs_login`), not
+`GarminRateLimited`. The CLI therefore warns to wait 24 h after a recent 429 before
+logging in with the password again.
+
+The `GARMINTOKENS` environment variable is removed before every login, so the library
+never reads or writes plaintext token files; tokens only live encrypted in our database.
 """
 
+import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any, Protocol, runtime_checkable
@@ -93,6 +104,7 @@ class RealGarminGateway:
         return self._garmin
 
     def login(self, email: str, password: str, prompt_mfa: MfaPrompt) -> str:
+        os.environ.pop("GARMINTOKENS", None)
         garmin = Garmin(email=email, password=password, prompt_mfa=prompt_mfa)
         with _translate_errors():
             garmin.login()
@@ -100,6 +112,7 @@ class RealGarminGateway:
         return self.dumps()
 
     def resume(self, tokens: str) -> None:
+        os.environ.pop("GARMINTOKENS", None)
         garmin = Garmin()
         with _translate_errors():
             garmin.login(tokens)

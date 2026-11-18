@@ -1,10 +1,16 @@
 """RealGarminGateway is tested against a stub of `garminconnect.Garmin` (no network)."""
 
+import os
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from garminconnect import GarminConnectAuthenticationError, GarminConnectTooManyRequestsError
+from garminconnect import (
+    GarminConnectAuthenticationError,
+    GarminConnectConnectionError,
+    GarminConnectTooManyRequestsError,
+)
 
 from cg_server.garmin import gateway as gateway_module
 from cg_server.garmin.fake import FakeGarminGateway
@@ -29,6 +35,8 @@ class StubGarmin:
 
     error: Exception | None = None
     instances: list["StubGarmin"] = []
+    login_calls = 0
+    env_tokens_seen: list[str | None] = []
 
     def __init__(
         self,
@@ -43,6 +51,8 @@ class StubGarmin:
         StubGarmin.instances.append(self)
 
     def login(self, tokenstore: str | None = None) -> tuple[None, None]:
+        StubGarmin.login_calls += 1
+        StubGarmin.env_tokens_seen.append(os.environ.get("GARMINTOKENS"))
         if StubGarmin.error is not None:
             raise StubGarmin.error
         self.tokenstore = tokenstore
@@ -73,6 +83,8 @@ class StubGarmin:
 def stub_garmin(monkeypatch: pytest.MonkeyPatch) -> None:
     StubGarmin.error = None
     StubGarmin.instances = []
+    StubGarmin.login_calls = 0
+    StubGarmin.env_tokens_seen = []
     monkeypatch.setattr(gateway_module, "Garmin", StubGarmin)
 
 
@@ -126,4 +138,32 @@ def test_library_errors_are_translated(library_error: Exception, expected: type[
         RealGarminGateway().login("a@example.com", "haslo", lambda: "")
     with pytest.raises(expected):
         RealGarminGateway().resume("{}")
-    assert len(StubGarmin.instances) == 2  # one attempt each, no retries
+    # The gateway itself never retries: exactly one library login() per gateway call.
+    assert StubGarmin.login_calls == 2
+
+
+def connection_error(status: int) -> GarminConnectConnectionError:
+    error = GarminConnectConnectionError(f"HTTP {status}")
+    error.response = SimpleNamespace(status_code=status)
+    return error
+
+
+def test_connection_error_with_429_is_rate_limited() -> None:
+    StubGarmin.error = connection_error(429)
+    with pytest.raises(GarminRateLimited):
+        RealGarminGateway().resume("{}")
+
+
+def test_other_connection_errors_pass_through() -> None:
+    StubGarmin.error = connection_error(500)
+    with pytest.raises(GarminConnectConnectionError):
+        RealGarminGateway().resume("{}")
+
+
+def test_garmintokens_env_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GARMINTOKENS could make the library read/write plaintext token files."""
+    monkeypatch.setenv("GARMINTOKENS", "/tmp/garmin_tokens")  # noqa: S108 - never touched
+    RealGarminGateway().login("a@example.com", "haslo", lambda: "")
+    monkeypatch.setenv("GARMINTOKENS", "/tmp/garmin_tokens")  # noqa: S108
+    RealGarminGateway().resume("{}")
+    assert StubGarmin.env_tokens_seen == [None, None]
