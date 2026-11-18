@@ -59,16 +59,20 @@ FIRST_RETRY = timedelta(minutes=5)
 MAX_RETRY = timedelta(hours=6)
 DUE = (ScheduleStatus.PENDING, ScheduleStatus.DELETING)
 
-ERR_RATE_LIMITED = "HTTP 429 od Garmina: wysyłka wstrzymana na 24 h"
-ERR_NEEDS_LOGIN = "Brak ważnego logowania do Garmina: cg-server garmin-login"
-ERR_NOT_FOUND = "Garmin: nie znaleziono (HTTP 404)"
-ERR_DEFINITION = "Nieprawidłowa definicja treningu"
+# `last_error`: "<code>: <short English detail>" (read by Claude and the app). Codes:
+# send_failed, delete_failed, rate_limited, garmin_login_needed, date_passed.
+ERR_RATE_LIMITED = "rate_limited: Garmin HTTP 429, paused for 24 h"
+ERR_NEEDS_LOGIN = "garmin_login_needed: the server owner must run cg-server garmin-login"
 
 
 def retry_delay(attempts: int) -> timedelta:
     """Wait after the n-th failed attempt: 5, 10, 20, 40 ... minutes, at most 6 h."""
     delay: timedelta = FIRST_RETRY * 2 ** min(max(attempts - 1, 0), 10)
     return min(delay, MAX_RETRY)
+
+
+class OutboxError(Exception):
+    """Expected failure of one entry; the (English, fixed) message goes to `last_error`."""
 
 
 @dataclass
@@ -117,17 +121,18 @@ def due_items(session: Session, user: User, now: datetime) -> list[ScheduledWork
     )
 
 
-def _error_text(error: Exception) -> str:
+def _error_text(error: Exception, deleting: bool) -> str:
+    code = "delete_failed" if deleting else "send_failed"
     if isinstance(error, GarminNotFound):
-        return ERR_NOT_FOUND
-    if isinstance(error, DefinitionError):
-        return ERR_DEFINITION
-    if isinstance(error, GarminConnectConnectionError):
+        detail = "Garmin HTTP 404"
+    elif isinstance(error, DefinitionError):
+        detail = "invalid workout definition"
+    elif isinstance(error, GarminConnectConnectionError):
         status = getattr(getattr(error, "response", None), "status_code", None)
-        if isinstance(status, int):
-            return f"Błąd Garmina (HTTP {status})"
-        return "Błąd połączenia z Garminem"
-    return f"Błąd: {type(error).__name__}"[:200]
+        detail = f"Garmin HTTP {status}" if isinstance(status, int) else "connection error"
+    else:
+        detail = str(error) if isinstance(error, OutboxError) else type(error).__name__
+    return f"{code}: {detail}"[:200]
 
 
 def _entry_workout_id(entry: dict[str, Any]) -> Any:
@@ -174,7 +179,8 @@ class _UserOutbox:
     ) -> None:
         self.session.rollback()
         log.warning("outbox entry %s failed: %s", item.id, type(error).__name__)
-        values: dict[str, Any] = {"last_error": _error_text(error)}
+        deleting = status == ScheduleStatus.DELETING
+        values: dict[str, Any] = {"last_error": _error_text(error, deleting)}
         if item.attempts >= MAX_ATTEMPTS:
             values |= {"status": ScheduleStatus.FAILED.value, "next_attempt_at": None}
             self.result.failed += 1

@@ -228,7 +228,7 @@ def test_retry_after_failure_in_the_middle_does_not_duplicate(
     session.refresh(item)
     assert item.status == ScheduleStatus.PENDING
     assert item.attempts == 1
-    assert item.last_error == "Błąd Garmina (HTTP 500)"
+    assert item.last_error == "send_failed: Garmin HTTP 500"
     assert item.workout.garmin_workout_id is not None  # saved before scheduling
     assert item.next_attempt_at is not None
 
@@ -421,3 +421,26 @@ def test_runner_sends_for_all_users_and_survives_errors(
 @pytest.mark.parametrize(("attempts", "minutes"), [(1, 5), (2, 10), (3, 20), (6, 160), (20, 360)])
 def test_retry_delay(attempts: int, minutes: int) -> None:
     assert retry_delay(attempts) == timedelta(minutes=minutes)
+
+
+def http_error(status: int) -> GarminConnectConnectionError:
+    error = GarminConnectConnectionError(f"API Error {status}")
+    error.response = type("R", (), {"status_code": status})()
+    return error
+
+
+def test_errors_are_english_codes_send_vs_delete(session: Session, settings: Settings) -> None:
+    item = schedule(session)
+    fake = FakeGarminGateway(on_call=raise_on("upload_workout", http_error(503)))
+    run(session, settings, fake)
+    session.refresh(item)
+    assert item.last_error == "send_failed: Garmin HTTP 503"
+
+    fake.on_call = None
+    run(session, settings, fake, now=NOW + retry_delay(1))
+    workouts.request_delete(session, user(session), item.id)
+    fake.on_call = raise_on("unschedule_workout", http_error(500))
+    run(session, settings, fake, now=NOW + retry_delay(1))
+    session.refresh(item)
+    assert item.status == ScheduleStatus.DELETING
+    assert item.last_error == "delete_failed: Garmin HTTP 500"
