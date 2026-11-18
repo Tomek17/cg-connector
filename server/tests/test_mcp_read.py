@@ -93,7 +93,11 @@ async def call(
     finally:
         del http.headers["Authorization"]
     text = "".join(getattr(c, "text", "") for c in result.content)
-    return result.is_error, text, result.structured_content
+    if result.is_error:
+        return True, text, None
+    # One copy of the data only: compact text, no duplicated structured content.
+    assert result.structured_content is None
+    return False, text, json.loads(text)
 
 
 async def ok(
@@ -101,7 +105,7 @@ async def ok(
 ) -> Any:
     is_error, text, data = await call(http, code, name, args)
     assert not is_error, text
-    assert json.loads(text) == data  # the model reads the same compact JSON
+    assert '": ' not in text  # compact separators
     return data
 
 

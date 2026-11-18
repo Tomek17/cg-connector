@@ -534,10 +534,10 @@ async def test_get_profile_shows_last_sync_and_latest_activity_of_own_user(
         other = await call_tool(http, brat_tokens["access_token"], "get_profile")
 
     assert profile["user"] == "tomek"
-    assert profile["last_sync_at"].startswith("2026-11-17T13:05")
+    assert profile["last_sync_at"] == "2026-11-17T14:05:00+01:00"  # Europe/Warsaw
     assert profile["latest_activity_date"] == "2026-11-12"
     assert other["latest_activity_date"] == "2026-11-15"
-    assert other["last_sync_at"].startswith("2026-11-18T13:05")
+    assert other["last_sync_at"] == "2026-11-18T14:05:00+01:00"
 
 
 async def test_get_profile_without_data(app: FastAPI, accounts: dict[str, Account]) -> None:

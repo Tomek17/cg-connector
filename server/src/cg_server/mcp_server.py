@@ -52,9 +52,10 @@ def current_user(session: Session) -> User:
 
 
 def _result(data: dict[str, Any]) -> CallToolResult:
-    """Compact JSON for the model (no spaces, no nulls) plus the same data as structured."""
+    """Compact JSON text only (no spaces, no nulls). No structured content and no output
+    schema: the SDK does not need them, and a second copy would double the tokens."""
     text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=data)
+    return CallToolResult(content=[TextContent(type="text", text=text)])
 
 
 def build_mcp(
@@ -81,7 +82,7 @@ def build_mcp(
 
     @mcp.tool()
     def get_profile() -> Profile:
-        """Signed-in user, Garmin connection status, last successful sync (UTC) and the
+        """Signed-in user, Garmin connection status, last successful sync (local time) and the
         local date of the newest synced activity."""
         with sessions() as session:
             user = current_user(session)
@@ -89,7 +90,9 @@ def build_mcp(
             return Profile(
                 user=user.name,
                 garmin_status=state.garmin_status.value if state.garmin_status else None,
-                last_sync_at=state.last_success_at,
+                last_sync_at=state.last_success_at.astimezone(tz)
+                if state.last_success_at
+                else None,
                 latest_activity_date=state.latest_activity_date,
             )
 

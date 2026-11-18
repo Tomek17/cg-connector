@@ -85,7 +85,7 @@ niepełne. Okresy bez aktywności są pomijane.
 
 ## Narzędzia MCP (`/mcp`, claude.ai)
 
-Użytkownik zawsze z tokenu OAuth, nigdy z argumentu. Odpowiedzi to zwięzły JSON (bez `null`),
+Użytkownik zawsze z tokenu OAuth, nigdy z argumentu. Odpowiedzi to zwięzły JSON (bez `null`, tylko jako tekst, bez dublującego `structuredContent`),
 jednostki km, min/km (`"5:00"`), bpm, czasy lokalne Europe/Warsaw (`"2026-11-17 07:30"`). Gdy brak
 danych w zakresie, sync jest starszy niż 24 h, nigdy się nie odbył albo trzeba ponownie zalogować
 Garmina, odpowiedź ma krótkie pole `note`.
