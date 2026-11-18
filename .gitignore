@@ -3,6 +3,7 @@
 *.env
 !.env.example
 data/
+tailscale-state/
 *.sqlite
 *.sqlite3
 *.db

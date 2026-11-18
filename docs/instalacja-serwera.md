@@ -37,23 +37,26 @@ cd ~ && git clone https://github.com/Tomek17/cg-connector ~/cg-connector && cd ~
 
 Oczekiwany wynik: lista plików, wśród nich `compose.yaml`, `Dockerfile`, `pyproject.toml`.
 
-## Krok 2. Folder z danymi
+## Krok 2. Foldery z danymi
 
-Cały stan serwera (baza, kopie zapasowe, stan Tailscale) leży w jednym folderze `~/cg-data`, poza kontenerami. Serwer w kontenerze działa jako użytkownik o numerze 10001, więc to on musi być właścicielem folderu.
+Cały stan leży poza kontenerami, w dwóch folderach:
+
+- `~/cg-data` — dane serwera (baza, kopie zapasowe). Serwer w kontenerze działa jako użytkownik o numerze 10001, więc to on musi być właścicielem folderu.
+- `~/cg-tailscale` — stan Tailscale (tożsamość maszyny `cg-server`). Osobno, żeby serwer nie miał do niego dostępu.
 
 ```bash
-mkdir -p ~/cg-data && sudo chown 10001:10001 ~/cg-data && ls -ld ~/cg-data
+mkdir -p ~/cg-data ~/cg-tailscale && sudo chown 10001:10001 ~/cg-data && sudo chown root:root ~/cg-tailscale && ls -ld ~/cg-data ~/cg-tailscale
 ```
 
-Ubuntu zapyta o Twoje hasło do Linuksa (litery się nie wyświetlają — to normalne). Oczekiwany wynik: linia zaczynająca się od `drwx` z `10001 10001` w środku.
+Ubuntu zapyta o Twoje hasło do Linuksa (litery się nie wyświetlają — to normalne). Oczekiwany wynik: dwie linie zaczynające się od `drwx`; przy `cg-data` w środku `10001 10001`, przy `cg-tailscale` — `root root`.
 
 ## Krok 3. Plik `.env` (ustawienia i sekrety)
 
 ```bash
-cd ~/cg-connector/server && cp .env.example .env && chmod 600 .env && sed -i "s|^CG_HOST_DATA_DIR=.*|CG_HOST_DATA_DIR=$HOME/cg-data|" .env && grep CG_HOST_DATA_DIR .env
+cd ~/cg-connector/server && cp .env.example .env && chmod 600 .env && sed -i "s|^CG_HOST_DATA_DIR=.*|CG_HOST_DATA_DIR=$HOME/cg-data|;s|^CG_HOST_TS_DIR=.*|CG_HOST_TS_DIR=$HOME/cg-tailscale|" .env && grep CG_HOST_ .env
 ```
 
-Oczekiwany wynik: `CG_HOST_DATA_DIR=/home/<twoja-nazwa>/cg-data`.
+Oczekiwany wynik: dwie linie `CG_HOST_DATA_DIR=/home/<twoja-nazwa>/cg-data` i `CG_HOST_TS_DIR=/home/<twoja-nazwa>/cg-tailscale`.
 
 ## Krok 4. Klucz szyfrowania (Fernet)
 
@@ -121,7 +124,7 @@ https://cg-server.tail1234.ts.net (Funnel on)
 
 Zapisz ten adres — to adres serwera, którego użyjesz w Claude i w aplikacji.
 
-Klucz Tailscale nie jest już potrzebny (maszyna jest zarejestrowana, stan leży w `~/cg-data/tailscale`). Możesz go usunąć z `.env`:
+Klucz Tailscale nie jest już potrzebny (maszyna jest zarejestrowana, stan leży w `~/cg-tailscale`). Możesz go usunąć z `.env`:
 
 ```bash
 cd ~/cg-connector/server && sed -i "s|^TS_AUTHKEY=.*|TS_AUTHKEY=|" .env
@@ -261,12 +264,12 @@ Oczekiwany wynik: `Container … Started` / `Running`, a potem `curl http://127.
 
 ## Migracja na inny komputer
 
-Cały stan to: folder `~/cg-data` (baza, kopie, **stan Tailscale**) + plik `server/.env` (**klucz szyfrowania**). Przeniesienie obu zachowuje dane i **ten sam adres** `https://cg-server.<tailnet>.ts.net`, więc konektor w Claude i aplikacja działają dalej bez zmian.
+Cały stan to: folder `~/cg-data` (baza, kopie), folder `~/cg-tailscale` (**stan Tailscale**) i plik `server/.env` (**klucz szyfrowania**). Przeniesienie wszystkich trzech zachowuje dane i **ten sam adres** `https://cg-server.<tailnet>.ts.net`, więc konektor w Claude i aplikacja działają dalej bez zmian.
 
 Na **starym** komputerze (Ubuntu):
 
 ```bash
-cd ~/cg-connector/server && docker compose down && sudo tar czf ~/cg-migracja.tgz -C ~ cg-data cg-connector/server/.env && sudo chown $USER ~/cg-migracja.tgz && ls -lh ~/cg-migracja.tgz
+cd ~/cg-connector/server && docker compose down && sudo tar czf ~/cg-migracja.tgz -C ~ cg-data cg-tailscale cg-connector/server/.env && sudo chown $USER ~/cg-migracja.tgz && ls -lh ~/cg-migracja.tgz
 ```
 
 Następnie w PowerShell wyłącz autostart (`uninstall-autostart.ps1`, jak w kroku 9). **Stary serwer nie może już działać** — dwie maszyny z tym samym stanem Tailscale gryzą się ze sobą.
@@ -279,10 +282,10 @@ Na **nowym** komputerze (WSL Ubuntu + Docker jak w „Zanim zaczniesz”):
 2. Skopiuj `cg-migracja.tgz` do katalogu domowego Ubuntu i rozpakuj:
 
    ```bash
-   sudo tar xzf ~/cg-migracja.tgz -C ~ && sudo chown $USER ~/cg-connector/server/.env && sed -i "s|^CG_HOST_DATA_DIR=.*|CG_HOST_DATA_DIR=$HOME/cg-data|" ~/cg-connector/server/.env && ls -ld ~/cg-data ~/cg-connector/server/.env
+   sudo tar xzf ~/cg-migracja.tgz -C ~ && sudo chown $USER ~/cg-connector/server/.env && sed -i "s|^CG_HOST_DATA_DIR=.*|CG_HOST_DATA_DIR=$HOME/cg-data|;s|^CG_HOST_TS_DIR=.*|CG_HOST_TS_DIR=$HOME/cg-tailscale|" ~/cg-connector/server/.env && ls -ld ~/cg-data ~/cg-tailscale ~/cg-connector/server/.env
    ```
 
-   Oczekiwany wynik: dwie linie; `cg-data` z właścicielem `10001`.
+   Oczekiwany wynik: trzy linie; `cg-data` z właścicielem `10001`, `cg-tailscale` z właścicielem `root`.
 3. Kroki 6 (bez nowego klucza Tailscale), 8, 9 i 10.
 
 Oczekiwany wynik: `tailscale funnel status` pokazuje ten sam adres co wcześniej, a w panelu Tailscale jest nadal jedna maszyna `cg-server`.
@@ -326,7 +329,7 @@ Sprawdź też, czy w `.env` jest pełna ścieżka: `grep CG_HOST_DATA_DIR ~/cg-c
 
 ### P4. W panelu Tailscale pojawia się `cg-server-1` albo kontener `tailscale` pisze o nieprawidłowym kluczu (`invalid key`, `expired`)
 
-- `cg-server-1` = zarejestrowano drugą maszynę, bo stan Tailscale zginął (np. inny `CG_HOST_DATA_DIR`). W panelu **Machines** usuń starą maszynę `cg-server` (… → *Remove*), a nową przemianuj na `cg-server` (… → *Edit machine name*).
+- `cg-server-1` = zarejestrowano drugą maszynę, bo stan Tailscale zginął (np. inny lub pusty `CG_HOST_TS_DIR`). W panelu **Machines** usuń starą maszynę `cg-server` (… → *Remove*), a nową przemianuj na `cg-server` (… → *Edit machine name*).
 - Zły lub zużyty klucz: wygeneruj nowy (krok 5), wpisz go do `.env` i:
 
   ```bash
