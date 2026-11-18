@@ -297,6 +297,7 @@ def cmd_workout_test(
                 key=key,
                 delay_s=settings.sync_request_delay_s,
                 lock_dir=settings.data_dir,
+                timezone=settings.timezone,
             )
         except SyncBusy as e:
             raise CliError(

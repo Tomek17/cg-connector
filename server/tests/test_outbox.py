@@ -26,7 +26,7 @@ from cg_server.models import (
     Workout,
     WorkoutOrigin,
 )
-from cg_server.outbox import MAX_ATTEMPTS, OutboxRunner, process_user_outbox, retry_delay
+from cg_server.outbox import MAX_ATTEMPTS, MAX_RETRY, OutboxRunner, process_user_outbox, retry_delay
 from cg_server.synclock import SyncBusy, sync_lock
 from cg_server.workout_definition import DefinitionError
 
@@ -286,7 +286,7 @@ def test_gives_up_after_max_attempts(session: Session, settings: Settings) -> No
     now = NOW
     for _ in range(MAX_ATTEMPTS):
         run(session, settings, fake, now=now)
-        now += timedelta(days=1)
+        now += MAX_RETRY
     session.refresh(item)
     assert item.status == ScheduleStatus.FAILED
     assert item.attempts == MAX_ATTEMPTS
@@ -523,3 +523,13 @@ def test_delete_never_claims_deleted_when_id_cannot_be_found(
     assert (
         workouts.request_delete(session, user(session), item.id).status == ScheduleStatus.DELETING
     )
+
+
+def test_pending_after_its_day_fails_without_sending(session: Session, settings: Settings) -> None:
+    item = schedule(session)
+    fake = FakeGarminGateway()
+    run(session, settings, fake, now=datetime(2026, 11, 20, 23, 30, tzinfo=UTC))  # 21st local
+    session.refresh(item)
+    assert item.status == ScheduleStatus.FAILED
+    assert item.last_error is not None and item.last_error.startswith("date_passed")
+    assert fake.calls == []

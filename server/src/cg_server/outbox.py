@@ -25,9 +25,10 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
+from zoneinfo import ZoneInfo
 
 from garminconnect import GarminConnectConnectionError
 from sqlalchemy import case, or_, select, update
@@ -62,6 +63,7 @@ DUE = (ScheduleStatus.PENDING, ScheduleStatus.DELETING)
 # `last_error`: "<code>: <short English detail>" (read by Claude and the app). Codes:
 # send_failed, delete_failed, rate_limited, garmin_login_needed, date_passed.
 ERR_RATE_LIMITED = "rate_limited: Garmin HTTP 429, paused for 24 h"
+ERR_DATE_PASSED = "date_passed: the day is over, not sent"
 ERR_NEEDS_LOGIN = "garmin_login_needed: the server owner must run cg-server garmin-login"
 
 
@@ -313,16 +315,35 @@ def process_user_outbox(
     delay_s: float = 2.0,
     sleep: Callable[[float], None] = time.sleep,
     lock_dir: Path | None = None,
+    timezone: str = "Europe/Warsaw",
 ) -> OutboxResult:
     """Process the user's due outbox entries under the sync lock (SyncBusy at once if
-    taken). Garmin is contacted only if something is due."""
+    taken). Garmin is contacted only if something is due. Entries still pending after
+    their (local) day are not sent any more: `failed` with `date_passed`."""
     if lock_dir is None:
         lock_dir = Path(str(session.get_bind().engine.url.database)).parent
     now = (now or utcnow()).astimezone(UTC)
     if not due_items(session, user, now):
         return OutboxResult()
     with sync_lock(lock_dir):
+        today = now.astimezone(ZoneInfo(timezone)).date()
+        expire_past(session, user, today)
         return _process_locked(session, user, gateway, key, now, delay_s, sleep)
+
+
+def expire_past(session: Session, user: User, today: date) -> None:
+    session.execute(
+        update(ScheduledWorkout)
+        .where(
+            ScheduledWorkout.user_id == user.id,
+            ScheduledWorkout.status == ScheduleStatus.PENDING.value,
+            ScheduledWorkout.date < today,
+        )
+        .values(
+            status=ScheduleStatus.FAILED.value, last_error=ERR_DATE_PASSED, next_attempt_at=None
+        )
+    )
+    session.commit()
 
 
 def _process_locked(
@@ -408,6 +429,7 @@ class OutboxRunner:
                     delay_s=self.settings.sync_request_delay_s,
                     sleep=self.sleep,
                     lock_dir=self.settings.data_dir,
+                    timezone=self.settings.timezone,
                 )
         except SyncBusy:
             log.info("outbox user_id=%s skipped: Garmin session busy", user_id)
