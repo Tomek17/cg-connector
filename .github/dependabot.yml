@@ -13,3 +13,9 @@ updates:
       # Python przypięty do 3.12 (pyproject: <3.13); podbicie wersji to osobna decyzja.
       - dependency-name: python
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - package-ecosystem: gradle
+    directory: /android
+    schedule: { interval: weekly }
+    groups:
+      android-deps:
+        patterns: ["*"]

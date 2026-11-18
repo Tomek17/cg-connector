@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+.idea/
+.kotlin/
+*.iml
+captures/
+
+# Główny .gitignore wyklucza katalogi data/ (dane serwera); pakiety Kotlina o tej nazwie są kodem.
+!app/src/**/data/
