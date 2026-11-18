@@ -30,6 +30,7 @@ from cg_server.garmin import accounts
 from cg_server.garmin.gateway import GarminGateway, RealGarminGateway
 from cg_server.models import GarminCredentials, GarminStatus, SyncRun, SyncStatus, User, utcnow
 from cg_server.sync import SyncOptions, sync_user
+from cg_server.synclock import SyncBusy
 
 log = logging.getLogger(__name__)
 
@@ -173,7 +174,10 @@ class SyncRunner:
                     key=self.settings.encryption_key,
                     options=self.options,
                     now=now,
+                    lock_dir=self.settings.data_dir,
                 )
+        except SyncBusy:
+            log.info("sync user_id=%s skipped: another sync is running", user_id)
         except Exception as e:  # one user's problem never stops the others
             log.warning("sync user_id=%s crashed: %s", user_id, type(e).__name__)
 

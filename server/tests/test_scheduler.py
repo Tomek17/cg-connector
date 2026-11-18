@@ -295,3 +295,19 @@ def test_app_lifespan_starts_scheduler_only_when_enabled(
         assert client.get("/health").status_code == 200
 
     assert started == ([True] if enabled else [])
+
+
+def test_scheduler_skips_while_cli_sync_holds_the_lock(settings: Settings) -> None:
+    from cg_server.synclock import sync_lock
+
+    add_user(settings, "tomek")
+    runner = runner_for(settings)
+    now = datetime(2026, 11, 18, 14, 30, tzinfo=WAW)
+
+    with sync_lock(settings.data_dir):
+        runner.catch_up(now=now)
+    assert runs(settings) == []
+    assert all(fake.calls == [] for fake in runner.created)  # type: ignore[attr-defined]
+
+    runner.catch_up(now=now)
+    assert runs(settings) == [("tomek", SyncStatus.OK)]

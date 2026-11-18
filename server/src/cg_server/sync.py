@@ -17,6 +17,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any, TypeVar
 from zoneinfo import ZoneInfo
 
@@ -38,6 +39,7 @@ from cg_server.models import (
     Vo2Max,
     utcnow,
 )
+from cg_server.synclock import sync_lock
 
 log = logging.getLogger(__name__)
 
@@ -304,14 +306,33 @@ def sync_user(
     options: SyncOptions | None = None,
     now: datetime | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    lock_dir: Path | None = None,
 ) -> SyncResult:
-    """Sync one user. Never raises for Garmin/network errors: the outcome is in the result
-    and in `sync_runs`. Process interruption leaves the run as `running` with its cursor."""
+    """Sync one user under the inter-process sync lock (`lock_dir`, by default the
+    database's directory, i.e. the data dir). Raises SyncBusy at once if another sync
+    holds it. Never raises for Garmin/network errors: the outcome is in the result and in
+    `sync_runs`. Process interruption leaves the run as `running` with its cursor."""
+    if lock_dir is None:
+        lock_dir = Path(str(session.get_bind().engine.url.database)).parent
+    with sync_lock(lock_dir):
+        return _sync_user_locked(session, user, gateway, key, options, now, sleep)
+
+
+def _sync_user_locked(
+    session: Session,
+    user: User,
+    gateway: GarminGateway,
+    key: str,
+    options: SyncOptions | None,
+    now: datetime | None,
+    sleep: Callable[[float], None],
+) -> SyncResult:
     options = options or SyncOptions()
     now = (now or utcnow()).astimezone(UTC)  # SQLite keeps no offset: store UTC only
     today = now.astimezone(ZoneInfo(options.timezone)).date()
 
-    # Runs left `running` were interrupted (process stopped); the cursor keeps their progress.
+    # Under the lock, a run left `running` was interrupted (process stopped); its cursor
+    # keeps the progress.
     session.execute(
         update(SyncRun)
         .where(SyncRun.user_id == user.id, SyncRun.status == SyncStatus.RUNNING)

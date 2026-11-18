@@ -25,6 +25,7 @@ from cg_server.models import (
     Vo2Max,
 )
 from cg_server.sync import SyncOptions, normalize_kind, sync_user
+from cg_server.synclock import SyncBusy, sync_lock
 
 TOKENS = '{"di_token": "fake-access-1", "di_refresh_token": "fake-refresh-1"}'
 # 2026-11-18 14:00 in Warsaw (UTC+1 in November).
@@ -489,3 +490,24 @@ def test_request_limit_stops_run_and_history_continues_next_time(
     # Details of each activity fetched once, even across runs.
     splits = [aid for name, aid in all_details if name == "get_activity_splits"]
     assert sorted(splits) == sorted(set(splits))
+
+
+def test_sync_refuses_to_run_while_another_process_holds_the_lock(
+    session: Session, settings: Settings
+) -> None:
+    user = make_user(session, settings.encryption_key)
+    # A run left `running` by another process that is still working.
+    session.add(SyncRun(user_id=user.id, status=SyncStatus.RUNNING, started_at=NOW))
+    session.commit()
+    fake = FakeGarminGateway(activities=activities_fixture())
+
+    with sync_lock(settings.data_dir), pytest.raises(SyncBusy):
+        run(session, user, fake, settings.encryption_key)
+
+    assert fake.calls == []
+    statuses = list(session.scalars(select(SyncRun.status)))
+    assert statuses == [SyncStatus.RUNNING]  # not marked as interrupted
+
+    # Once the lock is free the sync works (and the stale run is marked interrupted).
+    assert run(session, user, fake, settings.encryption_key).status == SyncStatus.OK
+    assert (settings.data_dir / "sync.lock").exists()

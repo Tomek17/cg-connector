@@ -82,3 +82,19 @@ def test_sync_status(capsys: pytest.CaptureFixture[str]) -> None:
     brat = next(line for line in lines if line.startswith("brat"))
     assert "ok" in tomek and "aktywności: 2" in tomek
     assert "nigdy" in brat
+
+
+def test_sync_while_another_sync_runs(
+    settings: Settings, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from cg_server.synclock import sync_lock
+
+    logged_in_user()
+    capsys.readouterr()
+    fake = FakeGarminGateway(activities=recent_activities())
+
+    with sync_lock(settings.data_dir):
+        assert main(["sync", "--user", "tomek"], gateway_factory=lambda: fake) == 1
+
+    assert "Synchronizacja już trwa" in capsys.readouterr().err
+    assert fake.calls == []

@@ -27,6 +27,7 @@ from cg_server.garmin.gateway import (
 )
 from cg_server.models import Activity, SyncRun, SyncStatus, User, utcnow
 from cg_server.sync import SyncOptions, sync_user
+from cg_server.synclock import SyncBusy
 from cg_server.users import UserError, add_user, get_user
 
 GatewayFactory = Callable[[], GarminGateway]
@@ -148,9 +149,19 @@ def cmd_sync(settings: Settings, name: str, gateway: GarminGateway) -> None:
     with open_db(settings)() as session:
         user = _require_user(session, name)
         print(f"Synchronizacja danych Garmin dla „{name}”…")
-        result = sync_user(
-            session, user, gateway, key=key, options=SyncOptions.from_settings(settings)
-        )
+        try:
+            result = sync_user(
+                session,
+                user,
+                gateway,
+                key=key,
+                options=SyncOptions.from_settings(settings),
+                lock_dir=settings.data_dir,
+            )
+        except SyncBusy as e:
+            raise CliError(
+                "Synchronizacja już trwa (serwer albo inne polecenie). Spróbuj za chwilę."
+            ) from e
     summary = (
         f"Status: {result.status.value}; nowe aktywności: {result.activities_new}, "
         f"zaktualizowane: {result.activities_updated}, wpisy VO2max: {result.vo2max_points}."
