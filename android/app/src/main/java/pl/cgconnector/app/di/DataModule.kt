@@ -8,7 +8,10 @@ import dagger.hilt.components.SingletonComponent
 import pl.cgconnector.app.BuildConfig
 import pl.cgconnector.app.data.remote.ActivityRemoteDataSource
 import pl.cgconnector.app.data.remote.ApiActivityRemoteDataSource
+import pl.cgconnector.app.data.remote.ApiWorkoutRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeActivityRemoteDataSource
+import pl.cgconnector.app.data.remote.FakeWorkoutRemoteDataSource
+import pl.cgconnector.app.data.remote.WorkoutRemoteDataSource
 import pl.cgconnector.app.data.repository.ActivityRepository
 import pl.cgconnector.app.data.repository.OfflineFirstActivityRepository
 import pl.cgconnector.app.data.repository.RoomStatsRepository
@@ -40,5 +43,11 @@ abstract class DataModule {
             fake: Provider<FakeActivityRemoteDataSource>,
             api: Provider<ApiActivityRemoteDataSource>,
         ): ActivityRemoteDataSource = if (BuildConfig.USE_FAKE_API) fake.get() else api.get()
+
+        @Provides
+        fun provideWorkoutRemoteDataSource(
+            fake: Provider<FakeWorkoutRemoteDataSource>,
+            api: Provider<ApiWorkoutRemoteDataSource>,
+        ): WorkoutRemoteDataSource = if (BuildConfig.USE_FAKE_API) fake.get() else api.get()
     }
 }

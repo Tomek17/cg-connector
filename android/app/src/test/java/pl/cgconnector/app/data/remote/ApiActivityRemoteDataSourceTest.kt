@@ -35,6 +35,20 @@ class ApiActivityRemoteDataSourceTest {
             from: String?,
             to: String?,
         ): SummaryDto = error("unused")
+
+        override suspend fun createWorkout(body: NewWorkoutDto): WorkoutOutDto = error("unused")
+
+        override suspend fun scheduleWorkout(
+            workoutId: Long,
+            body: ScheduleRequestDto,
+        ): ScheduledOutDto = error("unused")
+
+        override suspend fun scheduled(
+            from: String?,
+            to: String?,
+        ): ScheduledListDto = error("unused")
+
+        override suspend fun deleteScheduled(scheduledId: Long): ScheduledOutDto = error("unused")
     }
 
     private fun dto(
