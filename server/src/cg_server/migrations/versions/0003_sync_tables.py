@@ -87,6 +87,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("cursor_date", sa.Date(), nullable=True),
+        sa.Column("backfill_date", sa.Date(), nullable=True),
         sa.Column("activities_new", sa.Integer(), nullable=False),
         sa.Column("activities_updated", sa.Integer(), nullable=False),
         sa.Column("request_limit_reached", sa.Boolean(), nullable=False),

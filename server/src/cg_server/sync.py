@@ -1,9 +1,12 @@
 """Daily sync of Garmin data for one user: activities, their details, VO2max.
 
 Rules (MASTER_PROMPT 3.1, docs/research/garmin.md section 5):
-- Window: from the saved cursor (last day fully synced) minus 3 days for late edits; the
-  first sync goes back 12 months, in chunks of 30 days, oldest first.
-- One transaction per activity (summary + details), and the cursor is saved after each
+- Newest data first. Every run first syncs the current window: from the forward cursor
+  (`cursor_date`, last day fully synced) minus 3 days for late edits up to today; the
+  first sync takes the last 30 days. Only then the rest of the request limit goes to the
+  history: chunks of 30 days from the backfill cursor (`backfill_date`, oldest day synced)
+  backwards, newest first, down to 12 months. Everything between the two cursors is saved.
+- One transaction per activity (summary + details), and the cursors are saved after each
   chunk, so an interrupted sync (laptop sleep) resumes where it stopped.
 - Details (laps, HR zones, strength sets) only for activities we do not have details for.
 - A pause before every request. HTTP 429 stops the sync at once, with no retries, and
@@ -187,9 +190,15 @@ def _date_range(start: date, end: date, days: int) -> list[tuple[date, date]]:
     return chunks
 
 
-def last_cursor(session: Session, user: User) -> date | None:
-    """Last local date up to which all data is saved (from any run, also interrupted)."""
-    return session.scalar(select(func.max(SyncRun.cursor_date)).where(SyncRun.user_id == user.id))
+def last_cursors(session: Session, user: User) -> tuple[date | None, date | None]:
+    """(forward cursor, backfill cursor) over all runs, also interrupted ones: data from
+    the backfill cursor up to the forward cursor is saved."""
+    forward, backfill = session.execute(
+        select(func.max(SyncRun.cursor_date), func.min(SyncRun.backfill_date)).where(
+            SyncRun.user_id == user.id
+        )
+    ).one()
+    return forward, backfill
 
 
 class _UserSync:
@@ -207,6 +216,24 @@ class _UserSync:
         self.paced = paced
         self.vo2max_points = 0
 
+    def forward(self, start: date, today: date, chunk_days: int, backfill: date | None) -> None:
+        """Current window, oldest chunk first, so the forward cursor stays contiguous."""
+        for chunk_start, chunk_end in _date_range(start, today, chunk_days):
+            self.chunk(chunk_start, chunk_end)
+            self.run.cursor_date = chunk_end
+            if backfill is None:  # first sync: the history starts where this window starts
+                backfill = self.run.backfill_date = chunk_start
+            self.session.commit()
+
+    def history(self, backfill: date, target: date, chunk_days: int) -> None:
+        """Backfill with what is left of the request limit: newest chunk first."""
+        while backfill > target:
+            chunk_end = backfill - timedelta(days=1)
+            chunk_start = max(chunk_end - timedelta(days=chunk_days - 1), target)
+            self.chunk(chunk_start, chunk_end)
+            backfill = self.run.backfill_date = chunk_start
+            self.session.commit()
+
     def chunk(self, start: date, end: date) -> None:
         raw_list = self.paced(
             self.gateway.get_activities_by_date, start.isoformat(), end.isoformat(), None, "asc"
@@ -216,8 +243,6 @@ class _UserSync:
                 continue
             self.activity(raw)
         self.vo2max(start, end)
-        self.run.cursor_date = end
-        self.session.commit()
 
     def activity(self, raw: dict[str, Any]) -> None:
         garmin_id = int(raw["activityId"])
@@ -338,7 +363,7 @@ def _sync_user_locked(
         .where(SyncRun.user_id == user.id, SyncRun.status == SyncStatus.RUNNING)
         .values(status=SyncStatus.FAILED, error="Przerwany (np. uśpienie lub restart)")
     )
-    cursor = last_cursor(session, user)
+    cursor, backfill = last_cursors(session, user)
     run = SyncRun(user_id=user.id, started_at=now, status=SyncStatus.RUNNING)
     session.add(run)
     session.commit()
@@ -356,10 +381,11 @@ def _sync_user_locked(
     if creds.status == GarminStatus.NEEDS_LOGIN:
         return _finish(session, run, SyncStatus.FAILED, "Tokeny odrzucone: garmin-login")
 
-    if cursor is None:
-        start = today - timedelta(days=options.history_days)
+    if cursor is None or backfill is None:
+        start, backfill = today - timedelta(days=options.chunk_days - 1), None
     else:
         start = min(cursor, today) - timedelta(days=options.overlap_days)
+    history_target = today - timedelta(days=options.history_days)
     paced = _Paced(options.request_delay_s, sleep, options.max_requests)
     job = _UserSync(session, user, gateway, run, options, paced)
     resumed = limit_reached = False
@@ -367,8 +393,10 @@ def _sync_user_locked(
     try:
         paced(gateway.resume, decrypt(creds.encrypted_tokens, key))
         resumed = True
-        for chunk_start, chunk_end in _date_range(start, today, options.chunk_days):
-            job.chunk(chunk_start, chunk_end)
+        job.forward(start, today, options.chunk_days, backfill)
+        backfill = run.backfill_date or backfill
+        if backfill is not None:
+            job.history(backfill, history_target, options.chunk_days)
     except RequestLimitReached:
         session.rollback()
         limit_reached = True
@@ -398,7 +426,12 @@ def _sync_user_locked(
     run.request_limit_reached = limit_reached
     if status == SyncStatus.OK and creds.status != GarminStatus.OK:
         creds.status = GarminStatus.OK
-    progressed = run.activities_new or run.activities_updated or run.cursor_date is not None
+    progressed = (
+        run.activities_new
+        or run.activities_updated
+        or run.cursor_date is not None
+        or run.backfill_date is not None
+    )
     if status == SyncStatus.FAILED and progressed:
         status = SyncStatus.PARTIAL
     result = _finish(session, run, status, error)

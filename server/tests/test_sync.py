@@ -114,7 +114,7 @@ def test_normalize_kind(type_key: str, kind: ActivityKind) -> None:
     assert normalize_kind(type_key) == kind
 
 
-def test_first_sync_fetches_12_months_in_30_day_chunks(
+def test_first_sync_fetches_last_30_days_then_history_newest_first(
     session: Session, settings: Settings
 ) -> None:
     user = make_user(session, settings.encryption_key)
@@ -123,17 +123,20 @@ def test_first_sync_fetches_12_months_in_30_day_chunks(
     result = run(session, user, fake, settings.encryption_key)
 
     assert result.status == SyncStatus.OK
-    windows = list_windows(fake)
-    assert windows[0][0] == (TODAY - timedelta(days=365)).isoformat()
-    assert windows[-1][1] == TODAY.isoformat()
-    for (start, end), (next_start, _) in zip(windows, windows[1:], strict=False):
-        assert date.fromisoformat(end) - date.fromisoformat(start) <= timedelta(days=29)
-        assert date.fromisoformat(next_start) == date.fromisoformat(end) + timedelta(days=1)
+    windows = [(date.fromisoformat(a), date.fromisoformat(b)) for a, b in list_windows(fake)]
+    assert windows[0] == (TODAY - timedelta(days=29), TODAY)
+    # Then the history, chunk by chunk going back, without gaps, down to 12 months.
+    for (start, _), (_, prev_end) in zip(windows, windows[1:], strict=False):
+        assert prev_end == start - timedelta(days=1)
+    for start, end in windows:
+        assert end - start <= timedelta(days=29)
+    assert windows[-1][0] == TODAY - timedelta(days=365)
     assert count(session, Activity, user) == 5
     assert result.activities_new == 5
     sync_run = session.scalars(select(SyncRun)).one()
     assert sync_run.status == SyncStatus.OK
     assert sync_run.cursor_date == TODAY
+    assert sync_run.backfill_date == TODAY - timedelta(days=365)
     assert sync_run.finished_at is not None
 
 
@@ -226,21 +229,25 @@ def test_interrupted_sync_resumes_from_last_saved_point(
         run(session, user, first, key)
     session.rollback()
 
-    # Activities 1 and 2 were committed one by one; 3 is not half-saved.
-    assert set(session.scalars(select(Activity.garmin_activity_id))) == {1, 2}
+    # Recent activities first, committed one by one; 3 (history) is not half-saved.
+    assert set(session.scalars(select(Activity.garmin_activity_id))) == {4, 5}
     interrupted = session.scalars(select(SyncRun)).one()
     assert interrupted.status == SyncStatus.RUNNING
-    assert interrupted.cursor_date is not None and interrupted.cursor_date < date(2026, 6, 15)
+    assert interrupted.cursor_date == TODAY
+    assert interrupted.backfill_date is not None
+    assert interrupted.backfill_date > date(2026, 6, 15)
+    backfill_at = interrupted.backfill_date
 
     second = FakeGarminGateway(activities=activities_fixture())
     result = run(session, user, second, key, now=NOW + timedelta(minutes=30))
 
     assert result.status == SyncStatus.OK
     windows = list_windows(second)
-    assert windows[0][0] == (interrupted.cursor_date - timedelta(days=3)).isoformat()
+    assert windows[0] == ((TODAY - timedelta(days=3)).isoformat(), TODAY.isoformat())
+    assert windows[1][1] == (backfill_at - timedelta(days=1)).isoformat()
     assert count(session, Activity, user) == 5
     assert count(session, ActivityDetails, user) == 5
-    assert {aid for _, aid in detail_calls(second)} == {3, 4, 5}
+    assert {aid for _, aid in detail_calls(second)} == {1, 2, 3}
     session.refresh(interrupted)
     assert interrupted.status == SyncStatus.FAILED
     assert interrupted.error is not None
@@ -456,7 +463,7 @@ def test_details_error_of_one_activity_does_not_stop_sync(
     assert detail_calls(again) == []
 
 
-def test_request_limit_stops_run_and_history_continues_next_time(
+def test_request_limit_first_run_gets_last_30_days_and_history_follows(
     session: Session, settings: Settings
 ) -> None:
     user = make_user(session, settings.encryption_key)
@@ -469,13 +476,18 @@ def test_request_limit_stops_run_and_history_continues_next_time(
     assert 0 < len(first.calls) <= 12
     assert result.status == SyncStatus.PARTIAL
     assert result.error is not None and "Limit" in result.error
+    assert list_windows(first)[0] == ((TODAY - timedelta(days=29)).isoformat(), TODAY.isoformat())
+    # The last 30 days are complete after the first run.
+    assert set(session.scalars(select(Activity.garmin_activity_id))) == {4, 5}
     first_run = session.scalars(select(SyncRun)).one()
     assert first_run.request_limit_reached is True
-    assert first_run.cursor_date is not None and first_run.cursor_date < TODAY
+    assert first_run.cursor_date == TODAY
+    assert first_run.backfill_date is not None
+    assert first_run.backfill_date > TODAY - timedelta(days=365)
 
     statuses = []
     all_details: list[tuple[str, Any]] = detail_calls(first)
-    for day in range(1, 10):
+    for day in range(1, 15):
         fake = FakeGarminGateway(activities=activities_fixture())
         res = run(session, user, fake, key, now=NOW + timedelta(days=day), options=options)
         assert len(fake.calls) <= 12
@@ -490,6 +502,30 @@ def test_request_limit_stops_run_and_history_continues_next_time(
     # Details of each activity fetched once, even across runs.
     splits = [aid for name, aid in all_details if name == "get_activity_splits"]
     assert sorted(splits) == sorted(set(splits))
+
+
+def test_current_window_always_goes_before_history(session: Session, settings: Settings) -> None:
+    user = make_user(session, settings.encryption_key)
+    key = settings.encryption_key
+    options = SyncOptions(request_delay_s=0, max_requests=8)
+    run(session, user, FakeGarminGateway(activities=activities_fixture()), key, options=options)
+
+    newer = activities_fixture()
+    newer.append(make_activity(6, datetime(2026, 11, 19, 7), "running"))
+    fake = FakeGarminGateway(activities=newer)
+    run(session, user, fake, key, now=NOW + timedelta(days=1), options=options)
+
+    names = [name for name in fake.calls if name != "resume"]
+    windows = list_windows(fake)
+    assert windows[0] == ("2026-11-15", "2026-11-19")
+    # The new activity and its details come before any history request.
+    assert names[:3] == [
+        "get_activities_by_date",
+        "get_activity_splits",
+        "get_activity_hr_in_timezones",
+    ]
+    assert detail_calls(fake)[0] == ("get_activity_splits", 6)
+    assert len(windows) > 1  # the rest of the limit went to the history
 
 
 def test_sync_refuses_to_run_while_another_process_holds_the_lock(

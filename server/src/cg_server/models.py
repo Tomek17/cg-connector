@@ -176,7 +176,8 @@ class Vo2Max(Base):
 
 
 class SyncRun(Base):
-    """One sync attempt for one user. `cursor_date`: data up to this local date is saved."""
+    """One sync attempt for one user. Data from `backfill_date` (oldest local day synced)
+    up to `cursor_date` (newest local day synced) is saved; taken as min/max over runs."""
 
     __tablename__ = "sync_runs"
     __table_args__ = (Index("ix_sync_runs_user_started", "user_id", "started_at"),)
@@ -187,6 +188,7 @@ class SyncRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[SyncStatus] = mapped_column(_str_enum(SyncStatus, "sync_status", 24))
     cursor_date: Mapped[date | None] = mapped_column(Date)
+    backfill_date: Mapped[date | None] = mapped_column(Date)
     activities_new: Mapped[int] = mapped_column(default=0)
     activities_updated: Mapped[int] = mapped_column(default=0)
     # Stopped at the per-run request limit: counts as today's sync, the rest comes next time.
