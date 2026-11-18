@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -23,6 +24,8 @@ import pl.cgconnector.app.data.remote.SummaryItemDto
 import pl.cgconnector.app.data.remote.Vo2MaxPointDto
 import pl.cgconnector.app.domain.ActivityType
 import pl.cgconnector.app.domain.RefreshOutcome
+import retrofit2.HttpException
+import retrofit2.Response
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant
@@ -192,6 +195,31 @@ class OfflineFirstActivityRepositoryTest {
             assertThat(status.lastRefreshOutcome).isEqualTo(RefreshOutcome.UNAVAILABLE)
             assertThat(status.lastRefreshSuccessAt).isEqualTo(clock.instant())
             assertThat(status.lastRefreshAttemptAt).isEqualTo(clock.instant())
+        }
+
+    @Test
+    fun activityDetail_recordsAttemptInSyncStatusWithoutMovingLastRefresh() =
+        runTest {
+            remote.detailError = HttpException(Response.error<Any>(401, "{}".toResponseBody()))
+
+            assertThat(repository.refreshActivityDetail(5)).isEqualTo(RefreshResult.Unauthorized)
+
+            var status = stats.observeSyncStatus().first()
+            assertThat(status.lastRefreshOutcome).isEqualTo(RefreshOutcome.UNAUTHORIZED)
+            assertThat(status.lastRefreshAttemptAt).isEqualTo(clock.instant())
+            assertThat(status.lastRefreshSuccessAt).isNull()
+
+            remote.detailError = IOException("offline")
+            repository.refreshActivityDetail(5)
+            status = stats.observeSyncStatus().first()
+            assertThat(status.lastRefreshOutcome).isEqualTo(RefreshOutcome.UNAVAILABLE)
+
+            remote.detailError = null
+            remote.detail = ActivityDetailDto(id = 5, type = "running", startTime = "2026-11-10T07:30:00+01:00", durationSec = 60)
+            repository.refreshActivityDetail(5)
+            status = stats.observeSyncStatus().first()
+            assertThat(status.lastRefreshOutcome).isEqualTo(RefreshOutcome.SUCCESS)
+            assertThat(status.lastRefreshSuccessAt).isNull()
         }
 
     @Test

@@ -40,24 +40,41 @@ class OfflineFirstActivityRepository
         override fun observeActivityDetail(id: Long): Flow<ActivityDetail?> =
             detailDao.observe(id).map { it?.toDomain() }
 
-        override suspend fun refreshActivityDetail(id: Long): RefreshResult =
-            runCatchingRefresh {
-                val detail = remote.fetchActivityDetail(id)
-                detailDao.replace(detail.toBundle(fetchedAt = clock.instant()))
-                RefreshResult.Success(1)
-            }
+        /** Wynik też trafia do stanu synchronizacji: 401 albo brak serwera przy szczegółach widać na ekranie Status. */
+        override suspend fun refreshActivityDetail(id: Long): RefreshResult {
+            val result =
+                runCatchingRefresh {
+                    val detail = remote.fetchActivityDetail(id)
+                    detailDao.replace(detail.toBundle(fetchedAt = clock.instant()))
+                    RefreshResult.Success(1)
+                }
+            recordAttempt(result, fullRefresh = false)
+            return result
+        }
 
         override suspend fun refresh(): RefreshResult {
             val result = runCatchingRefresh { refreshAll() }
+            recordAttempt(result, fullRefresh = true)
+            return result
+        }
+
+        /**
+         * Zapisuje próbę połączenia. „Ostatnie odświeżenie aplikacji” przesuwa tylko udane pełne odświeżenie,
+         * bo samo pobranie szczegółów jednego treningu nie aktualizuje listy, VO2max ani `/me`.
+         */
+        private suspend fun recordAttempt(
+            result: RefreshResult,
+            fullRefresh: Boolean,
+        ) {
             val now = clock.instant()
+            val success = fullRefresh && result is RefreshResult.Success
             statsDao.updateSyncStatus { status ->
                 status.copy(
                     lastRefreshAttemptAt = now,
                     lastRefreshOutcome = result.toOutcome().name,
-                    lastRefreshSuccessAt = if (result is RefreshResult.Success) now else status.lastRefreshSuccessAt,
+                    lastRefreshSuccessAt = if (success) now else status.lastRefreshSuccessAt,
                 )
             }
-            return result
         }
 
         private suspend fun refreshAll(): RefreshResult {
