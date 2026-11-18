@@ -61,7 +61,7 @@ class OfflineFirstWorkoutQueueRepository
         private val trigger: WorkoutQueueTrigger,
         private val json: Json,
         private val clock: Clock,
-    ) {
+    ) : WorkoutQueueRepository {
         override fun observeQueue(): Flow<List<QueuedWorkout>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
 
         override suspend fun enqueue(
@@ -201,7 +201,7 @@ class OfflineFirstWorkoutQueueRepository
             return items.size
         }
 
-        private fun today(): LocalDate = LocalDate.ofInstant(clock.instant(), ZONE)
+        private fun today(): LocalDate = clock.instant().atZone(ZONE).toLocalDate()
 
         private suspend fun guard(block: suspend () -> RefreshResult): RefreshResult =
             try {
