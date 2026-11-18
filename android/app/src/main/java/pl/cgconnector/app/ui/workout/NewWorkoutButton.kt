@@ -15,7 +15,10 @@ import pl.cgconnector.app.R
 
 /** „Nowy trening” na ekranie kolejki: wybór rodzaju otwiera kreator. */
 @Composable
-fun NewWorkoutButton(onNewRunning: () -> Unit) {
+fun NewWorkoutButton(
+    onNewRunning: () -> Unit,
+    onNewStrength: () -> Unit,
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box {
         ExtendedFloatingActionButton(onClick = { expanded = true }) { Text(stringResource(R.string.wizard_new)) }
@@ -25,6 +28,13 @@ fun NewWorkoutButton(onNewRunning: () -> Unit) {
                 onClick = {
                     expanded = false
                     onNewRunning()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.wizard_new_strength)) },
+                onClick = {
+                    expanded = false
+                    onNewStrength()
                 },
             )
         }

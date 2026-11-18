@@ -174,7 +174,7 @@ private fun StepEditor(
 @Composable
 internal fun <T> ChipRow(
     options: List<T>,
-    selected: T,
+    selected: T?,
     label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
 ) {

@@ -84,15 +84,18 @@ fun NameAndDateFields(
     }
 }
 
-/** Lista problemów po próbie zapisu; pusta = nic nie pokazuje. */
+/** Lista problemów po próbie zapisu; pusta = nic nie pokazuje. [positionLabel]: „Krok %d: %s” albo „Ćwiczenie…”. */
 @Composable
-fun ProblemList(problems: List<WorkoutProblem>) {
+fun ProblemList(
+    problems: List<WorkoutProblem>,
+    positionLabel: Int = R.string.wizard_problem_at,
+) {
     if (problems.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         problems.forEach { problem ->
             val text = stringResource(problem.code.textRes())
             Text(
-                text = problem.position?.let { stringResource(R.string.wizard_problem_at, it, text) } ?: text,
+                text = problem.position?.let { stringResource(positionLabel, it, text) } ?: text,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
             )
