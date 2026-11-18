@@ -1,6 +1,6 @@
 # cg-android
 
-Aplikacja Android CG-connector (Kotlin, Jetpack Compose Material 3). Stan: **M1, szkielet**.
+Aplikacja Android CG-connector (Kotlin, Jetpack Compose Material 3). Stan: **M2, ekrany danych**.
 
 ## Co jest w M1
 
@@ -20,9 +20,26 @@ Aplikacja Android CG-connector (Kotlin, Jetpack Compose Material 3). Stan: **M1,
   następne: przy braku serwera za 1 h, ale tylko do 23:00; w pozostałych przypadkach jutro o 14:20.
   Logika jest w czystej funkcji `RefreshSchedule` z testami. Start aplikacji tylko odtwarza łańcuch
   (`KEEP`), gdy go brakuje.
-- **Dane na razie są fałszywe.** `FakeActivityRemoteDataSource` generuje deterministyczne dane syntetyczne,
-  bo serwer nie ma jeszcze `/api/v1`. Przełącznik to `USE_FAKE_API` w `app/build.gradle.kts`.
-  Klient Retrofit (`CgApi`, `ApiActivityRemoteDataSource`) jest gotowy.
+- **Źródło danych zależy od buildu** (`USE_FAKE_API` w `app/build.gradle.kts`): **debug** używa
+  `FakeActivityRemoteDataSource` (deterministyczne dane syntetyczne, bez serwera), **release** łączy się
+  z `/api/v1` przez `ApiActivityRemoteDataSource`.
+
+## Co doszło w M2
+
+- **Nawigacja:** dolny pasek Treningi / VO2max / Status / Ustawienia. Kliknięcie treningu otwiera szczegóły.
+- **Szczegóły treningu:** podsumowanie, okrążenia z tempem min/km, strefy tętna i serie siłowe.
+  Szczegóły pobierają się z `GET /activities/{id}` przy pierwszym otwarciu i zostają w Room.
+  Offline ekran pokazuje to, co jest w bazie, i komunikat. Przycisk „Odśwież” pobiera je ponownie.
+- **VO2max:** aktualna wartość, zmiana w ostatnich 90 dniach i wykres trendu rysowany w `Canvas`,
+  bez zewnętrznej biblioteki.
+- **Status:** serwer online/offline (wynik ostatniej próby połączenia), ostatni sync serwera z Garminem
+  (z `/me`), ostatnie udane odświeżenie aplikacji, stan konta Garmin i bieżący tydzień z `/summary`.
+  Ostrzeżenie pojawia się, gdy odświeżenie aplikacji albo sync serwera był ponad 24 h temu (albo nigdy).
+- **Odświeżanie** (ręczne i WorkManager) pobiera po kolei: treningi, VO2max (od najnowszego lokalnego
+  pomiaru − 3 dni), `/me` i podsumowanie tygodni. Wynik każdej próby trafia do tabeli `sync_status`.
+- **Room w wersji 2** (migracja automatyczna 1→2): tabele `activity_details`, `activity_laps`,
+  `activity_hr_zones`, `activity_exercise_sets`, `vo2max`, `summaries`, `sync_status` oraz nowe kolumny
+  NULL w `activities` (tempo, TE, obciążenie). `MigrationTest` sprawdza migrację na pliku bazy w wersji 1.
 
 ## Budowanie
 
@@ -40,19 +57,20 @@ CI: `.github/workflows/ci-android.yml`.
 Wersje bibliotek są przypięte w `gradle/libs.versions.toml` (sprawdzone 2026-11-18). Aktualizuje je
 Dependabot (ekosystem `gradle`). Wrapper Gradle ma przypiętą sumę SHA-256 dystrybucji.
 
-Po pierwszym buildzie Room zapisuje schemat bazy w `app/schemas/`. Ten plik trzeba zacommitować,
-bo jest potrzebny do przyszłych migracji.
+Build zapisuje schemat bazy Room w `app/schemas/<wersja>.json`. Pliki trzeba commitować, bo migracje
+automatyczne są generowane na ich podstawie. CI sprawdza, że zacommitowany schemat zgadza się z kodem.
 
 ## Struktura
 
 ```
 app/src/main/java/pl/cgconnector/app/
 ├─ domain/          # modele i walidacja (czysty Kotlin)
-├─ data/local/      # Room: encja, DAO, baza
+├─ data/local/      # Room: encje, DAO, baza
 ├─ data/remote/     # CgApi (Retrofit), DTO, źródła danych (fake / API)
 ├─ data/settings/   # konfiguracja: DataStore + szyfrowanie tokenu (Keystore)
-├─ data/repository/ # offline-first repozytorium treningów
-├─ ui/              # Compose: konfiguracja, lista treningów, nawigacja, motyw
+├─ data/repository/ # offline-first: treningi i szczegóły, VO2max, podsumowania, status
+├─ ui/              # Compose: konfiguracja, treningi, szczegóły, VO2max, status, nawigacja, motyw
+│  └─ format/       # formatowanie czasu, tempa, dat (czyste funkcje)
 ├─ work/            # WorkManager: codzienne odświeżanie
 └─ di/              # moduły Hilt
 ```
