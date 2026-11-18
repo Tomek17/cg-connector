@@ -30,7 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -49,15 +49,15 @@ fun ActivitiesRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 ActivitiesEvent.Refreshed ->
-                    snackbarHostState.showSnackbar(context.getString(R.string.activities_refreshed))
+                    snackbarHostState.showSnackbar(resources.getString(R.string.activities_refreshed))
                 ActivitiesEvent.ServerUnavailable ->
-                    snackbarHostState.showSnackbar(context.getString(R.string.activities_refresh_failed))
+                    snackbarHostState.showSnackbar(resources.getString(R.string.activities_refresh_failed))
                 ActivitiesEvent.NotConfigured -> onOpenSettings()
             }
         }

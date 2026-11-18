@@ -29,6 +29,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, testy jednostkowe, lint
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --stacktrace
+      - name: Schemat Room zacommitowany
+        # Schemat generuje build (KSP). Różnica = trzeba zacommitować app/schemas/ (diff poniżej).
+        run: |
+          git add --intent-to-add app/schemas
+          git diff --exit-code -- app/schemas
+      - name: Podsumowanie lintu i testów w logu
+        if: failure()
+        run: |
+          cat app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt || true
+          grep -l -E '<(failure|error)' app/build/test-results/testDebugUnitTest/*.xml | xargs -r cat || true
       - name: Raporty testów i lintu
         if: failure()
         uses: actions/upload-artifact@v4
