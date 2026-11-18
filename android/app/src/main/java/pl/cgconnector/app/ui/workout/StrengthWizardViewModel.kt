@@ -34,7 +34,7 @@ class StrengthWizardViewModel
         clock: Clock,
     ) : ViewModel() {
         private var lastKey = 0L
-        private val today = LocalDate.ofInstant(clock.instant(), ZoneId.of("Europe/Warsaw"))
+        private val today = clock.instant().atZone(ZoneId.of("Europe/Warsaw")).toLocalDate()
 
         private val _state =
             MutableStateFlow(
