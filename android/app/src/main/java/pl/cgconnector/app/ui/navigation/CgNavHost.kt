@@ -30,6 +30,8 @@ import pl.cgconnector.app.ui.queue.QueueRoute
 import pl.cgconnector.app.ui.settings.SettingsRoute
 import pl.cgconnector.app.ui.status.StatusRoute
 import pl.cgconnector.app.ui.vo2max.Vo2MaxRoute
+import pl.cgconnector.app.ui.workout.NewWorkoutButton
+import pl.cgconnector.app.ui.workout.RunningWizardRoute
 import kotlin.reflect.KClass
 
 @Serializable
@@ -50,6 +52,9 @@ data object StatusDestination
 
 @Serializable
 data object QueueDestination
+
+@Serializable
+data object RunningWizardDestination
 
 /** Zakładki dolnego paska. */
 private enum class TopLevel(
@@ -116,7 +121,14 @@ fun CgNavHost(isConfigured: Boolean) {
             }
             composable<Vo2MaxDestination> { Vo2MaxRoute() }
             composable<StatusDestination> { StatusRoute() }
-            composable<QueueDestination> { QueueRoute() }
+            composable<QueueDestination> {
+                QueueRoute(
+                    floatingActionButton = {
+                        NewWorkoutButton(onNewRunning = { navController.navigate(RunningWizardDestination) })
+                    },
+                )
+            }
+            composable<RunningWizardDestination> { RunningWizardRoute(onDone = { navController.popBackStack() }) }
         }
     }
 }
