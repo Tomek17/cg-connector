@@ -25,7 +25,8 @@ Most między zegarkami **Garmin** a **Claude**. Pozwala:
 - [Architektura](docs/architektura.md)
 - [Decyzje architektoniczne (ADR)](docs/adr/)
 - [Research](docs/research/)
-- Instalacja serwera, konfiguracja Claude, instrukcja dla drugiego użytkownika — w przygotowaniu.
+- [Instalacja serwera (laptop z Windows + WSL)](docs/instalacja-serwera.md)
+- Konfiguracja Claude, instrukcja dla drugiego użytkownika — w przygotowaniu.
 
 ## Status
 
