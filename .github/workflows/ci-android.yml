@@ -27,8 +27,8 @@ jobs:
       # brakującą platformę i build-tools AGP dociąga sam, z właściwą nazwą pakietu.
       # setup-gradle domyślnie weryfikuje sumę gradle-wrapper.jar i cache'uje zależności.
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build, testy jednostkowe, lint
-        run: ./gradlew assembleDebug testDebugUnitTest lintDebug --stacktrace
+      - name: Build (debug + release bez podpisu, R8), testy jednostkowe, lint
+        run: ./gradlew assembleDebug assembleRelease testDebugUnitTest lintDebug --stacktrace
       - name: Schemat Room zacommitowany
         # Schemat generuje build (KSP). Różnica = trzeba zacommitować app/schemas/ (diff poniżej).
         run: |
