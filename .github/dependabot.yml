@@ -9,3 +9,7 @@ updates:
   - package-ecosystem: docker
     directory: /server
     schedule: { interval: weekly }
+    ignore:
+      # Python przypięty do 3.12 (pyproject: <3.13); podbicie wersji to osobna decyzja.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
