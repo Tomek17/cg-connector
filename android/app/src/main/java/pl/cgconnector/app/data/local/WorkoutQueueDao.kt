@@ -8,8 +8,8 @@ import java.time.LocalDate
 
 @Dao
 interface WorkoutQueueDao {
-    /** Najbliższe daty na górze; w obrębie dnia kolejność dodania. */
-    @Query("SELECT * FROM workout_queue ORDER BY date ASC, id ASC")
+    /** Najbliższe daty na górze; w obrębie dnia kolejność dodania. Usunięte nie są już pokazywane. */
+    @Query("SELECT * FROM workout_queue WHERE NOT (status = 'deleted' AND delete_requested = 0) ORDER BY date ASC, id ASC")
     fun observeAll(): Flow<List<QueuedWorkoutEntity>>
 
     @Query("SELECT * FROM workout_queue ORDER BY id ASC")
@@ -72,8 +72,18 @@ interface WorkoutQueueDao {
         lastError: String?,
     )
 
+    /** „Ponów”: wpis wraca do wysyłki; ponowny POST /schedule przywraca wpis serwera z `failed` do `pending`. */
+    @Query(
+        "UPDATE workout_queue SET status = 'pending', last_error = NULL, remote_scheduled_id = NULL " +
+            "WHERE id = :id AND status = 'failed' AND delete_requested = 0",
+    )
+    suspend fun resetFailed(id: Long)
+
     /** Stare wpisy (data przed [before]) w stanie końcowym nie są już potrzebne. */
-    @Query("DELETE FROM workout_queue WHERE date < :before AND status IN ('sent', 'deleted') AND delete_requested = 0")
+    @Query(
+        "DELETE FROM workout_queue WHERE date < :before AND status IN ('sent', 'failed', 'deleted') " +
+            "AND delete_requested = 0",
+    )
     suspend fun pruneBefore(before: LocalDate)
 
     @Query("DELETE FROM workout_queue WHERE id = :id")

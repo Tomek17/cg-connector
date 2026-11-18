@@ -13,7 +13,9 @@ import pl.cgconnector.app.data.local.WorkoutQueueDao
 import pl.cgconnector.app.data.local.toDomain
 import pl.cgconnector.app.data.remote.CgApi
 import pl.cgconnector.app.data.remote.NewWorkoutDto
+import pl.cgconnector.app.data.remote.ScheduledOutDto
 import pl.cgconnector.app.data.remote.WorkoutRemoteDataSource
+import pl.cgconnector.app.domain.AppZone
 import pl.cgconnector.app.domain.workout.QueueStatus
 import pl.cgconnector.app.domain.workout.QueuedWorkout
 import pl.cgconnector.app.domain.workout.WorkoutDefinition
@@ -21,7 +23,9 @@ import pl.cgconnector.app.domain.workout.WorkoutJson
 import retrofit2.HttpException
 import java.time.Clock
 import java.time.LocalDate
-import java.time.ZoneId
+import java.time.Duration
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import javax.inject.Inject
 
@@ -46,6 +50,9 @@ interface WorkoutQueueRepository {
     /** Tylko wpisy outboxu CG-connector ([QueuedWorkout.canDelete]). */
     suspend fun requestDelete(id: Long)
 
+    /** Ponowne zaplanowanie wpisu z błędem ([QueuedWorkout.canRetry]). */
+    suspend fun retry(id: Long)
+
     /** Ręczne „Odśwież”: wysyłka i statusy w tle. */
     fun refresh()
 
@@ -59,6 +66,7 @@ class OfflineFirstWorkoutQueueRepository
         private val dao: WorkoutQueueDao,
         private val remote: WorkoutRemoteDataSource,
         private val trigger: WorkoutQueueTrigger,
+        private val pauseStore: QueuePauseStore,
         private val json: Json,
         private val clock: Clock,
     ) : WorkoutQueueRepository {
@@ -89,6 +97,11 @@ class OfflineFirstWorkoutQueueRepository
             trigger.trigger()
         }
 
+        override suspend fun retry(id: Long) {
+            dao.resetFailed(id)
+            trigger.trigger()
+        }
+
         override fun refresh() = trigger.trigger()
 
         /**
@@ -96,8 +109,10 @@ class OfflineFirstWorkoutQueueRepository
          * (4xx) oznacza go jako „błąd” i nie przerywa reszty; brak serwera przerywa i daje
          * [RefreshResult.Unavailable] (worker ponowi). Każda operacja jest idempotentna po stronie serwera.
          */
-        override suspend fun sync(): RefreshResult =
-            guard {
+        override suspend fun sync(): RefreshResult {
+            // Serwer kazał poczekać (Retry-After): nie pytamy go wcześniej, worker spróbuje po backoffie.
+            if (pauseStore.pausedUntil()?.isAfter(clock.instant()) == true) return RefreshResult.Unavailable
+            return guard {
                 for (item in dao.getAll()) {
                     when {
                         item.deleteRequested -> perItem(item) { delete(item) }
@@ -108,10 +123,12 @@ class OfflineFirstWorkoutQueueRepository
                 dao.pruneBefore(today().minusDays(KEEP_PAST_DAYS))
                 RefreshResult.Success(count)
             }
+        }
 
+        /** Szkic albo wpis do ponownego zaplanowania („Ponów”, także zaimportowany z serwera). */
         private fun QueuedWorkoutEntity.needsSending() =
-            status == QueueStatus.PENDING.apiValue && remoteScheduledId == null && clientId != null &&
-                definitionJson != null
+            status == QueueStatus.PENDING.apiValue && remoteScheduledId == null &&
+                (remoteWorkoutId != null || (clientId != null && definitionJson != null))
 
         private suspend fun send(item: QueuedWorkoutEntity) {
             val workoutId =
@@ -123,14 +140,26 @@ class OfflineFirstWorkoutQueueRepository
                         ),
                     ).id
                     .also { dao.setRemoteWorkoutId(item.id, it) }
-            val scheduled = remote.schedule(workoutId, item.date)
-            // Wpis mógł już przyjść z GET /scheduled jako obcy (przerwana wcześniejsza próba): zostaje nasz.
-            dao.getByRemoteScheduledId(scheduled.id)?.takeIf { it.id != item.id }?.let { dao.deleteById(it.id) }
+            val scheduled = schedule(item, workoutId)
             dao.setScheduled(item.id, scheduled.id, scheduled.status, scheduled.lastError)
         }
 
+        /** Idempotentne: dla tego treningu i dnia serwer zwraca istniejący wpis (wpis `failed` wraca do `pending`). */
+        private suspend fun schedule(
+            item: QueuedWorkoutEntity,
+            workoutId: Long,
+        ): ScheduledOutDto {
+            val scheduled = remote.schedule(workoutId, item.date)
+            // Wpis mógł już przyjść z GET /scheduled jako obcy (przerwana wcześniejsza próba): zostaje nasz.
+            dao.getByRemoteScheduledId(scheduled.id)?.takeIf { it.id != item.id }?.let { dao.deleteById(it.id) }
+            return scheduled
+        }
+
         private suspend fun delete(item: QueuedWorkoutEntity) {
-            val scheduledId = item.remoteScheduledId
+            val workoutId = item.remoteWorkoutId
+            // Trening jest na serwerze, ale odpowiedź na /schedule mogła zginąć (przerwany worker): ustalamy id
+            // wpisu tym samym idempotentnym zapytaniem, żeby nie zostawić go w kalendarzu Garmin.
+            val scheduledId = item.remoteScheduledId ?: workoutId?.let { schedule(item, it).id }
             if (scheduledId == null) {
                 // Nigdy nie trafił do outboxu serwera: wystarczy oznaczyć lokalnie.
                 dao.finishDelete(item.id, QueueStatus.DELETED.apiValue, null)
@@ -201,7 +230,7 @@ class OfflineFirstWorkoutQueueRepository
             return items.size
         }
 
-        private fun today(): LocalDate = clock.instant().atZone(ZONE).toLocalDate()
+        private fun today(): LocalDate = clock.instant().atZone(AppZone.WARSAW).toLocalDate()
 
         private suspend fun guard(block: suspend () -> RefreshResult): RefreshResult =
             try {
@@ -209,13 +238,26 @@ class OfflineFirstWorkoutQueueRepository
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // 408/429 to chwilowy stan serwera: ponawiamy jak przy braku sieci.
+                // 408/429 to chwilowy stan serwera: ponawiamy jak przy braku sieci, nie wcześniej niż Retry-After.
                 if (e is HttpException && e.code() in TRANSIENT_4XX) {
+                    pauseStore.pauseUntil(clock.instant().plus(retryAfter(e)))
                     RefreshResult.Unavailable
                 } else {
                     OfflineFirstActivityRepository.classify(e)
                 }
             }
+
+        /** `Retry-After` w sekundach albo jako data HTTP; brak lub zły = [DEFAULT_PAUSE], maks. [MAX_PAUSE]. */
+        private fun retryAfter(e: HttpException): Duration {
+            val header = e.response()?.headers()?.get("Retry-After")?.trim().orEmpty()
+            val pause =
+                header.toLongOrNull()?.let(Duration::ofSeconds)
+                    ?: runCatching {
+                        Duration.between(clock.instant(), ZonedDateTime.parse(header, DateTimeFormatter.RFC_1123_DATE_TIME))
+                    }.getOrNull()
+                    ?: DEFAULT_PAUSE
+            return pause.coerceIn(Duration.ZERO, MAX_PAUSE)
+        }
 
         private fun errorDetail(e: HttpException): String {
             val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
@@ -235,7 +277,8 @@ class OfflineFirstWorkoutQueueRepository
         }
 
         companion object {
-            private val ZONE: ZoneId = ZoneId.of("Europe/Warsaw")
+            private val DEFAULT_PAUSE: Duration = Duration.ofSeconds(60)
+            private val MAX_PAUSE: Duration = Duration.ofHours(6)
             private const val KEEP_PAST_DAYS = 30L
             private const val MAX_ERROR_LENGTH = 500
             private const val HTTP_UNAUTHORIZED = 401
