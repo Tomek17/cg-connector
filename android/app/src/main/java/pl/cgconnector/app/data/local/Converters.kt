@@ -3,6 +3,7 @@ package pl.cgconnector.app.data.local
 import androidx.room.TypeConverter
 import pl.cgconnector.app.domain.ActivityType
 import java.time.Instant
+import java.time.LocalDate
 
 class Converters {
     @TypeConverter
@@ -16,4 +17,11 @@ class Converters {
 
     @TypeConverter
     fun stringToActivityType(value: String): ActivityType = ActivityType.fromApi(value)
+
+    /** `YYYY-MM-DD`: czytelne w bazie i sortuje się poprawnie jako tekst. */
+    @TypeConverter
+    fun localDateToString(value: LocalDate): String = value.toString()
+
+    @TypeConverter
+    fun stringToLocalDate(value: String): LocalDate = LocalDate.parse(value)
 }

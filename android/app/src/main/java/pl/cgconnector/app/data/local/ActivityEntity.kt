@@ -29,6 +29,13 @@ data class ActivityEntity(
     @ColumnInfo(name = "elevation_gain_m") val elevationGainM: Double?,
     @ColumnInfo(name = "avg_power_w") val avgPowerW: Int?,
     @ColumnInfo(name = "avg_cadence_spm") val avgCadenceSpm: Int?,
+    // Od wersji 2 bazy (migracja automatyczna 1→2, kolumny dopuszczają NULL).
+    @ColumnInfo(name = "moving_duration_sec") val movingDurationSec: Long? = null,
+    @ColumnInfo(name = "avg_speed_mps") val avgSpeedMps: Double? = null,
+    @ColumnInfo(name = "pace_min_per_km") val paceMinPerKm: Double? = null,
+    @ColumnInfo(name = "aerobic_training_effect") val aerobicTrainingEffect: Double? = null,
+    @ColumnInfo(name = "anaerobic_training_effect") val anaerobicTrainingEffect: Double? = null,
+    @ColumnInfo(name = "training_load") val trainingLoad: Double? = null,
 )
 
 fun ActivityEntity.toDomain() =
@@ -44,4 +51,10 @@ fun ActivityEntity.toDomain() =
         elevationGainM = elevationGainM,
         avgPowerW = avgPowerW,
         avgCadenceSpm = avgCadenceSpm,
+        movingDurationSec = movingDurationSec,
+        avgSpeedMps = avgSpeedMps,
+        paceMinPerKm = paceMinPerKm,
+        aerobicTrainingEffect = aerobicTrainingEffect,
+        anaerobicTrainingEffect = anaerobicTrainingEffect,
+        trainingLoad = trainingLoad,
     )

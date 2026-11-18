@@ -19,14 +19,15 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // M1: serwer nie ma jeszcze API, więc dane pochodzą z fałszywego źródła.
-        // Po wdrożeniu /api/v1 przełączyć na false.
-        buildConfigField("boolean", "USE_FAKE_API", "true")
     }
 
     buildTypes {
+        // USE_FAKE_API: debug działa na danych syntetycznych (bez serwera), release rozmawia z /api/v1.
+        debug {
+            buildConfigField("boolean", "USE_FAKE_API", "true")
+        }
         release {
+            buildConfigField("boolean", "USE_FAKE_API", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

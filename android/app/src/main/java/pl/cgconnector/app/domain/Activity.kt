@@ -15,4 +15,11 @@ data class Activity(
     val elevationGainM: Double?,
     val avgPowerW: Int?,
     val avgCadenceSpm: Int?,
+    val movingDurationSec: Long? = null,
+    val avgSpeedMps: Double? = null,
+    /** Minuty dziesiętnie (5.5 = 5:30 min/km). */
+    val paceMinPerKm: Double? = null,
+    val aerobicTrainingEffect: Double? = null,
+    val anaerobicTrainingEffect: Double? = null,
+    val trainingLoad: Double? = null,
 )
