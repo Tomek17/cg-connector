@@ -61,7 +61,7 @@ class OfflineFirstWorkoutQueueRepository
         private val trigger: WorkoutQueueTrigger,
         private val json: Json,
         private val clock: Clock,
-    ) {
+    ) : WorkoutQueueRepository {
         override fun observeQueue(): Flow<List<QueuedWorkout>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
 
         override suspend fun enqueue(
