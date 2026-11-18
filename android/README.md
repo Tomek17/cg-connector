@@ -56,7 +56,7 @@ cd android
 ./gradlew lintDebug
 ```
 
-CI: `.github/workflows/ci-android.yml`.
+CI: `.github/workflows/ci-android.yml`. Wydanie podpisanego APK (tag `vX.Y.Z`): [docs/release.md](../docs/release.md).
 
 Wersje bibliotek są przypięte w `gradle/libs.versions.toml` (sprawdzone 2026-11-18). Aktualizuje je
 Dependabot (ekosystem `gradle`). Wrapper Gradle ma przypiętą sumę SHA-256 dystrybucji.
