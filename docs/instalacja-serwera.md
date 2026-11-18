@@ -194,6 +194,8 @@ Zadanie uruchomione. Za ok. 30 s sprawdz: status.ps1
 
 Skrypt można uruchamiać wiele razy (nadpisuje zadanie). Zadanie uruchamia się przy każdym logowaniu i odblokowaniu komputera (np. po otwarciu klapy), bez żadnego okna.
 
+Jeśli po wybudzeniu Windows nie prosi o hasło/PIN (wznowienie bez blokady ekranu), wyzwalacz „przy odblokowaniu” się nie uruchomi. To nie szkodzi: uśpienie nie zatrzymuje WSL ani kontenerów, więc po wybudzeniu serwer i tunel działają dalej same (po kilkunastu sekundach na odnowienie połączenia).
+
 ### 9c. Sprawdzenie
 
 Wygeneruj polecenie tak samo jak wyżej, ale dla `status.ps1`:
@@ -355,6 +357,13 @@ WSL usypia Ubuntu po zamknięciu okna. Sprawdź `.wslconfig` (krok 9a), wykonaj 
 2. Uruchom ręcznie: `Start-ScheduledTask -TaskName "CG-connector autostart"`, odczekaj minutę, potem `status.ps1`.
 3. Jeśli nazwa dystrybucji jest inna niż `Ubuntu`/`Ubuntu-24.04` albo repozytorium leży gdzie indziej, zainstaluj zadanie ponownie z parametrami, np. `… install-autostart.ps1 -Distro Ubuntu-24.04 -RepoPath ~/cg-connector`.
 4. Sprawdź, czy Docker startuje razem z Ubuntu: `systemctl is-enabled docker` → `enabled` (jeśli nie: `sudo systemctl enable docker containerd`).
+5. **Plan B dla ukrytego okna.** Zadanie uruchamia WSL przez `conhost.exe --headless` (bez okna). Na starszych wersjach Windows 10 ta opcja może nie działać (wynik zadania inny niż `0x0` albo miga czarne okno). Wtedy zamień akcję zadania na PowerShell z ukrytym oknem (w PowerShell, w jednej linii; zamień `Ubuntu`, jeśli Twoja dystrybucja nazywa się inaczej):
+
+   ```powershell
+   Set-ScheduledTask -TaskName "CG-connector autostart" -Action (New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -WindowStyle Hidden -Command "wsl.exe -d Ubuntu --exec bash -lc ''cd ~/cg-connector/server && docker compose up -d''"')
+   ```
+
+   Oczekiwany wynik: opis zadania bez błędów. Przy starcie może na ułamek sekundy mignąć okno PowerShell — to normalne. Uwaga: ponowne uruchomienie `install-autostart.ps1` przywraca wariant z `conhost`. Gdyby żaden wariant nie działał, ostatecznym planem zapasowym jest Docker Desktop z opcją automatycznego startu (ADR-0002).
 
 ### P7. Port 8000 jest zajęty (`address already in use`)
 
