@@ -51,7 +51,7 @@ class Vo2MaxViewModel
                 all: List<Vo2MaxPoint>,
                 chosen: String?,
             ): Vo2MaxUiState {
-                val sports = all.map { it.sport }.distinct().sortedWith(compareBy({ it != DEFAULT_SPORT }, { it }))
+                val sports = all.map { it.sport }.distinct().sortedWith(compareBy<String>({ it != DEFAULT_SPORT }, { it }))
                 val sport = chosen?.takeIf { it in sports } ?: sports.firstOrNull()
                 val points = all.filter { it.sport == sport }.sortedBy { it.date }
                 return Vo2MaxUiState(
