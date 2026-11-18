@@ -4,17 +4,18 @@ The user always comes from the OAuth access token (`subject` = user id), never f
 argument. Tool descriptions are in English and answers are short (free-plan token limits).
 """
 
-from datetime import datetime
+from datetime import UTC, date, datetime
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from cg_server.config import Settings
-from cg_server.models import User
+from cg_server.models import Activity, SyncRun, SyncStatus, User
 from cg_server.oauth import SCOPE, CgOAuthProvider
 
 INSTRUCTIONS = (
@@ -27,6 +28,7 @@ class Profile(BaseModel):
     user: str
     garmin_status: str | None
     last_sync_at: datetime | None
+    latest_activity_date: date | None
 
 
 def current_user(session: Session) -> User:
@@ -40,8 +42,23 @@ def current_user(session: Session) -> User:
 
 
 def last_sync_at(session: Session, user: User) -> datetime | None:
-    """Time of the last successful Garmin sync. None until the sync tables exist."""
-    return None
+    """When the user's last successful Garmin sync finished (UTC), None if never."""
+    value = session.scalar(
+        select(func.max(SyncRun.finished_at)).where(
+            SyncRun.user_id == user.id, SyncRun.status == SyncStatus.OK
+        )
+    )
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)  # SQLite: naive
+
+
+def latest_activity_date(session: Session, user: User) -> date | None:
+    """Local date of the user's newest synced activity."""
+    value = session.scalar(
+        select(func.max(Activity.start_time_local)).where(Activity.user_id == user.id)
+    )
+    return value.date() if value is not None else None
 
 
 def build_mcp(
@@ -66,7 +83,8 @@ def build_mcp(
 
     @mcp.tool()
     def get_profile() -> Profile:
-        """Who the signed-in user is, Garmin connection status and last data sync time."""
+        """Signed-in user, Garmin connection status, last successful sync (UTC) and the
+        local date of the newest synced activity."""
         with sessions() as session:
             user = current_user(session)
             creds = user.garmin_credentials
@@ -74,6 +92,7 @@ def build_mcp(
                 user=user.name,
                 garmin_status=creds.status.value if creds else None,
                 last_sync_at=last_sync_at(session, user),
+                latest_activity_date=latest_activity_date(session, user),
             )
 
     return mcp

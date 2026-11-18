@@ -151,6 +151,8 @@ class OAuthToken(Base):
     resource: Mapped[str | None] = mapped_column(Text)
     expires_at: Mapped[int] = mapped_column(Integer)  # unix time
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ActivityKind(StrEnum):
     """Normalized activity type; the raw Garmin `typeKey` is kept next to it."""
 

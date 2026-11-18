@@ -3,7 +3,7 @@
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx2
@@ -15,7 +15,16 @@ from sqlalchemy import select
 from cg_server.app import create_app
 from cg_server.config import Settings
 from cg_server.db import db_path, open_db
-from cg_server.models import OAuthClient, OAuthToken, User, utcnow
+from cg_server.models import (
+    Activity,
+    ActivityKind,
+    OAuthClient,
+    OAuthToken,
+    SyncRun,
+    SyncStatus,
+    User,
+    utcnow,
+)
 from cg_server.oauth import MAX_CLIENTS, CgOAuthProvider
 from cg_server.user_secrets import SecretKind, hash_secret, issue_secret
 from cg_server.users import add_user
@@ -478,3 +487,66 @@ async def test_register_cleans_up_stale_clients_without_tokens(
         assert session.get(OAuthClient, stale["client_id"]) is None
         assert session.get(OAuthClient, active["client"]["client_id"]) is not None
         assert session.get(OAuthClient, fresh["client_id"]) is not None
+
+
+async def test_get_profile_shows_last_sync_and_latest_activity_of_own_user(
+    app: FastAPI, app_settings: Settings, accounts: dict[str, Account]
+) -> None:
+    def activity(user: User, garmin_id: int, day: int) -> Activity:
+        return Activity(
+            user_id=user.id,
+            garmin_activity_id=garmin_id,
+            kind=ActivityKind.RUNNING,
+            type_key="running",
+            start_time_utc=datetime(2026, 11, day, 6, tzinfo=UTC),
+            start_time_local=datetime(2026, 11, day, 7),
+        )
+
+    with open_db(app_settings)() as session:
+        tomek = session.scalars(select(User).where(User.name == "tomek")).one()
+        brat = session.scalars(select(User).where(User.name == "brat")).one()
+        ok_at = datetime(2026, 11, 17, 13, 5, tzinfo=UTC)
+        session.add_all(
+            [
+                SyncRun(user_id=tomek.id, status=SyncStatus.OK, finished_at=ok_at),
+                # A later failed run does not count as the last successful sync.
+                SyncRun(
+                    user_id=tomek.id,
+                    status=SyncStatus.FAILED,
+                    finished_at=ok_at + timedelta(days=1),
+                ),
+                SyncRun(
+                    user_id=brat.id,
+                    status=SyncStatus.OK,
+                    finished_at=ok_at + timedelta(days=1),
+                ),
+                activity(tomek, 1, 10),
+                activity(tomek, 2, 12),
+                activity(brat, 3, 15),
+            ]
+        )
+        session.commit()
+
+    async with running(app) as http:
+        tomek_tokens = await login_tokens(http, accounts["tomek"].cg_code)
+        brat_tokens = await login_tokens(http, accounts["brat"].cg_code)
+        profile = await call_tool(http, tomek_tokens["access_token"], "get_profile")
+        other = await call_tool(http, brat_tokens["access_token"], "get_profile")
+
+    assert profile["user"] == "tomek"
+    assert profile["last_sync_at"].startswith("2026-11-17T13:05")
+    assert profile["latest_activity_date"] == "2026-11-12"
+    assert other["latest_activity_date"] == "2026-11-15"
+    assert other["last_sync_at"].startswith("2026-11-18T13:05")
+
+
+async def test_get_profile_without_data(app: FastAPI, accounts: dict[str, Account]) -> None:
+    async with running(app) as http:
+        tokens = await login_tokens(http, accounts["tomek"].cg_code)
+        profile = await call_tool(http, tokens["access_token"], "get_profile")
+    assert profile == {
+        "user": "tomek",
+        "garmin_status": None,
+        "last_sync_at": None,
+        "latest_activity_date": None,
+    }
