@@ -12,6 +12,7 @@
 # Użycie:  ~/cg-connector/ops/wsl/backup.sh
 # Harmonogram (systemd timer / cron): patrz docs/instalacja-serwera.md.
 set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="${CG_SERVER_DIR:-$(cd "${SCRIPT_DIR}/../../server" && pwd)}"
@@ -25,10 +26,11 @@ if [[ ! -f "${SERVER_DIR}/.env" ]]; then
   echo "BŁĄD: brak pliku ${SERVER_DIR}/.env" >&2
   exit 1
 fi
-if ! [[ "${RETENTION_DAYS}" =~ ^[0-9]+$ ]]; then
-  echo "BŁĄD: CG_BACKUP_RETENTION_DAYS musi być liczbą" >&2
+if ! [[ "${RETENTION_DAYS}" =~ ^[0-9]+$ ]] || (( 10#${RETENTION_DAYS} < 1 )); then
+  echo "BŁĄD: CG_BACKUP_RETENTION_DAYS musi być liczbą całkowitą >= 1" >&2
   exit 1
 fi
+RETENTION_DAYS=$((10#${RETENTION_DAYS}))
 
 STAMP="$(date +%Y-%m-%d_%H%M%S)"
 echo "$(date -Iseconds) start kopii ${STAMP}"
@@ -40,15 +42,21 @@ docker compose --project-directory "${SERVER_DIR}" -f "${SERVER_DIR}/compose.yam
   -e "BACKUP_RETENTION_DAYS=${RETENTION_DAYS}" \
   cg-server python - <<'PY'
 import os
+import re
 import shutil
 import sqlite3
 import time
 from pathlib import Path
 
+# Kopie (katalogi i pliki) dostępne tylko dla właściciela.
+os.umask(0o077)
+
 data = Path("/data")
 root = data / "backups"
 target = root / os.environ["BACKUP_STAMP"]
-retention_days = int(os.environ["BACKUP_RETENTION_DAYS"])
+retention_days = max(1, int(os.environ["BACKUP_RETENTION_DAYS"]))
+# Rotacja usuwa wyłącznie katalogi utworzone przez ten skrypt (RRRR-MM-DD_GGMMSS).
+stamp_re = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}$")
 
 dbs = sorted(
     p for p in data.iterdir()
@@ -70,7 +78,12 @@ else:
 if root.is_dir():
     cutoff = time.time() - retention_days * 86400
     for old in root.iterdir():
-        if old.is_dir() and old.stat().st_mtime < cutoff:
+        if (
+            stamp_re.fullmatch(old.name)
+            and old.is_dir()
+            and not old.is_symlink()
+            and old.stat().st_mtime < cutoff
+        ):
             shutil.rmtree(old)
             print(f"Usunięto starą kopię: backups/{old.name}")
 PY
