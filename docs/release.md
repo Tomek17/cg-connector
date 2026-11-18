@@ -2,7 +2,7 @@
 
 Aplikację instalujemy z pliku APK pobranego z [GitHub Releases](https://github.com/Tomek17/cg-connector/releases) (bez Google Play). Wydanie powstaje samo, gdy na GitHubie pojawi się tag `vX.Y.Z` — workflow `.github/workflows/release-android.yml` buduje APK, podpisuje go Twoim kluczem i publikuje razem z sumą SHA-256.
 
-Klucz podpisu jest **tylko u Ciebie i w GitHub Secrets**. Nigdy w repozytorium, czacie, mailu ani na zrzucie ekranu.
+Klucz podpisu jest **tylko u Ciebie i w GitHub Secrets (Environment `release`)**. Nigdy w repozytorium, czacie, mailu ani na zrzucie ekranu.
 
 Jednorazowo: kroki 1–3. Przy każdym wydaniu: krok 4.
 
@@ -37,9 +37,18 @@ cp ~/cg-klucz/cg-release.keystore /mnt/e/ && ls -l /mnt/e/cg-release.keystore
 
 Nie wrzucaj klucza do folderów synchronizowanych z chmurą bez szyfrowania ani do repozytorium (`.gitignore` blokuje `*.keystore` i `*.jks`, ale nie polegaj na tym).
 
-## Krok 3. Sekrety w GitHubie
+## Krok 3. Environment `release`, sekrety i ochrona tagów
 
-Na stronie repozytorium: **Settings → Secrets and variables → Actions → New repository secret**. Dodaj cztery sekrety (nazwa dokładnie jak niżej):
+Sekrety trzymamy w osobnym **Environment** `release`, a nie w sekretach całego repozytorium. Dzięki temu dostaje je tylko job podpisu uruchomiony z tagu `v*` i dopiero po Twoim zatwierdzeniu.
+
+**3a. Environment.** Na stronie repozytorium: **Settings → Environments → New environment**, nazwa `release` → **Configure environment**. Następnie:
+
+1. **Required reviewers**: zaznacz, wpisz `Tomek17`, **Save protection rules**.
+2. **Deployment branches and tags**: wybierz **Selected branches and tags** → **Add deployment branch or tag rule** → typ **Tag**, wzorzec `v*` → **Add rule**.
+
+Oczekiwany wynik: na stronie environmentu widać „Required reviewers: Tomek17” i regułę tagu `v*`.
+
+**3b. Sekrety.** Na tej samej stronie, w sekcji **Environment secrets** → **Add environment secret**. Dodaj cztery sekrety (nazwa dokładnie jak niżej):
 
 | Nazwa | Wartość |
 |---|---|
@@ -54,9 +63,18 @@ Wartość `ANDROID_KEYSTORE_BASE64` skopiuj do schowka Windows (nie pojawi się 
 base64 -w0 ~/cg-klucz/cg-release.keystore | clip.exe && echo "Skopiowane do schowka"
 ```
 
-Oczekiwany wynik: `Skopiowane do schowka`. Wklej (Ctrl+V) w pole **Secret** i kliknij **Add secret**. Potem wyczyść schowek, kopiując cokolwiek innego.
+Oczekiwany wynik: `Skopiowane do schowka`. Wklej (Ctrl+V) w pole **Value** i kliknij **Add secret**. Potem wyczyść schowek: **Win+V → „Wyczyść wszystko”**.
 
-Oczekiwany wynik całego kroku: na liście **Repository secrets** są cztery nazwy. GitHub nigdy nie pokaże już ich wartości (to normalne) — można je tylko nadpisać.
+Oczekiwany wynik: w **Environment secrets** są cztery nazwy. GitHub nigdy nie pokaże już ich wartości (to normalne) — można je tylko nadpisać. W **Settings → Secrets and variables → Actions → Repository secrets** tych nazw ma **nie być**.
+
+**3c. Ochrona tagów `v*`** (tylko Ty tworzysz i usuwasz tagi wydań): **Settings → Rules → Rulesets → New ruleset → New tag ruleset**:
+
+1. Nazwa `tagi wydań`, **Enforcement status: Active**.
+2. **Bypass list → Add bypass → Repository admin** (to Ty).
+3. **Target tags → Add target → Include by pattern**: `v*`.
+4. Zaznacz **Restrict creations**, **Restrict updates**, **Restrict deletions** → **Create**.
+
+Oczekiwany wynik: ruleset `tagi wydań` ze statusem *Active*.
 
 ## Krok 4. Wydanie nowej wersji (za każdym razem)
 
@@ -68,13 +86,13 @@ Oczekiwany wynik całego kroku: na liście **Repository secrets** są cztery naz
    ```
 
    Oczekiwany wynik: `* [new tag] v0.2.0 -> v0.2.0`.
-3. Otwórz zakładkę **Actions → release-android**. Po ok. 5–10 minutach przebieg jest zielony, a w **Releases** pojawia się wydanie `CG-connector v0.2.0` z plikami `cg-connector-v0.2.0.apk` i `cg-connector-v0.2.0.apk.sha256`.
+3. Otwórz zakładkę **Actions → release-android**. Po zbudowaniu APK (ok. 5 minut) przebieg zatrzyma się na jobie **sign** z napisem *Waiting for review*: kliknij **Review deployments**, zaznacz `release` i **Approve and deploy**. Po chwili przebieg jest zielony, a w **Releases** pojawia się wydanie `CG-connector v0.2.0` z plikami `cg-connector-v0.2.0.apk` i `cg-connector-v0.2.0.apk.sha256`.
 
 Wersje testowe: tag z myślnikiem (np. `v0.2.0-rc1`, wtedy też `versionName = "0.2.0-rc1"`) tworzy wydanie oznaczone jako *Pre-release*.
 
 ### Gdy przebieg jest czerwony
 
-- **„Brak sekretów podpisu APK”** — brakuje sekretu wymienionego w komunikacie (krok 3). Po dodaniu: w przebiegu **Re-run jobs**.
+- **„Brak sekretów podpisu APK”** — brakuje sekretu wymienionego w komunikacie (krok 3b). Po dodaniu: w przebiegu **Re-run jobs**.
 - **„Tag … nie pasuje do versionName”** — tag różni się od `versionName`. Usuń błędny tag (`git push --delete origin v0.2.0 && git tag -d v0.2.0`), popraw wersję przez PR i utwórz tag ponownie.
 - **„nie jest poprawnym base64”** albo błąd `apksigner` o haśle/aliasie — wpisz sekrety ponownie (krok 3).
 
@@ -86,5 +104,5 @@ Opis wydania zawiera **SHA-256 certyfikatu podpisu**. Jest taki sam w każdym wy
 
 ## Gdy klucz wycieknie
 
-1. Usuń sekrety z GitHuba (Settings → Secrets) i sprawdź, kto ma dostęp do repozytorium.
+1. Usuń sekrety z GitHuba (Settings → Environments → release) i sprawdź, kto ma dostęp do repozytorium.
 2. Wygeneruj nowy klucz (kroki 1–3) i wydaj nową wersję; na telefonach trzeba będzie odinstalować starą aplikację (patrz ostrzeżenie w kroku 2).
