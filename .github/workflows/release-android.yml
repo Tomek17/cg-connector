@@ -1,0 +1,118 @@
+# Wydanie aplikacji: tag vX.Y.Z → podpisany APK + suma SHA-256 w GitHub Release.
+# Instrukcja dla Tomka (klucz, sekrety, tag): docs/release.md.
+#
+# Na PR zmieniającym ten plik działa "na sucho": podpis jednorazowym kluczem
+# wygenerowanym w CI, bez sekretów i bez publikacji.
+name: release-android
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: [".github/workflows/release-android.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: release-android-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # tylko do utworzenia Release
+    env:
+      DRY_RUN: ${{ github.event_name != 'push' }}
+      NAME: ${{ github.event_name == 'push' && github.ref_name || 'proba' }}
+    steps:
+      - name: Sekrety podpisu są ustawione
+        if: env.DRY_RUN != 'true'
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KS" ] || missing="$missing ANDROID_KEYSTORE_BASE64"
+          [ -n "$KS_PASS" ] || missing="$missing ANDROID_KEYSTORE_PASSWORD"
+          [ -n "$ALIAS" ] || missing="$missing ANDROID_KEY_ALIAS"
+          [ -n "$KEY_PASS" ] || missing="$missing ANDROID_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error title=Brak sekretów podpisu APK::Brakuje:$missing. Dodaj je w Settings → Secrets and variables → Actions (docs/release.md) i uruchom ten workflow ponownie (Re-run jobs). Release NIE został utworzony."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - name: Tag zgodny z versionName
+        if: env.DRY_RUN != 'true'
+        run: |
+          vn=$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' android/app/build.gradle.kts)
+          if [ "v$vn" != "$NAME" ]; then
+            echo "::error::Tag $NAME nie pasuje do versionName \"$vn\" w android/app/build.gradle.kts. Podbij versionName i versionCode w PR, scal, dopiero potem utwórz tag (docs/release.md)."
+            exit 1
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build release APK (bez podpisu, R8)
+        working-directory: android
+        run: ./gradlew assembleRelease --stacktrace
+      - name: Podpis APK (apksigner)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ env.DRY_RUN != 'true' && secrets.ANDROID_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          ks="$RUNNER_TEMP/release.keystore"
+          if [ "$DRY_RUN" = "true" ]; then
+            # Jednorazowy klucz tylko do sprawdzenia procesu; ginie razem z runnerem.
+            ANDROID_KEYSTORE_PASSWORD=$(openssl rand -hex 16)
+            ANDROID_KEY_PASSWORD=$ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS=proba
+            export ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD
+            keytool -genkeypair -keystore "$ks" -storetype PKCS12 -alias proba -keyalg RSA \
+              -keysize 2048 -validity 1 -dname "CN=CG-connector proba" \
+              -storepass:env ANDROID_KEYSTORE_PASSWORD -keypass:env ANDROID_KEY_PASSWORD
+          else
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ks" \
+              || { echo "::error::ANDROID_KEYSTORE_BASE64 nie jest poprawnym base64 (docs/release.md)."; exit 1; }
+          fi
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          unsigned=$(find app/build/outputs/apk/release -name '*.apk')
+          [ "$(echo "$unsigned" | wc -l)" = 1 ] || { echo "::error::Oczekiwano jednego APK: $unsigned"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/dist"
+          apk="$RUNNER_TEMP/dist/cg-connector-$NAME.apk"
+          "$bt/apksigner" sign --ks "$ks" --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD \
+            --out "$apk" "$unsigned"
+          rm -f "$ks"
+          "$bt/apksigner" verify --print-certs "$apk" | tee "$RUNNER_TEMP/certs.txt"
+          (cd "$RUNNER_TEMP/dist" && sha256sum "$(basename "$apk")" | tee "$(basename "$apk").sha256")
+          echo "APK=$apk" >> "$GITHUB_ENV"
+        working-directory: android
+      - name: Usuń klucz z dysku runnera
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+      - name: GitHub Release
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(cut -d' ' -f1 "$APK.sha256")
+          cert=$(sed -n 's/.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/certs.txt" | head -n1)
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          Aplikacja Android CG-connector $NAME.
+
+          **Instalacja:** pobierz \`$(basename "$APK")\` na telefon i otwórz (zgoda na instalację z tego źródła). Aktualizacja instaluje się na poprzednią wersję bez utraty danych.
+
+          - SHA-256 pliku APK: \`$sha\`
+          - SHA-256 certyfikatu podpisu: \`$cert\` (taki sam w każdym wydaniu)
+
+          EOF
+          pre=""
+          case "$NAME" in *-*) pre="--prerelease" ;; esac
+          gh release create "$NAME" "$APK" "$APK.sha256" --verify-tag $pre \
+            --title "CG-connector $NAME" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes
