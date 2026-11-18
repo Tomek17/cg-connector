@@ -355,3 +355,28 @@ async def test_tools_reject_out_of_bounds_dates(
     assert is_error
     assert "Overflow" not in text
     assert "2000-01-01" in text or "2 years" in text or "at most" in text
+
+
+async def test_summer_time_and_new_year_week_in_tools(
+    app_settings: Settings, http: httpx2.AsyncClient
+) -> None:
+    with open_db(app_settings)() as session:
+        user = add_user(session, "lato")
+        add_activity(session, user, 701, datetime(2026, 7, 2, 0, 30))
+        add_activity(session, user, 702, datetime(2026, 12, 31, 8))
+        add_activity(session, user, 703, datetime(2027, 1, 3, 9))
+        add_sync(session, user, utcnow())
+        session.commit()
+        code = issue_secret(session, user, SecretKind.CG_CODE)
+    summer = await ok(
+        http, code, "list_activities", {"from_date": "2026-07-02", "to_date": "2026-07-02"}
+    )
+    assert [(x["id"], x["start"]) for x in summer["activities"]] == [(701, "2026-07-02 00:30")]
+    weeks = await ok(
+        http,
+        code,
+        "get_training_summary",
+        {"period": "week", "from_date": "2026-12-30", "to_date": "2027-01-03"},
+    )
+    assert weeks["range"] == "2026-12-28..2027-01-03"
+    assert [(p["start"], p["running"]["n"]) for p in weeks["periods"]] == [("2026-12-28", 2)]

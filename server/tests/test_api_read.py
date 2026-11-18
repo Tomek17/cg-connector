@@ -347,3 +347,30 @@ def test_two_year_range_is_allowed(client: TestClient, tokens: dict[str, str]) -
     params = {"from": "2024-11-18", "to": "2026-11-18"}
     for path in ["/api/v1/activities", "/api/v1/vo2max", "/api/v1/summary"]:
         get(client, tokens["a"], path, **params)
+
+
+def test_summer_time_offset_and_new_year_weeks(
+    client: TestClient, settings: Settings, tokens: dict[str, str]
+) -> None:
+    with open_db(settings)() as session:
+        a = get_user(session, "anna")
+        assert a is not None
+        add_activity(session, a, 401, datetime(2026, 7, 2, 0, 30))  # 22:30 UTC on Jul 1
+        add_activity(session, a, 402, datetime(2026, 12, 31, 8))  # Thu
+        add_activity(session, a, 403, datetime(2027, 1, 3, 9))  # Sun, same week
+        session.commit()
+    token = tokens["a"]
+    summer = get(client, token, "/api/v1/activities", **{"from": "2026-07-02", "to": "2026-07-02"})
+    assert [(x["id"], x["start_time"]) for x in summer["items"]] == [
+        (401, "2026-07-02T00:30:00+02:00")
+    ]
+    weeks = get(
+        client,
+        token,
+        "/api/v1/summary",
+        period="week",
+        **{"from": "2026-12-28", "to": "2027-01-03"},
+    )
+    assert [(x["period_start"], x["period_end"], x["count"]) for x in weeks["items"]] == [
+        ("2026-12-28", "2027-01-03", 2)
+    ]

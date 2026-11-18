@@ -224,3 +224,36 @@ def test_sync_is_stale_after_24_hours() -> None:
     assert queries.is_stale(None, now)
     assert queries.is_stale(now - timedelta(hours=25), now)
     assert not queries.is_stale(now - timedelta(hours=23), now)
+
+
+def test_summer_time_local_day_boundaries(session: Session, users: tuple[User, User]) -> None:
+    a, _ = users
+    # CEST (+02:00): 00:30 local on Jul 2 is 22:30 UTC on Jul 1.
+    add_activity(session, a, 1, datetime(2026, 7, 2, 0, 30))
+    add_activity(session, a, 2, datetime(2026, 7, 1, 23, 30))
+    day = queries.list_activities(
+        session, user_id=a.id, start=date(2026, 7, 2), end=date(2026, 7, 2)
+    )
+    assert [x.garmin_activity_id for x in day] == [1]
+    assert queries.local_date(day[0].start_time_utc) == date(2026, 7, 2)
+
+
+def test_weekly_summary_across_new_year(session: Session, users: tuple[User, User]) -> None:
+    a, _ = users
+    add_activity(session, a, 1, datetime(2026, 12, 28, 7))  # Mon
+    add_activity(session, a, 2, datetime(2027, 1, 3, 23, 30))  # Sun, same week
+    add_activity(session, a, 3, datetime(2027, 1, 4, 0, 30))  # Mon, next week
+    rows = queries.training_summary(
+        session, user_id=a.id, period=Period.WEEK, start=date(2026, 12, 20), end=date(2027, 1, 10)
+    )
+    assert [(r.period_start, r.period_end, r.count) for r in rows] == [
+        (date(2026, 12, 28), date(2027, 1, 3), 2),
+        (date(2027, 1, 4), date(2027, 1, 10), 1),
+    ]
+    months = queries.training_summary(
+        session, user_id=a.id, period=Period.MONTH, start=date(2026, 12, 1), end=date(2027, 1, 31)
+    )
+    assert [(r.period_start, r.period_end, r.count) for r in months] == [
+        (date(2026, 12, 1), date(2026, 12, 31), 1),
+        (date(2027, 1, 1), date(2027, 1, 31), 2),
+    ]
