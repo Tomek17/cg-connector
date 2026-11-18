@@ -4,24 +4,34 @@ The user always comes from the OAuth access token (`subject` = user id), never f
 argument. Tool descriptions are in English and answers are short (free-plan token limits).
 """
 
-from datetime import UTC, date, datetime
+import json
+from collections.abc import Callable
+from datetime import date, datetime
+from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from pydantic import BaseModel
-from sqlalchemy import func, select
+from mcp.types import CallToolResult, TextContent
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
+from cg_server import mcp_read, queries
 from cg_server.config import Settings
-from cg_server.models import Activity, SyncRun, SyncStatus, User
+from cg_server.models import ActivityKind, User, utcnow
 from cg_server.oauth import SCOPE, CgOAuthProvider
+from cg_server.queries import Period
 
 INSTRUCTIONS = (
     "CG-connector: the user's Garmin Connect training data (activities, VO2max) "
-    "synced once a day. Units: km, min/km, bpm."
+    "synced once a day. Units: km, min/km, bpm; times local (Europe/Warsaw). "
+    "Dates are YYYY-MM-DD."
 )
+
+FromDate = Annotated[date | None, Field(description="First local day, YYYY-MM-DD.")]
+ToDate = Annotated[date | None, Field(description="Last local day, YYYY-MM-DD; default today.")]
 
 
 class Profile(BaseModel):
@@ -41,24 +51,10 @@ def current_user(session: Session) -> User:
     return user
 
 
-def last_sync_at(session: Session, user: User) -> datetime | None:
-    """When the user's last successful Garmin sync finished (UTC), None if never."""
-    value = session.scalar(
-        select(func.max(SyncRun.finished_at)).where(
-            SyncRun.user_id == user.id, SyncRun.status == SyncStatus.OK
-        )
-    )
-    if value is None:
-        return None
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)  # SQLite: naive
-
-
-def latest_activity_date(session: Session, user: User) -> date | None:
-    """Local date of the user's newest synced activity."""
-    value = session.scalar(
-        select(func.max(Activity.start_time_local)).where(Activity.user_id == user.id)
-    )
-    return value.date() if value is not None else None
+def _result(data: dict[str, Any]) -> CallToolResult:
+    """Compact JSON for the model (no spaces, no nulls) plus the same data as structured."""
+    text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=data)
 
 
 def build_mcp(
@@ -81,18 +77,97 @@ def build_mcp(
         ),
     )
 
+    tz = ZoneInfo(settings.timezone)
+
     @mcp.tool()
     def get_profile() -> Profile:
         """Signed-in user, Garmin connection status, last successful sync (UTC) and the
         local date of the newest synced activity."""
         with sessions() as session:
             user = current_user(session)
-            creds = user.garmin_credentials
+            state = queries.sync_status(session, user_id=user.id, tz=tz)
             return Profile(
                 user=user.name,
-                garmin_status=creds.status.value if creds else None,
-                last_sync_at=last_sync_at(session, user),
-                latest_activity_date=latest_activity_date(session, user),
+                garmin_status=state.garmin_status.value if state.garmin_status else None,
+                last_sync_at=state.last_success_at,
+                latest_activity_date=state.latest_activity_date,
             )
+
+    def run(build: Callable[[Session, int], dict[str, Any] | None]) -> CallToolResult:
+        with sessions() as session:
+            user = current_user(session)
+            try:
+                data = build(session, user.id)
+            except mcp_read.InvalidArgument as e:
+                raise ToolError(str(e)) from e
+        if data is None:  # only get_activity: unknown id or another user's activity
+            raise ToolError("Activity not found.")
+        return _result(data)
+
+    @mcp.tool()
+    def list_activities(
+        from_date: FromDate = None,
+        to_date: ToDate = None,
+        type: Annotated[  # name shown to the model
+            ActivityKind | None, Field(description="Only this activity type.")
+        ] = None,
+        limit: Annotated[int, Field(ge=1, le=50, description="Max activities.")] = 20,
+    ) -> CallToolResult:
+        """List the user's activities, newest first: id, local start, type, km, duration,
+        pace (min/km), avg HR. Default: last 30 days, 20 activities."""
+        return run(
+            lambda session, user_id: mcp_read.list_activities(
+                session,
+                user_id=user_id,
+                start=from_date,
+                end=to_date,
+                kind=type,
+                limit=limit,
+                now=utcnow(),
+                tz=tz,
+            )
+        )
+
+    @mcp.tool()
+    def get_activity(
+        activity_id: Annotated[int, Field(description="Activity id from list_activities.")],
+    ) -> CallToolResult:
+        """One activity in detail: laps, minutes in HR zones, strength sets, training
+        effect and load."""
+        return run(
+            lambda session, user_id: mcp_read.activity_detail(
+                session, user_id=user_id, activity_id=activity_id, now=utcnow(), tz=tz
+            )
+        )
+
+    @mcp.tool()
+    def get_vo2max_trend(from_date: FromDate = None, to_date: ToDate = None) -> CallToolResult:
+        """Running VO2max trend: latest value, change, min/max and points [date, value]
+        (only changes; weekly/monthly for long ranges). Default: last 180 days."""
+        return run(
+            lambda session, user_id: mcp_read.vo2max_trend(
+                session, user_id=user_id, start=from_date, end=to_date, now=utcnow(), tz=tz
+            )
+        )
+
+    @mcp.tool()
+    def get_training_summary(
+        period: Annotated[Period, Field(description="week (Mon-Sun) or month.")] = Period.WEEK,
+        from_date: FromDate = None,
+        to_date: ToDate = None,
+    ) -> CallToolResult:
+        """Totals per week or month and activity type: count, km, time, elevation, run
+        pace. Default: last 8 weeks or 6 months."""
+        return run(
+            lambda session, user_id: mcp_read.training_summary(
+                session,
+                user_id=user_id,
+                period=period,
+                start=from_date,
+                end=to_date,
+                now=utcnow(),
+                tz=tz,
+            )
+        )
 
     return mcp
