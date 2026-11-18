@@ -18,6 +18,7 @@ import pl.cgconnector.app.data.local.ActivityDao
 import pl.cgconnector.app.data.local.ActivityDetailDao
 import pl.cgconnector.app.data.local.CgDatabase
 import pl.cgconnector.app.data.local.StatsDao
+import pl.cgconnector.app.data.local.WorkoutQueueDao
 import java.time.Clock
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -39,6 +40,9 @@ object AppModule {
 
     @Provides
     fun provideStatsDao(db: CgDatabase): StatsDao = db.statsDao()
+
+    @Provides
+    fun provideWorkoutQueueDao(db: CgDatabase): WorkoutQueueDao = db.workoutQueueDao()
 
     @Provides
     @Singleton

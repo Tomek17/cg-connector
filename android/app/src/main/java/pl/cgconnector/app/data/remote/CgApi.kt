@@ -1,6 +1,9 @@
 package pl.cgconnector.app.data.remote
 
+import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -43,7 +46,34 @@ interface CgApi {
         @Query("to") to: String? = null,
     ): SummaryDto
 
+    /** 201 = utworzony, 200 = ten `client_id` już był (idempotencja). 422 = zła definicja. */
+    @POST("api/v1/workouts")
+    suspend fun createWorkout(
+        @Body body: NewWorkoutDto,
+    ): WorkoutOutDto
+
+    /** Dodaje trening do outboxu na dany dzień; 404 = brak treningu, 422 = data w przeszłości / za daleko. */
+    @POST("api/v1/workouts/{id}/schedule")
+    suspend fun scheduleWorkout(
+        @Path("id") workoutId: Long,
+        @Body body: ScheduleRequestDto,
+    ): ScheduledOutDto
+
+    /** Domyślnie od dziś przez 30 dni; zakres maks. [MAX_SCHEDULED_DAYS] dni. */
+    @GET("api/v1/scheduled")
+    suspend fun scheduled(
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+    ): ScheduledListDto
+
+    /** Usuwa wyłącznie wpis outboxu CG-connector: `deleted` od razu albo `deleting`, gdy jest już w Garminie. */
+    @DELETE("api/v1/scheduled/{id}")
+    suspend fun deleteScheduled(
+        @Path("id") scheduledId: Long,
+    ): ScheduledOutDto
+
     companion object {
+        const val MAX_SCHEDULED_DAYS = 366L
         const val MAX_LIMIT = 2000
     }
 }

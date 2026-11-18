@@ -9,12 +9,19 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Test
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.runner.RunWith
+import pl.cgconnector.app.domain.workout.QueueStatus
+import java.io.File
 import java.time.Instant
+import java.time.LocalDate
 
 /**
- * Migracja 1→2 na prawdziwym pliku bazy: tworzymy bazę w wersji 1 dokładnie wg `schemas/.../1.json`,
- * a Room po otwarciu uruchamia migrację i sam sprawdza, czy wynik zgadza się ze schematem wersji 2
+ * Migracje na prawdziwym pliku bazy: tworzymy bazę w starej wersji dokładnie wg `schemas/.../<n>.json`,
+ * a Room po otwarciu uruchamia migracje i sam sprawdza, czy wynik zgadza się z bieżącym schematem
  * (przy niezgodności rzuca IllegalStateException).
  */
 @RunWith(AndroidJUnit4::class)
@@ -48,6 +55,66 @@ class MigrationTest {
                 db.close()
             }
         }
+
+    @Test
+    fun migrate2To3_keepsDataAndAddsWorkoutQueue() =
+        runTest {
+            createDatabaseFromSchema(version = 2)
+            context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null).use { db ->
+                db.execSQL(
+                    "INSERT INTO activities (id, type, name, start_time, duration_sec) " +
+                        "VALUES (7, 'running', 'Bieg', 1763361000000, 1800)",
+                )
+            }
+
+            val db =
+                Room
+                    .databaseBuilder(context, CgDatabase::class.java, dbName)
+                    .allowMainThreadQueries()
+                    .build()
+            try {
+                assertThat(db.activityDao().getById(7)?.name).isEqualTo("Bieg")
+                val dao = db.workoutQueueDao()
+                assertThat(dao.getAll()).isEmpty()
+                val id =
+                    dao.insert(
+                        QueuedWorkoutEntity(
+                            clientId = "00000000-0000-4000-8000-000000000001",
+                            name = "Bieg testowy",
+                            sport = "running",
+                            definitionJson = "{}",
+                            date = LocalDate.of(2030, 1, 1),
+                            status = QueueStatus.PENDING.apiValue,
+                            createdAt = Instant.EPOCH,
+                        ),
+                    )
+                assertThat(dao.getById(id)?.name).isEqualTo("Bieg testowy")
+            } finally {
+                db.close()
+            }
+        }
+
+    /**
+     * Pusta baza dokładnie wg wyeksportowanego schematu (`app/schemas/.../<version>.json`, katalog roboczy
+     * testów to moduł `app`), razem z identity hash w `room_master_table`.
+     */
+    private fun createDatabaseFromSchema(version: Int) {
+        val schema = File("schemas/${CgDatabase::class.java.name}/$version.json").readText()
+        val database = Json.parseToJsonElement(schema).jsonObject.getValue("database").jsonObject
+        val file = context.getDatabasePath(dbName)
+        file.parentFile?.mkdirs()
+        SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
+            database.getValue("entities").jsonArray.map { it.jsonObject }.forEach { entity ->
+                val table = entity.getValue("tableName").jsonPrimitive.content
+                val statements =
+                    listOf(entity.getValue("createSql")) +
+                        (entity["indices"]?.jsonArray?.map { it.jsonObject.getValue("createSql") } ?: emptyList())
+                statements.forEach { db.execSQL(it.jsonPrimitive.content.replace("\${TABLE_NAME}", table)) }
+            }
+            database.getValue("setupQueries").jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
+            db.version = version
+        }
+    }
 
     private fun createVersion1Database() {
         val file = context.getDatabasePath(dbName)
