@@ -279,7 +279,7 @@
     "/api/v1/summary": {
       "get": {
         "summary": "Summary",
-        "description": "Sumy per tydzień (od poniedziałku) lub miesiąc i typ aktywności, dla aktywności z dni\n[from, to]. Domyślnie 12 ostatnich pełnych okresów; maks. 2 lata.",
+        "description": "Sumy per tydzień (od poniedziałku) lub miesiąc i typ aktywności, dla aktywności z dni\n[from, to]. Domyślnie 12 ostatnich pełnych okresów.",
         "operationId": "summary_api_v1_summary_get",
         "security": [
           {

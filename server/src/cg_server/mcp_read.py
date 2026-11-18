@@ -5,6 +5,7 @@ elevation; times are local (Europe/Warsaw) "YYYY-MM-DD HH:MM". All data comes fr
 `cg_server.queries`, always for the user of the access token.
 """
 
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -19,7 +20,6 @@ LIST_DEFAULT_DAYS = 30
 NAME_CHARS = 40
 MAX_LAPS = 30
 VO2MAX_DEFAULT_DAYS = 180
-VO2MAX_MAX_DAYS = 2 * 366
 VO2MAX_MAX_POINTS = 60
 SUMMARY_DEFAULT_PERIODS = {Period.WEEK: 8, Period.MONTH: 6}
 SUMMARY_MAX_PERIODS = {Period.WEEK: 26, Period.MONTH: 24}
@@ -66,14 +66,24 @@ def _local(value: datetime, tz: ZoneInfo) -> str:
     return queries.as_utc(value).astimezone(tz).strftime("%Y-%m-%d %H:%M")
 
 
+RANGE_ERRORS = {
+    queries.RangeProblem.OUT_OF_BOUNDS: "Dates must be between 2000-01-01 and one year from today.",
+    queries.RangeProblem.REVERSED: "from_date must not be after to_date.",
+    queries.RangeProblem.TOO_LONG: "Range too long: at most 2 years.",
+}
+
+
 def _range(
-    start: date | None, end: date | None, today: date, default_days: int
+    start: date | None, end: date | None, today: date, default_start: Callable[[date], date]
 ) -> tuple[date, date]:
-    end = end or today
-    start = start or end - timedelta(days=default_days - 1)
-    if start > end:
-        raise InvalidArgument("from_date must not be after to_date.")
-    return start, end
+    try:
+        return queries.resolve_range(start, end, today, default_start)
+    except queries.InvalidRange as e:
+        raise InvalidArgument(RANGE_ERRORS[e.problem]) from e
+
+
+def _days_back(days: int) -> Callable[[date], date]:
+    return lambda end: end - timedelta(days=days - 1)
 
 
 def freshness_note(state: SyncState, now: datetime, tz: ZoneInfo) -> str | None:
@@ -127,7 +137,7 @@ def list_activities(
     now: datetime,
     tz: ZoneInfo,
 ) -> dict[str, Any]:
-    start, end = _range(start, end, now.astimezone(tz).date(), LIST_DEFAULT_DAYS)
+    start, end = _range(start, end, now.astimezone(tz).date(), _days_back(LIST_DEFAULT_DAYS))
     rows = queries.list_activities(
         session, user_id=user_id, start=start, end=end, kind=kind, limit=limit + 1, tz=tz
     )
@@ -237,9 +247,7 @@ def vo2max_trend(
     now: datetime,
     tz: ZoneInfo,
 ) -> dict[str, Any]:
-    start, end = _range(start, end, now.astimezone(tz).date(), VO2MAX_DEFAULT_DAYS)
-    if (end - start).days > VO2MAX_MAX_DAYS:
-        raise InvalidArgument("Range too long: at most 2 years.")
+    start, end = _range(start, end, now.astimezone(tz).date(), _days_back(VO2MAX_DEFAULT_DAYS))
     rows = queries.vo2max_trend(session, user_id=user_id, start=start, end=end, sport="running")
     data: dict[str, Any] = {"range": f"{start}..{end}", "sport": "running"}
     state = queries.sync_status(session, user_id=user_id, tz=tz)
@@ -283,13 +291,14 @@ def training_summary(
     now: datetime,
     tz: ZoneInfo,
 ) -> dict[str, Any]:
-    end = end or now.astimezone(tz).date()
-    if start is None:
-        start = queries.period_start(end, period)
+
+    def default_start(end_day: date) -> date:
+        first = queries.period_start(end_day, period)
         for _ in range(SUMMARY_DEFAULT_PERIODS[period] - 1):
-            start = queries.period_start(start - timedelta(days=1), period)
-    if start > end:
-        raise InvalidArgument("from_date must not be after to_date.")
+            first = queries.period_start(first - timedelta(days=1), period)
+        return first
+
+    start, end = _range(start, end, now.astimezone(tz).date(), default_start)
     start = queries.period_start(start, period)  # whole periods only
     limit = SUMMARY_MAX_PERIODS[period]
     if _periods_between(start, end, period) > limit:

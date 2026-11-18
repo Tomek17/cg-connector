@@ -25,7 +25,6 @@ bearer = HTTPBearer(auto_error=False)
 DEFAULT_LIST_DAYS = 365
 MAX_LIST_LIMIT = 2000
 DEFAULT_SUMMARY_PERIODS = 12
-MAX_SUMMARY_DAYS = 2 * 366
 
 
 def db_session(request: Request) -> Iterator[Session]:
@@ -67,6 +66,13 @@ ToDate = Annotated[
 ]
 
 
+RANGE_ERRORS = {
+    queries.RangeProblem.OUT_OF_BOUNDS: "Daty muszą być między 2000-01-01 a dziś + 1 rok",
+    queries.RangeProblem.REVERSED: "Parametr 'from' nie może być późniejszy niż 'to'",
+    queries.RangeProblem.TOO_LONG: "Zakres dłuższy niż 2 lata",
+}
+
+
 def _invalid(detail: str) -> HTTPException:
     return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
 
@@ -75,11 +81,10 @@ def _range(
     start: date | None, end: date | None, tz: ZoneInfo, default_start: Callable[[date], date]
 ) -> tuple[date, date]:
     """[start, end] with defaults: `end` = today (local), `start` = default_start(end)."""
-    end = end or utcnow().astimezone(tz).date()
-    start = start or default_start(end)
-    if start > end:
-        raise _invalid("Parametr 'from' nie może być późniejszy niż 'to'")
-    return start, end
+    try:
+        return queries.resolve_range(start, end, utcnow().astimezone(tz).date(), default_start)
+    except queries.InvalidRange as e:
+        raise _invalid(RANGE_ERRORS[e.problem]) from e
 
 
 def _days_before(end: date) -> date:
@@ -337,7 +342,7 @@ def summary(
     end: ToDate = None,
 ) -> Summary:
     """Sumy per tydzień (od poniedziałku) lub miesiąc i typ aktywności, dla aktywności z dni
-    [from, to]. Domyślnie 12 ostatnich pełnych okresów; maks. 2 lata."""
+    [from, to]. Domyślnie 12 ostatnich pełnych okresów."""
 
     def default_start(end_day: date) -> date:
         first = queries.period_start(end_day, period)
@@ -346,8 +351,6 @@ def summary(
         return first
 
     start, end = _range(start, end, tz, default_start)
-    if (end - start).days > MAX_SUMMARY_DAYS:
-        raise _invalid("Zakres dłuższy niż 2 lata")
     rows = queries.training_summary(
         session, user_id=user.id, period=period, start=start, end=end, tz=tz
     )

@@ -322,3 +322,28 @@ def test_summary_rejects_bad_params(
         "/api/v1/summary", params=params, headers={"Authorization": f"Bearer {tokens['a']}"}
     )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("path", ["/api/v1/activities", "/api/v1/vo2max", "/api/v1/summary"])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"from": "0001-01-01"},
+        {"to": "9999-12-31"},
+        {"from": "9999-12-30", "to": "9999-12-31"},
+        {"from": "1999-12-31", "to": "2000-01-05"},
+        {"from": "2023-01-01", "to": "2026-01-01"},  # longer than 2 years
+    ],
+)
+def test_dates_out_of_bounds_or_too_long_range_give_422(
+    client: TestClient, tokens: dict[str, str], path: str, params: dict[str, str]
+) -> None:
+    response = client.get(path, params=params, headers={"Authorization": f"Bearer {tokens['a']}"})
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], str)
+
+
+def test_two_year_range_is_allowed(client: TestClient, tokens: dict[str, str]) -> None:
+    params = {"from": "2024-11-18", "to": "2026-11-18"}
+    for path in ["/api/v1/activities", "/api/v1/vo2max", "/api/v1/summary"]:
+        get(client, tokens["a"], path, **params)

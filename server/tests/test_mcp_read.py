@@ -332,3 +332,22 @@ async def test_needs_login_note(app_settings: Settings, http: httpx2.AsyncClient
     data = await ok(http, code, "list_activities")
     assert "garmin-login" in data["note"]
     assert "never" in data["note"].lower()
+
+
+@pytest.mark.parametrize("tool", ["list_activities", "get_vo2max_trend", "get_training_summary"])
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"from_date": "0001-01-01"},
+        {"to_date": "9999-12-31"},
+        {"from_date": "9999-12-30", "to_date": "9999-12-31"},
+        {"from_date": "2020-01-01", "to_date": "2026-01-01"},
+    ],
+)
+async def test_tools_reject_out_of_bounds_dates(
+    http: httpx2.AsyncClient, codes: dict[str, str], tool: str, args: dict[str, Any]
+) -> None:
+    is_error, text, _ = await call(http, codes["a"], tool, args)
+    assert is_error
+    assert "Overflow" not in text
+    assert "2000-01-01" in text or "2 years" in text or "at most" in text

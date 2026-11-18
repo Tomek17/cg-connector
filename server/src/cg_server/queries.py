@@ -6,6 +6,7 @@ days in `tz` (Europe/Warsaw by default); times are compared in UTC.
 """
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
@@ -27,6 +28,48 @@ from cg_server.models import (
 
 WARSAW = ZoneInfo("Europe/Warsaw")
 STALE_AFTER = timedelta(hours=24)
+# Accepted dates: no Garmin data before 2000, nothing further than a year ahead. Checked
+# before any date arithmetic, so extreme dates never overflow.
+MIN_DATE = date(2000, 1, 1)
+MAX_AHEAD = timedelta(days=366)
+MAX_RANGE_DAYS = 2 * 366
+
+
+class RangeProblem(StrEnum):
+    OUT_OF_BOUNDS = "out_of_bounds"
+    REVERSED = "reversed"
+    TOO_LONG = "too_long"
+
+
+class InvalidRange(ValueError):
+    def __init__(self, problem: RangeProblem) -> None:
+        super().__init__(problem.value)
+        self.problem = problem
+
+
+def resolve_range(
+    start: date | None,
+    end: date | None,
+    today: date,
+    default_start: Callable[[date], date],
+    max_days: int = MAX_RANGE_DAYS,
+) -> tuple[date, date]:
+    """[start, end] with defaults (`end` = today, `start` = default_start(end)), checked:
+    both within [MIN_DATE, today + 1 year], start <= end, at most `max_days` long."""
+    latest = today + MAX_AHEAD
+
+    def check(day: date) -> date:
+        if not MIN_DATE <= day <= latest:
+            raise InvalidRange(RangeProblem.OUT_OF_BOUNDS)
+        return day
+
+    end = check(end or today)
+    start = check(start or max(default_start(end), MIN_DATE))
+    if start > end:
+        raise InvalidRange(RangeProblem.REVERSED)
+    if (end - start).days > max_days:
+        raise InvalidRange(RangeProblem.TOO_LONG)
+    return start, end
 
 
 class Period(StrEnum):

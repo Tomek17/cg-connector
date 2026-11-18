@@ -19,15 +19,16 @@ CI (`ci-server.yml`) i test `tests/test_openapi.py` sprawdzają, czy plik jest a
   `5.5` = 5:30 min/km, tylko bieg).
 - Czas to ISO-8601 z offsetem strefy **Europe/Warsaw** (`2026-11-17T07:30:00+01:00`). Daty
   (`from`, `to`, `date`) to dni kalendarzowe w Europe/Warsaw, oba końce włącznie.
+- Zakres dat: każda data między 2000-01-01 a dziś + 1 rok, zakres najwyżej 2 lata; inaczej `422`.
 - Błędy: `401` (token), `404` (brak aktywności, także cudzej), `422` (złe parametry, np. `from` > `to`).
   Treść błędu to `{"detail": ...}` bez szczegółów technicznych.
 
 | Endpoint | Opis | Domyślnie |
 |---|---|---|
 | `GET /me` | użytkownik, status Garmina, ostatni udany sync | |
-| `GET /activities?from&to&type&limit` | podsumowania aktywności, od najnowszej | ostatnie 365 dni, `limit` 2000 (maks.) |
+| `GET /activities?from&to&type&limit` | podsumowania aktywności, od najnowszej | ostatnie 365 dni, `limit` 2000 (maks.); maks. 2 lata |
 | `GET /activities/{id}` | szczegóły: okrążenia, czas w strefach HR, serie siłowe | |
-| `GET /vo2max?from&to` | punkty VO2max (wszystkie sporty, pole `sport`) | ostatnie 365 dni |
+| `GET /vo2max?from&to` | punkty VO2max (wszystkie sporty, pole `sport`) | ostatnie 365 dni; maks. 2 lata |
 | `GET /summary?period=week\|month&from&to` | sumy per okres i typ | 12 ostatnich okresów; maks. 2 lata |
 
 ### `GET /me`
@@ -92,10 +93,11 @@ Garmina, odpowiedź ma krótkie pole `note`.
 | Narzędzie | Argumenty | Domyślnie |
 |---|---|---|
 | `get_profile` | | |
-| `list_activities` | `from_date?`, `to_date?`, `type?`, `limit?` (1–50) | ostatnie 30 dni, 20 aktywności (`more: true`, gdy jest więcej) |
+| `list_activities` | `from_date?`, `to_date?`, `type?`, `limit?` (1–50) | ostatnie 30 dni, 20 aktywności (`more: true`, gdy jest więcej); maks. 2 lata |
 | `get_activity` | `activity_id` (ID z `list_activities`) | do 30 okrążeń, minuty w strefach HR, serie siłowe jako `"5x80kg"` |
 | `get_vo2max_trend` | `from_date?`, `to_date?` | ostatnie 180 dni, bieg; tylko zmiany wartości, przy >60 punktach tygodniowo/miesięcznie; maks. 2 lata |
 | `get_training_summary` | `period` (`week`/`month`), `from_date?`, `to_date?` | 8 tygodni / 6 miesięcy; pełne okresy; maks. 26 tygodni / 24 miesiące |
 
+Daty jak w REST: 2000-01-01 … dziś + 1 rok, inaczej czytelny błąd narzędzia.
 Argumenty nazywają się `from_date`/`to_date`, bo `from` jest słowem kluczowym Pythona.
 Lista 20 aktywności mieści się w ok. 3–4 kB JSON (test `test_list_of_20_activities_is_small`).
