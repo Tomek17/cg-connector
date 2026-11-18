@@ -22,11 +22,21 @@ Most między zegarkami **Garmin** a **Claude**. Pozwala:
 
 ## Dokumentacja
 
+Dla użytkowników:
+
+- [Instalacja serwera (laptop z Windows + WSL)](docs/instalacja-serwera.md)
+- [Konfiguracja Claude (konektor MCP, także darmowy plan)](docs/konfiguracja-claude.md)
+- [Instrukcja dla brata (drugi użytkownik, bez wiedzy technicznej)](docs/dla-brata.md)
+- [Wydania i instalacja APK](docs/release.md)
+- [Aplikacja Android: budowanie i stan](android/README.md)
+
+Dla programistów:
+
 - [Architektura](docs/architektura.md)
 - [Decyzje architektoniczne (ADR)](docs/adr/)
+- [Kontrakt REST API (OpenAPI)](docs/api/)
 - [Research](docs/research/)
-- [Instalacja serwera (laptop z Windows + WSL)](docs/instalacja-serwera.md)
-- Konfiguracja Claude, instrukcja dla drugiego użytkownika — w przygotowaniu.
+- [Master Prompt (zasady pracy zespołu)](MASTER_PROMPT.md)
 
 ## Status
 
