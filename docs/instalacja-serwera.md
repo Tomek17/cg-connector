@@ -95,7 +95,7 @@ Oczekiwany wynik: `1`. Jeśli `0` — klucz się nie wkleił, powtórz polecenie
 cd ~/cg-connector/server && docker compose up -d --build && sleep 20 && docker compose ps
 ```
 
-Oczekiwany wynik: dwie linie z kontenerami `cg-connector-cg-server-1` i `cg-connector-tailscale-1`, w kolumnie STATUS `Up …` (przy serwerze może być `(healthy)` albo przez pierwszą minutę `(health: starting)`).
+Oczekiwany wynik: dwie linie z kontenerami `cg-connector-cg-server-1` i `cg-connector-tailscale-1`. Przy pierwszym uruchomieniu serwer ma jeszcze status `Restarting`, bo nie zna swojego publicznego adresu — to normalne, naprawia to pierwsze polecenie z kroku 7. Tailscale powinien mieć `Up …`.
 
 > **⚠️ ZRÓB TO TERAZ: wyłącz wygasanie klucza maszyny (Disable key expiry)**
 >
@@ -107,6 +107,14 @@ Oczekiwany wynik: dwie linie z kontenerami `cg-connector-cg-server-1` i `cg-conn
 > Oczekiwany wynik: przy `cg-server` znika data wygaśnięcia (albo pojawia się napis *Expiry disabled*). Jeśli maszyny `cg-server` nie ma na liście, zobacz problem P4 w [Rozwiązywaniu problemów](#rozwiązywanie-problemów).
 
 ## Krok 7. Sprawdzenie serwera i tunelu
+
+Najpierw wpisz do `.env` publiczny adres serwera (odczytany z Tailscale) i uruchom serwer ponownie:
+
+```bash
+cd ~/cg-connector/server && HOST=$(docker compose exec -T tailscale tailscale status --json | python3 -c "import json,sys; print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))") && sed -i "s|^CG_PUBLIC_HOST=.*|CG_PUBLIC_HOST=$HOST|" .env && docker compose up -d && sleep 20 && grep CG_PUBLIC_HOST .env
+```
+
+Oczekiwany wynik: `CG_PUBLIC_HOST=cg-server.<twój-tailnet>.ts.net`. Bez tego serwer nie wystartuje (komunikat „Brak publicznego adresu serwera” w `docker compose logs cg-server`), bo logowanie Claude (OAuth) musi znać ten adres.
 
 Sprawdzenie serwera na laptopie:
 

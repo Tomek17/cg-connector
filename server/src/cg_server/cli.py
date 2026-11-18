@@ -5,6 +5,7 @@ import getpass
 import sys
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 import requests
 import uvicorn
@@ -12,7 +13,7 @@ from curl_cffi.curl import CurlError
 from garminconnect import GarminConnectConnectionError
 from sqlalchemy.orm import Session
 
-from cg_server.config import Settings, get_settings
+from cg_server.config import ConfigError, Settings, get_settings
 from cg_server.crypto import CryptoError, generate_key, validate_key
 from cg_server.db import open_db
 from cg_server.garmin import accounts
@@ -47,6 +48,16 @@ GARMIN_CONNECTION_ERRORS = (
     requests.RequestException,
     CurlError,
 )
+
+
+# Port 8000 is published only on 127.0.0.1 and reached from the internet only through the
+# Tailscale container, which sets X-Forwarded-For to the real client IP. Trusting it makes the
+# rate limit per real client instead of per proxy.
+SERVE_OPTIONS: dict[str, Any] = {
+    "factory": True,
+    "proxy_headers": True,
+    "forwarded_allow_ips": "*",
+}
 
 
 class CliError(Exception):
@@ -199,13 +210,13 @@ def main(
 
     try:
         if args.command == "serve":
+            get_settings().check_public_host()
             uvicorn.run(
                 "cg_server.app:create_app",
-                factory=True,
                 host=args.host,
                 port=args.port,
-                proxy_headers=True,
                 log_config=uvicorn_log_config(),
+                **SERVE_OPTIONS,
             )
         elif args.command == "gen-key":
             print(generate_key())
@@ -219,7 +230,7 @@ def main(
             cmd_garmin_login(get_settings(), args.user, gateway_factory(), force=args.force)
         elif args.command == "garmin-check":
             cmd_garmin_check(get_settings(), args.user, gateway_factory())
-    except (CliError, UserError, CryptoError) as e:
+    except (CliError, UserError, CryptoError, ConfigError) as e:
         print(f"Błąd: {e}", file=sys.stderr)
         return 1
     except GARMIN_CONNECTION_ERRORS:

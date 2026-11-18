@@ -6,9 +6,11 @@ from collections.abc import Iterator
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from cg_server.app import create_app
-from cg_server.config import Settings
+from cg_server.cli import SERVE_OPTIONS, main
+from cg_server.config import ConfigError, Settings
 from cg_server.logging_filter import RedactSecretsFilter
 from tests.helpers import BASE, PUBLIC_HOST
 
@@ -140,3 +142,46 @@ def test_log_filter_redacts_args() -> None:
     )
     RedactSecretsFilter().filter(record)
     assert "tajne123" not in record.getMessage()
+
+
+def test_rate_limit_is_per_forwarded_client_ip(settings: Settings) -> None:
+    """Behind Tailscale the real client IP is in X-Forwarded-For (uvicorn trusts it)."""
+    app = create_app(
+        settings.model_copy(update={"public_host": PUBLIC_HOST, "rate_limit_per_minute": 2})
+    )
+    proxied = ProxyHeadersMiddleware(app, trusted_hosts=SERVE_OPTIONS["forwarded_allow_ips"])
+    client = TestClient(proxied, base_url=BASE)  # type: ignore[arg-type]
+
+    def post(ip: str) -> int:
+        return client.post("/token", data={}, headers={"X-Forwarded-For": ip}).status_code
+
+    assert [post("203.0.113.1") for _ in range(3)][-1] == 429
+    # Another client is not blocked by the first one's requests (e.g. Claude refreshing).
+    assert post("198.51.100.7") != 429
+
+
+def test_serve_trusts_forwarded_headers() -> None:
+    assert SERVE_OPTIONS["proxy_headers"] is True
+    assert SERVE_OPTIONS["forwarded_allow_ips"] == "*"
+
+
+@pytest.mark.parametrize("host", ["", "localhost:8000", "127.0.0.1:8000", "localhost"])
+def test_production_requires_public_host(settings: Settings, host: str) -> None:
+    with pytest.raises(ConfigError, match="CG_PUBLIC_HOST"):
+        create_app(settings.model_copy(update={"public_host": host}))
+
+
+def test_test_env_allows_localhost(settings: Settings) -> None:
+    create_app(settings.model_copy(update={"env": "test", "public_host": "localhost:8000"}))
+
+
+def test_cli_serve_reports_missing_public_host(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("CG_DATA_DIR", str(settings.data_dir))
+    monkeypatch.setenv("CG_PUBLIC_HOST", "")
+    monkeypatch.setenv("CG_ENV", "production")
+    assert main(["serve"]) == 1
+    err = capsys.readouterr().err
+    assert "CG_PUBLIC_HOST" in err
+    assert "Traceback" not in err

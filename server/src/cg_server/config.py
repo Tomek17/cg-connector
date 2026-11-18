@@ -4,6 +4,12 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+LOCAL_HOSTS = ("", "localhost", "127.0.0.1")
+
+
+class ConfigError(Exception):
+    """Invalid configuration; the message (Polish) is shown to the operator."""
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -29,10 +35,18 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.env == "production"
 
+    def check_public_host(self) -> None:
+        """In production the OAuth issuer must be the public tunnel address."""
+        if self.is_production and self.public_host.split(":")[0] in LOCAL_HOSTS:
+            raise ConfigError(
+                "Brak publicznego adresu serwera. Ustaw CG_PUBLIC_HOST w pliku .env na nazwę "
+                "hosta z tunelu Tailscale, np. cg-server.tail1234.ts.net (bez https:// i bez /mcp)."
+            )
+
     @property
     def public_url(self) -> str:
         host = self.public_host.split(":")[0]
-        scheme = "http" if host in ("localhost", "127.0.0.1") else "https"
+        scheme = "http" if host in LOCAL_HOSTS else "https"
         return f"{scheme}://{self.public_host}"
 
 

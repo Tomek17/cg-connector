@@ -107,16 +107,20 @@ class SecurityHeadersMiddleware:
 
 
 class BodySizeLimitMiddleware:
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    def __init__(
+        self, app: ASGIApp, max_bytes: int, per_path: dict[str, int] | None = None
+    ) -> None:
         self.app = app
-        self.max_bytes = max_bytes
+        self.default_max_bytes = max_bytes
+        self.per_path = per_path or {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+        max_bytes = self.per_path.get(scope["path"], self.default_max_bytes)
         length = Headers(scope=scope).get("content-length")
-        if length is not None and (not length.isdigit() or int(length) > self.max_bytes):
+        if length is not None and (not length.isdigit() or int(length) > max_bytes):
             await _send_json(send, 413, "Request too large")
             return
         # Streamed body without Content-Length: count bytes; once over the limit answer 413,
@@ -132,7 +136,7 @@ class BodySizeLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_bytes:
+                if received > max_bytes:
                     rejected = True
                     if not started:
                         await guarded_send(None)

@@ -3,17 +3,20 @@
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 import httpx2
 import pytest
 from fastapi import FastAPI
+from mcp.server.auth.provider import TokenError
 from sqlalchemy import select
 
 from cg_server.app import create_app
 from cg_server.config import Settings
 from cg_server.db import db_path, open_db
-from cg_server.models import OAuthClient, OAuthToken, User
+from cg_server.models import OAuthClient, OAuthToken, User, utcnow
+from cg_server.oauth import MAX_CLIENTS, CgOAuthProvider
 from cg_server.user_secrets import SecretKind, hash_secret, issue_secret
 from cg_server.users import add_user
 from tests.helpers import (
@@ -24,6 +27,7 @@ from tests.helpers import (
     authorize,
     call_tool,
     exchange_code,
+    login_page,
     login_tokens,
     refresh,
     register,
@@ -119,16 +123,22 @@ async def test_full_flow_tool_call_and_refresh_rotation(
         new = rotated.json()
         assert new["refresh_token"] != tokens["refresh_token"]
         assert new["access_token"] != tokens["access_token"]
-        reuse = await refresh(http, client, tokens["refresh_token"])
-        assert reuse.status_code == 400
-        assert reuse.json()["error"] == "invalid_grant"
-
         old_access = await http.post(
             "/mcp", json={}, headers={"Authorization": f"Bearer {tokens['access_token']}"}
         )
         assert old_access.status_code == 401
         profile = await call_tool(http, new["access_token"], "get_profile")
         assert profile["user"] == "tomek"
+
+        # The next rotation works too (same grant).
+        newer = await refresh(http, client, new["refresh_token"])
+        assert newer.status_code == 200, newer.text
+        assert (await call_tool(http, newer.json()["access_token"], "get_profile"))[
+            "user"
+        ] == "tomek"
+        reuse = await refresh(http, client, tokens["refresh_token"])
+        assert reuse.status_code == 400
+        assert reuse.json()["error"] == "invalid_grant"
 
 
 async def test_wrong_pkce_verifier_is_rejected(app: FastAPI, accounts: dict[str, Account]) -> None:
@@ -358,3 +368,113 @@ async def test_mcp_rejects_foreign_host(app: FastAPI, accounts: dict[str, Accoun
             },
         )
         assert response.status_code == 421
+
+
+async def test_reused_refresh_token_revokes_whole_grant(
+    app: FastAPI, accounts: dict[str, Account]
+) -> None:
+    async with running(app) as http:
+        tokens = await login_tokens(http, accounts["tomek"].cg_code)
+        client = tokens["client"]
+        new = (await refresh(http, client, tokens["refresh_token"])).json()
+        # Someone replays the old (already rotated) refresh token: treat as theft.
+        replay = await refresh(http, client, tokens["refresh_token"])
+        assert replay.status_code == 400
+        assert replay.json()["error"] == "invalid_grant"
+        # The whole grant is gone: the legitimate new tokens stop working too.
+        assert (await refresh(http, client, new["refresh_token"])).status_code == 400
+        response = await http.post(
+            "/mcp", json={}, headers={"Authorization": f"Bearer {new['access_token']}"}
+        )
+        assert response.status_code == 401
+
+
+async def test_code_and_refresh_are_single_use_at_db_level(
+    app_settings: Settings, accounts: dict[str, Account]
+) -> None:
+    """The provider consumes codes/refresh tokens atomically (DELETE/UPDATE rowcount == 1)."""
+    sessions = open_db(app_settings)
+    provider = CgOAuthProvider(app_settings, sessions)
+    app = create_app(app_settings)
+    async with running(app) as http:
+        client = await register(http)
+        pkce = Pkce.new()
+        code = await authorize(http, client["client_id"], pkce, accounts["tomek"].cg_code)
+    info = await provider.get_client(client["client_id"])
+    assert info is not None
+    loaded = await provider.load_authorization_code(info, code)
+    assert loaded is not None
+    tokens = await provider.exchange_authorization_code(info, loaded)
+    with pytest.raises(TokenError):
+        await provider.exchange_authorization_code(info, loaded)
+    assert tokens.refresh_token is not None
+    rt = await provider.load_refresh_token(info, tokens.refresh_token)
+    assert rt is not None
+    await provider.exchange_refresh_token(info, rt, [])
+    with pytest.raises(TokenError):
+        await provider.exchange_refresh_token(info, rt, [])
+
+
+async def test_metadata_allows_public_clients(app: FastAPI) -> None:
+    async with running(app) as http:
+        meta = (await http.get("/.well-known/oauth-authorization-server")).json()
+        assert "none" in meta["token_endpoint_auth_methods_supported"]
+        assert "client_secret_post" in meta["token_endpoint_auth_methods_supported"]
+
+
+async def test_login_page_shows_client_name_and_redirect_host(
+    app: FastAPI, accounts: dict[str, Account]
+) -> None:
+    async with running(app) as http:
+        client = await register(http, client_name="<b>Claude</b>")
+        html = await login_page(http, client["client_id"], Pkce.new())
+        assert "&lt;b&gt;Claude&lt;/b&gt;" in html
+        assert "<b>Claude</b>" not in html
+        assert "claude.ai" in html
+
+
+async def test_register_rejects_large_metadata(app: FastAPI) -> None:
+    async with running(app) as http:
+        response = await http.post(
+            "/register",
+            json={
+                "redirect_uris": [CALLBACK],
+                "token_endpoint_auth_method": "none",
+                "client_name": "x" * 5000,
+            },
+        )
+        assert response.status_code in (400, 413)
+
+
+async def test_register_limits_number_of_clients(app_settings: Settings) -> None:
+    app = create_app(app_settings.model_copy(update={"rate_limit_per_minute": 1000}))
+    async with running(app) as http:
+        for _ in range(MAX_CLIENTS):
+            await register(http)
+        response = await http.post(
+            "/register",
+            json={"redirect_uris": [CALLBACK], "token_endpoint_auth_method": "none"},
+        )
+        assert response.status_code == 400
+        assert response.json()["error"] == "invalid_client_metadata"
+
+
+async def test_register_cleans_up_stale_clients_without_tokens(
+    app_settings: Settings, accounts: dict[str, Account]
+) -> None:
+    app = create_app(app_settings)
+    async with running(app) as http:
+        stale = await register(http)
+        active = await login_tokens(http, accounts["tomek"].cg_code)
+        fresh = await register(http)
+        with open_db(app_settings)() as session:
+            for client_id in (stale["client_id"], active["client"]["client_id"]):
+                row = session.get(OAuthClient, client_id)
+                assert row is not None
+                row.created_at = utcnow() - timedelta(days=8)
+            session.commit()
+        await register(http)
+    with open_db(app_settings)() as session:
+        assert session.get(OAuthClient, stale["client_id"]) is None
+        assert session.get(OAuthClient, active["client"]["client_id"]) is not None
+        assert session.get(OAuthClient, fresh["client_id"]) is not None

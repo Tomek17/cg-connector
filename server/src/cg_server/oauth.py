@@ -8,6 +8,7 @@ in SQLite (hashes only) and lets the user log in with the personal CG code.
 import secrets
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 from urllib.parse import urlsplit
 
 from mcp.server.auth.provider import (
@@ -24,12 +25,12 @@ from mcp.server.auth.provider import (
 from mcp.shared.auth import OAuthClientInformationFull
 from mcp.shared.auth import OAuthToken as TokenResponse
 from pydantic import AnyUrl
-from sqlalchemy import delete
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from cg_server.config import Settings
 from cg_server.crypto import decrypt, encrypt
-from cg_server.models import OAuthClient, OAuthCode, OAuthToken
+from cg_server.models import OAuthClient, OAuthCode, OAuthToken, utcnow
 from cg_server.user_secrets import SecretKind, hash_secret, new_secret, user_for_secret
 
 SCOPE = "cg"
@@ -38,12 +39,18 @@ CLAUDE_CALLBACKS = (
     "https://claude.com/api/mcp/auth_callback",
 )
 LOGIN_PATH = "/authorize/login"
+# Kind of a rotated refresh token, kept until expiry to detect replay.
+USED_REFRESH = "refresh_used"
 ACCESS_TTL = 60 * 60
 REFRESH_TTL = 60 * 24 * 60 * 60
 CODE_TTL = 5 * 60
 LOGIN_TTL = 10 * 60
 MAX_LOGIN_ATTEMPTS = 5
 MAX_PENDING_LOGINS = 1000
+# Dynamic client registration is open to anyone: bound what it can store.
+MAX_CLIENTS = 100
+MAX_CLIENT_METADATA_BYTES = 4096
+STALE_CLIENT_AGE = timedelta(days=7)
 
 
 class LoginRequestInvalid(Exception):
@@ -52,6 +59,11 @@ class LoginRequestInvalid(Exception):
 
 class WrongCode(Exception):
     """The CG code does not match any user."""
+
+
+class _Rejected(Exception):
+    """Rolls back the transaction. The SDK's errors are frozen dataclasses, which cannot pass
+    through a `with` block (contextlib sets `__traceback__`), so they are raised outside it."""
 
 
 def redirect_uri_allowed(uri: str, *, allow_localhost: bool) -> bool:
@@ -71,6 +83,7 @@ def redirect_uri_allowed(uri: str, *, allow_localhost: bool) -> bool:
 @dataclass
 class PendingLogin:
     client_id: str
+    client_name: str
     params: AuthorizationParams
     expires_at: float
     attempts: int = 0
@@ -108,16 +121,39 @@ class CgOAuthProvider(
             raise RegistrationError("invalid_redirect_uri", "redirect_uri not allowed")
         secret = client_info.client_secret
         public_info = client_info.model_copy(update={"client_secret": None})
-        with self._sessions.begin() as session:
-            session.add(
-                OAuthClient(
-                    client_id=client_info.client_id,
-                    metadata_json=public_info.model_dump_json(),
-                    client_secret_encrypted=(
-                        encrypt(secret, self._settings.encryption_key) if secret else None
-                    ),
+        metadata_json = public_info.model_dump_json()
+        if len(metadata_json.encode()) > MAX_CLIENT_METADATA_BYTES:
+            raise RegistrationError("invalid_client_metadata", "client metadata too large")
+        try:
+            with self._sessions.begin() as session:
+                self._delete_stale_clients(session)
+                count = session.scalar(select(func.count()).select_from(OAuthClient)) or 0
+                if count >= MAX_CLIENTS:
+                    raise _Rejected
+                session.add(
+                    OAuthClient(
+                        client_id=client_info.client_id,
+                        metadata_json=metadata_json,
+                        client_secret_encrypted=(
+                            encrypt(secret, self._settings.encryption_key) if secret else None
+                        ),
+                    )
                 )
+            return
+        except _Rejected:
+            pass
+        raise RegistrationError("invalid_client_metadata", "too many registered clients")
+
+    @staticmethod
+    def _delete_stale_clients(session: Session) -> None:
+        """Clients older than 7 days that never got (or no longer have) tokens or codes."""
+        session.execute(
+            delete(OAuthClient).where(
+                OAuthClient.created_at < utcnow() - STALE_CLIENT_AGE,
+                ~exists().where(OAuthToken.client_id == OAuthClient.client_id),
+                ~exists().where(OAuthCode.client_id == OAuthClient.client_id),
             )
+        )
 
     # --- browser login with the CG code --------------------------------------------------
 
@@ -133,14 +169,19 @@ class CgOAuthProvider(
             raise AuthorizeError("temporarily_unavailable", "Too many pending logins")
         assert client.client_id is not None  # noqa: S101 - always set for registered clients
         request_id = secrets.token_urlsafe(32)
-        self._pending[request_id] = PendingLogin(client.client_id, params, now + LOGIN_TTL)
+        self._pending[request_id] = PendingLogin(
+            client.client_id, client.client_name or "", params, now + LOGIN_TTL
+        )
         return construct_redirect_uri(
             f"{self._settings.public_url}{LOGIN_PATH}", request=request_id
         )
 
-    def login_request_valid(self, request_id: str) -> bool:
+    def pending_login(self, request_id: str) -> PendingLogin | None:
         pending = self._pending.get(request_id)
-        return pending is not None and pending.expires_at > time.time()
+        return pending if pending is not None and pending.expires_at > time.time() else None
+
+    def login_request_valid(self, request_id: str) -> bool:
+        return self.pending_login(request_id) is not None
 
     def complete_login(self, request_id: str, cg_code: str) -> str:
         """Check the CG code; return the redirect URL (to Claude) with a new authorization code."""
@@ -199,18 +240,39 @@ class CgOAuthProvider(
     async def exchange_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> TokenResponse:
-        with self._sessions.begin() as session:
-            row = session.get(OAuthCode, hash_secret(authorization_code.code))
-            if row is None:  # used concurrently
-                raise TokenError("invalid_grant", "authorization code already used")
-            session.delete(row)
-            return self._issue(
-                session, row.client_id, row.user_id, row.scopes.split(), row.resource
-            )
+        subject = authorization_code.subject
+        try:
+            with self._sessions.begin() as session:
+                # Atomic single use: only the request that really deletes the row gets tokens.
+                deleted = session.execute(
+                    delete(OAuthCode).where(
+                        OAuthCode.code_hash == hash_secret(authorization_code.code),
+                        OAuthCode.client_id == client.client_id,
+                    )
+                )
+                if _rowcount(deleted) != 1 or subject is None:
+                    raise _Rejected
+                return self._issue(
+                    session,
+                    authorization_code.client_id,
+                    int(subject),
+                    authorization_code.scopes,
+                    authorization_code.resource,
+                    grant_id=secrets.token_hex(16),
+                )
+        except _Rejected:
+            pass
+        raise TokenError("invalid_grant", "authorization code already used")
 
     async def load_refresh_token(
         self, client: OAuthClientInformationFull, refresh_token: str
     ) -> RefreshToken | None:
+        with self._sessions.begin() as session:
+            used = session.get(OAuthToken, hash_secret(refresh_token))
+            if used is not None and used.kind == USED_REFRESH:
+                # A rotated refresh token came back: it was copied. Revoke the whole grant.
+                session.execute(delete(OAuthToken).where(OAuthToken.grant_id == used.grant_id))
+                return None
         row = self._load_token(refresh_token, "refresh")
         if row is None or row.client_id != client.client_id:
             return None
@@ -229,15 +291,39 @@ class CgOAuthProvider(
         refresh_token: RefreshToken,
         scopes: list[str],
     ) -> TokenResponse:
-        # Rotation: the old refresh token and its access token stop working.
-        with self._sessions.begin() as session:
-            row = session.get(OAuthToken, hash_secret(refresh_token.token))
-            if row is None or row.kind != "refresh":
-                raise TokenError("invalid_grant", "refresh token is invalid")
-            session.execute(delete(OAuthToken).where(OAuthToken.grant_id == row.grant_id))
-            return self._issue(
-                session, row.client_id, row.user_id, scopes or row.scopes.split(), row.resource
-            )
+        # Rotation: the old refresh token is marked used (to detect replay) and the grant's
+        # access tokens stop working. Atomic: only one request can mark it used.
+        token_hash = hash_secret(refresh_token.token)
+        try:
+            with self._sessions.begin() as session:
+                marked = session.execute(
+                    update(OAuthToken)
+                    .where(
+                        OAuthToken.token_hash == token_hash,
+                        OAuthToken.kind == "refresh",
+                        OAuthToken.client_id == client.client_id,
+                    )
+                    .values(kind=USED_REFRESH)
+                )
+                row = session.get(OAuthToken, token_hash)
+                if _rowcount(marked) != 1 or row is None:
+                    raise _Rejected
+                session.execute(
+                    delete(OAuthToken).where(
+                        OAuthToken.grant_id == row.grant_id, OAuthToken.kind == "access"
+                    )
+                )
+                return self._issue(
+                    session,
+                    row.client_id,
+                    row.user_id,
+                    scopes or row.scopes.split(),
+                    row.resource,
+                    grant_id=row.grant_id,
+                )
+        except _Rejected:
+            pass
+        raise TokenError("invalid_grant", "refresh token is invalid")
 
     async def load_access_token(self, token: str) -> AccessToken | None:
         row = self._load_token(token, "access")
@@ -272,11 +358,13 @@ class CgOAuthProvider(
         user_id: int,
         scopes: list[str],
         resource: str | None,
+        *,
+        grant_id: str,
     ) -> TokenResponse:
+        """Issue an access + refresh pair. `grant_id` stays the same across refresh rotations."""
         now = int(time.time())
         session.execute(delete(OAuthToken).where(OAuthToken.expires_at <= now))
         session.execute(delete(OAuthCode).where(OAuthCode.expires_at <= now))
-        grant_id = secrets.token_hex(16)
         access, refresh = new_secret(), new_secret()
         for token, kind, ttl in ((access, "access", ACCESS_TTL), (refresh, "refresh", REFRESH_TTL)):
             session.add(
@@ -298,3 +386,9 @@ class CgOAuthProvider(
             scope=" ".join(scopes),
             refresh_token=refresh,
         )
+
+
+def _rowcount(result: object) -> int:
+    """Rows affected by an UPDATE/DELETE (SQLAlchemy's CursorResult.rowcount)."""
+    count = getattr(result, "rowcount", -1)
+    return count if isinstance(count, int) else -1

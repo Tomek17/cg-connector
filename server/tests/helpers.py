@@ -47,6 +47,7 @@ async def register(
     http: httpx2.AsyncClient,
     redirect_uri: str = CALLBACK,
     auth_method: str = "none",
+    client_name: str = "Claude",
 ) -> dict[str, Any]:
     response = await http.post(
         "/register",
@@ -55,7 +56,7 @@ async def register(
             "token_endpoint_auth_method": auth_method,
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
-            "client_name": "Claude",
+            "client_name": client_name,
         },
     )
     assert response.status_code == 201, response.text
@@ -63,10 +64,10 @@ async def register(
     return data
 
 
-async def start_authorize(
+async def login_page(
     http: httpx2.AsyncClient, client_id: str, pkce: Pkce, state: str = "st-1"
 ) -> str:
-    """GET /authorize; return the login request id from our login page."""
+    """GET /authorize and follow to our login page; return its HTML."""
     response = await http.get(
         "/authorize",
         params={
@@ -84,7 +85,15 @@ async def start_authorize(
     page = await http.get(response.headers["location"])
     assert page.status_code == 200
     assert "Wklej swój kod CG-connector" in page.text
-    match = re.search(r'name="request" value="([^"]+)"', page.text)
+    return page.text
+
+
+async def start_authorize(
+    http: httpx2.AsyncClient, client_id: str, pkce: Pkce, state: str = "st-1"
+) -> str:
+    """GET /authorize; return the login request id from our login page."""
+    html = await login_page(http, client_id, pkce, state)
+    match = re.search(r'name="request" value="([^"]+)"', html)
     assert match is not None
     return match.group(1)
 

@@ -2,11 +2,18 @@
 
 from html import escape
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from cg_server.oauth import LOGIN_PATH, CgOAuthProvider, LoginRequestInvalid, WrongCode
+from cg_server.oauth import (
+    LOGIN_PATH,
+    CgOAuthProvider,
+    LoginRequestInvalid,
+    PendingLogin,
+    WrongCode,
+)
 
 PAGE = """<!DOCTYPE html>
 <html lang="pl">
@@ -28,7 +35,8 @@ button {{ margin-top: 1rem; }}
 </html>
 """
 
-FORM = """<p>Claude chce połączyć się z Twoimi danymi z Garmin Connect.</p>
+FORM = """<p>Aplikacja „{client}” chce połączyć się z Twoimi danymi z Garmin Connect.</p>
+<p>Po zalogowaniu wrócisz do: <strong>{redirect_host}</strong></p>
 {error}
 <form method="post" action="{action}">
 <input type="hidden" name="request" value="{request}">
@@ -48,9 +56,17 @@ def _html(body: str, status_code: int) -> HTMLResponse:
     return HTMLResponse(PAGE.format(body=body), status_code=status_code)
 
 
-def _form(request_id: str, error: str = "", status_code: int = 200) -> HTMLResponse:
+def _form(
+    request_id: str, pending: PendingLogin, error: str = "", status_code: int = 200
+) -> HTMLResponse:
     error_html = f'<p class="error">{escape(error)}</p>' if error else ""
-    body = FORM.format(error=error_html, action=LOGIN_PATH, request=escape(request_id))
+    body = FORM.format(
+        client=escape(pending.client_name or "bez nazwy"),
+        redirect_host=escape(urlsplit(str(pending.params.redirect_uri)).netloc),
+        error=error_html,
+        action=LOGIN_PATH,
+        request=escape(request_id),
+    )
     return _html(body, status_code)
 
 
@@ -59,9 +75,10 @@ def login_router(provider: CgOAuthProvider) -> APIRouter:
 
     @router.get(LOGIN_PATH)
     def login_form(request: str = "") -> Response:
-        if not provider.login_request_valid(request):
+        pending = provider.pending_login(request)
+        if pending is None:
             return _html(EXPIRED, 400)
-        return _form(request)
+        return _form(request, pending)
 
     @router.post(LOGIN_PATH)
     def login_submit(
@@ -72,9 +89,10 @@ def login_router(provider: CgOAuthProvider) -> APIRouter:
         except LoginRequestInvalid:
             return _html(EXPIRED, 400)
         except WrongCode:
-            if not provider.login_request_valid(request):  # too many attempts
+            pending = provider.pending_login(request)
+            if pending is None:  # too many attempts
                 return _html(EXPIRED, 401)
-            return _form(request, "Nieprawidłowy kod. Sprawdź go i spróbuj ponownie.", 401)
+            return _form(request, pending, "Nieprawidłowy kod. Sprawdź go i spróbuj ponownie.", 401)
         return RedirectResponse(url, status_code=302)
 
     return router
