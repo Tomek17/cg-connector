@@ -31,6 +31,10 @@ class ScheduledOut(BaseModel):
     last_error: str | None = None
 
 
+class ScheduledList(BaseModel):
+    items: list[ScheduledOut]
+
+
 def workout_out(workout: Workout) -> WorkoutOut:
     return WorkoutOut(
         id=workout.id,

@@ -4,7 +4,8 @@
   201 when created, 200 with the existing workout when the `client_id` is known.
 - `POST /workouts/{id}/schedule` queues it for a date in the outbox (one entry per
   workout and day) and tries to send it at once, in the background.
-- `GET /scheduled?from&to`, `DELETE /scheduled/{id}` (only this user's entries).
+- `GET /scheduled?from&to` -> `{"items": [...]}`, `DELETE /scheduled/{id}`
+  (only this user's entries).
 """
 
 from datetime import date, datetime, timedelta
@@ -29,7 +30,13 @@ from cg_server.api import CurrentUser, db_session
 from cg_server.models import ScheduleStatus, WorkoutOrigin
 from cg_server.outbox import OutboxRunner
 from cg_server.workout_definition import DefinitionError, WorkoutDefinition
-from cg_server.workout_views import ScheduledOut, WorkoutOut, scheduled_out, workout_out
+from cg_server.workout_views import (
+    ScheduledList,
+    ScheduledOut,
+    WorkoutOut,
+    scheduled_out,
+    workout_out,
+)
 
 MAX_LIST_DAYS = 366
 
@@ -107,7 +114,7 @@ def list_scheduled(
     request: Request,
     from_: Annotated[date | None, Query(alias="from")] = None,
     to: date | None = None,
-) -> list[ScheduledOut]:
+) -> ScheduledList:
     start = from_ or _today(request)
     end = to or start + timedelta(days=30)
     if end < start or (end - start).days > MAX_LIST_DAYS:
@@ -115,7 +122,8 @@ def list_scheduled(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"'to' must be after 'from', at most {MAX_LIST_DAYS} days",
         )
-    return [scheduled_out(i) for i in workouts.list_scheduled(session, user, start, end)]
+    items = workouts.list_scheduled(session, user, start, end)
+    return ScheduledList(items=[scheduled_out(i) for i in items])
 
 
 @router.delete("/scheduled/{scheduled_id}")

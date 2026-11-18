@@ -122,7 +122,7 @@ def test_schedule_is_sent_in_background_and_listed(
         "/api/v1/scheduled",
         params={"from": TODAY.isoformat(), "to": (TODAY + timedelta(7)).isoformat()},
         headers=auth(tokens),
-    ).json()
+    ).json()["items"]
     assert [(i["id"], i["status"], i["name"]) for i in listed] == [
         (response.json()["id"], "sent", "Tempo")
     ]
@@ -149,7 +149,7 @@ def test_delete_removes_from_garmin(
     assert response.json()["status"] == "deleting"
     assert fake.calendar == {}
     listed = client.get("/api/v1/scheduled", headers=auth(tokens)).json()
-    assert listed == []
+    assert listed == {"items": []}
 
 
 def test_users_are_isolated(client: TestClient, tokens: dict[str, str]) -> None:
@@ -164,9 +164,9 @@ def test_users_are_isolated(client: TestClient, tokens: dict[str, str]) -> None:
         f"/api/v1/workouts/{workout['id']}/schedule", json={"date": DAY.isoformat()}, headers=brat
     )
     assert response.status_code == 404
-    assert client.get("/api/v1/scheduled", headers=brat).json() == []
+    assert client.get("/api/v1/scheduled", headers=brat).json() == {"items": []}
     assert client.delete(f"/api/v1/scheduled/{item['id']}", headers=brat).status_code == 404
-    mine = client.get("/api/v1/scheduled", headers=auth(tokens)).json()
+    mine = client.get("/api/v1/scheduled", headers=auth(tokens)).json()["items"]
     assert [i["id"] for i in mine] == [item["id"]]
 
 
