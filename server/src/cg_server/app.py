@@ -14,11 +14,14 @@ from starlette.routing import Route
 
 from cg_server import __version__
 from cg_server.api import router as api_router
+from cg_server.api_workouts import router as workouts_router
 from cg_server.config import Settings, get_settings
 from cg_server.db import open_db
+from cg_server.garmin.gateway import RealGarminGateway
 from cg_server.login_page import login_router
 from cg_server.mcp_server import build_mcp
 from cg_server.oauth import CLAUDE_CALLBACKS, MAX_CLIENT_METADATA_BYTES, CgOAuthProvider
+from cg_server.outbox import GatewayFactory, OutboxRunner
 from cg_server.scheduler import scheduler_running
 from cg_server.security import (
     BodySizeLimitMiddleware,
@@ -56,12 +59,16 @@ def authorization_server_metadata(mcp: MCPServer) -> Route:
     )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, *, gateway_factory: GatewayFactory = RealGarminGateway
+) -> FastAPI:
     settings = settings or get_settings()
     settings.check_public_host()
     sessions = open_db(settings)
     provider = CgOAuthProvider(settings, sessions)
-    mcp = build_mcp(settings, sessions, provider)
+    # Sends scheduled workouts right after they are added (scheduler: every 15 min).
+    outbox = OutboxRunner(sessions, settings, gateway_factory)
+    mcp = build_mcp(settings, sessions, provider, outbox)
     mcp_app = mcp.streamable_http_app(
         streamable_http_path="/mcp",
         stateless_http=True,
@@ -91,6 +98,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.sessions = sessions
+    app.state.settings = settings
+    app.state.outbox = outbox
 
     @app.exception_handler(Exception)
     async def internal_error(_request: Request, _exc: Exception) -> JSONResponse:
@@ -102,6 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok", "version": __version__}
 
     app.include_router(api_router)
+    app.include_router(workouts_router)
     app.include_router(login_router(provider))
 
     # Added innermost first: the allowlist runs before rate limiting and body reading.

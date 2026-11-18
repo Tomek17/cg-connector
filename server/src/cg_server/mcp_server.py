@@ -17,10 +17,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from cg_server.config import Settings
 from cg_server.models import Activity, SyncRun, SyncStatus, User
 from cg_server.oauth import SCOPE, CgOAuthProvider
+from cg_server.outbox import OutboxRunner
 
 INSTRUCTIONS = (
     "CG-connector: the user's Garmin Connect training data (activities, VO2max) "
-    "synced once a day. Units: km, min/km, bpm."
+    "synced once a day, and workouts sent to the user's Garmin calendar/watch. "
+    "Units: km, min/km, bpm."
 )
 
 
@@ -62,7 +64,10 @@ def latest_activity_date(session: Session, user: User) -> date | None:
 
 
 def build_mcp(
-    settings: Settings, sessions: sessionmaker[Session], provider: CgOAuthProvider
+    settings: Settings,
+    sessions: sessionmaker[Session],
+    provider: CgOAuthProvider,
+    outbox: OutboxRunner | None = None,
 ) -> MCPServer:
     mcp = MCPServer(
         "CG-connector",

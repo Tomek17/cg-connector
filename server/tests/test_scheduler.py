@@ -312,3 +312,20 @@ def test_scheduler_skips_while_cli_sync_holds_the_lock(settings: Settings) -> No
 
     runner.catch_up(now=now)
     assert runs(settings) == [("tomek", SyncStatus.OK)]
+
+
+def test_scheduler_runs_outbox_every_15_min_and_at_start(settings: Settings) -> None:
+    from cg_server.outbox import OutboxRunner
+
+    runner = runner_for(settings)
+    outbox = OutboxRunner(open_db(settings), settings, FakeGarminGateway)
+    scheduler = create_scheduler(runner, settings, outbox)
+    scheduler.start(paused=True)
+    try:
+        jobs: dict[str, Any] = {job.id: job for job in scheduler.get_jobs()}
+    finally:
+        scheduler.shutdown(wait=False)
+    assert jobs["outbox"].func == outbox.run_all
+    assert jobs["outbox"].trigger.interval == timedelta(minutes=15)
+    assert jobs["outbox"].next_run_time is not None
+    assert jobs["outbox"].max_instances == 1
