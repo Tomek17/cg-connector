@@ -66,6 +66,28 @@ class ActivitiesViewModelTest {
             }
         }
 
+    @Test
+    fun `unauthorized is reported as separate event`() =
+        runTest {
+            val viewModel = ActivitiesViewModel(FakeRepository(listOf(run), RefreshResult.Unauthorized))
+
+            viewModel.events.test {
+                viewModel.refresh()
+                assertThat(awaitItem()).isEqualTo(ActivitiesEvent.Unauthorized)
+            }
+        }
+
+    @Test
+    fun `invalid response is reported as separate event`() =
+        runTest {
+            val viewModel = ActivitiesViewModel(FakeRepository(listOf(run), RefreshResult.InvalidResponse))
+
+            viewModel.events.test {
+                viewModel.refresh()
+                assertThat(awaitItem()).isEqualTo(ActivitiesEvent.InvalidResponse)
+            }
+        }
+
     private fun activity(
         id: Long,
         type: ActivityType,

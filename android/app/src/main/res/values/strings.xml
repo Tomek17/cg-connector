@@ -30,6 +30,8 @@
     <string name="activities_empty_filtered">Brak treningów tego typu.</string>
     <string name="activities_refresh_failed">Serwer niedostępny. Pokazuję dane zapisane w telefonie.</string>
     <string name="activities_refreshed">Dane odświeżone</string>
+    <string name="activities_unauthorized">Serwer odrzucił token. Wklej nowy token w konfiguracji.</string>
+    <string name="activities_invalid_response">Nieprawidłowa odpowiedź serwera. Zaktualizuj aplikację lub serwer.</string>
     <string name="filter_all">Wszystkie</string>
 
     <string name="activity_type_running">Bieg</string>

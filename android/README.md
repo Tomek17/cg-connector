@@ -54,77 +54,18 @@ app/src/main/java/pl/cgconnector/app/
 └─ di/              # moduły Hilt
 ```
 
-## Propozycja kontraktu API (do uzgodnienia z backendem)
+## Kontrakt API
 
-Obowiązujący kontrakt powstanie jako `docs/api/openapi.json` z FastAPI. Do tego czasu aplikacja zakłada
-poniższy kontrakt (`data/remote/CgApi.kt`, `data/remote/Dto.kt`). Zmiany prosimy zgłaszać w issue z
-etykietą `api-change`.
+Obowiązuje `docs/api/openapi.json` (generowany przez FastAPI) i jego opis w `docs/api/README.md`.
+Aplikacja odwzorowuje go w `data/remote/CgApi.kt` i `data/remote/Dto.kt`: `GET /api/v1/me`,
+`/activities?from&to&type&limit` (z obsługą `has_more`), `/activities/{id}`, `/vo2max?from&to` oraz
+`/summary?period&from&to`. Testy parsowania są w `DtoParsingTest`. Zmiany kontraktu zgłasza się w issue
+z etykietą `api-change`.
 
-**Wspólne zasady**
+Obsługa odpowiedzi przy odświeżaniu:
 
-- Bazowy adres to adres tunelu, np. `https://cg-server.<tailnet>.ts.net`. Ścieżki zaczynają się od `/api/v1/`.
-- Nagłówek `Authorization: Bearer <token aplikacji>`. Użytkownika wyznacza **wyłącznie** token.
-  Odpowiedź 401 oznacza zły lub unieważniony token.
-- JSON w `snake_case`. Pola opcjonalne mogą być pominięte albo `null`. Klient ignoruje nieznane pola.
-- Czas to ISO-8601 z offsetem (`2026-11-17T07:30:00+01:00`), daty to `YYYY-MM-DD`, jednostki SI
-  (m, s, bpm, W, kroki/min).
-
-### `GET /api/v1/me`
-
-```json
-{
-  "user_id": "u_7f3a",
-  "display_name": "Użytkownik A",
-  "watch_model": "Enduro 3",
-  "last_sync_at": "2026-11-18T14:03:12+01:00"
-}
-```
-
-`last_sync_at` to ostatnia **udana** synchronizacja serwera z Garmin Connect (`null`, jeśli nie było żadnej).
-Aplikacja pokaże ją na ekranie Status i ostrzeże, gdy jest starsza niż ok. 24 h.
-
-### `GET /api/v1/activities?from=YYYY-MM-DD&to=YYYY-MM-DD`
-
-Podsumowania aktywności, których początek wypada w przedziale `[from, to]` (oba końce włącznie,
-daty w strefie Europe/Warsaw), posortowane malejąco po `start_time`.
-
-```json
-{
-  "items": [
-    {
-      "id": 18234567890,
-      "type": "running",
-      "name": "Bieg spokojny",
-      "start_time": "2026-11-17T07:30:00+01:00",
-      "duration_sec": 2700,
-      "distance_m": 8012.5,
-      "avg_hr": 142,
-      "max_hr": 158,
-      "elevation_gain_m": 45.0,
-      "avg_power_w": 265,
-      "avg_cadence_spm": 172
-    }
-  ]
-}
-```
-
-| Pole | Typ | Uwagi |
-|---|---|---|
-| `id` | int64 | stabilny identyfikator, klucz upsertu po stronie aplikacji (np. ID aktywności Garmina) |
-| `type` | string | `running` \| `strength` \| `climbing` \| `other`; nieznane wartości klient traktuje jak `other` |
-| `name` | string? | |
-| `start_time` | string | ISO-8601 z offsetem |
-| `duration_sec` | int64 | czas trwania (elapsed) |
-| `distance_m`, `elevation_gain_m` | number? | brak dla siłowni i ścianki |
-| `avg_hr`, `max_hr` | int? | bpm |
-| `avg_power_w` | int? | moc biegowa |
-| `avg_cadence_spm` | int? | kroki/min |
-
-Otwarte pytania do backendu:
-
-1. Czy przy pierwszej synchronizacji (365 dni) potrzebna jest paginacja (`cursor`/`limit`)? Odpowiedź jest
-   opakowana w obiekt `{"items": …}`, więc da się ją dodać bez łamania kontraktu.
-2. Czy aktywności usunięte w Garmin Connect mają znikać z aplikacji (wtedy potrzebne np. `deleted_ids`
-   albo `updated_since`)?
-3. Szczegóły aktywności (okrążenia, strefy, serie siłowe) proponujemy jako osobny
-   `GET /api/v1/activities/{id}` w kolejnym kamieniu milowym.
+| Sytuacja | Wynik w aplikacji |
+|---|---|
+| brak sieci, timeout, 5xx | `Unavailable`: dane lokalne zostają, WorkManager ponawia co ok. 1 h do 23:00 |
+| 401 | `Unauthorized`: bez ponowień, komunikat „wklej nowy token” |
+| nieprawidłowa odpowiedź (JSON, inne 4xx) | `InvalidResponse`: bez ponowień, komunikat o niezgodności wersji |

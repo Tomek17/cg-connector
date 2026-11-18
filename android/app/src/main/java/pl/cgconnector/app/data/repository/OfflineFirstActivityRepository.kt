@@ -10,6 +10,8 @@ import pl.cgconnector.app.data.remote.NotConfiguredException
 import pl.cgconnector.app.data.remote.toEntity
 import pl.cgconnector.app.domain.Activity
 import pl.cgconnector.app.domain.ActivityType
+import retrofit2.HttpException
+import java.io.IOException
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -38,17 +40,34 @@ class OfflineFirstActivityRepository
                 RefreshResult.Success(items.size)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: NotConfiguredException) {
-                RefreshResult.NotConfigured
-            } catch (_: Exception) {
-                // Laptop-serwer bywa wyłączony; to normalny stan.
-                RefreshResult.Unavailable
+            } catch (e: Exception) {
+                classify(e)
             }
         }
 
-        private companion object {
-            val ZONE: ZoneId = ZoneId.of("Europe/Warsaw")
-            const val OVERLAP_DAYS = 3L
-            const val INITIAL_HISTORY_DAYS = 365L
+        companion object {
+            private val ZONE: ZoneId = ZoneId.of("Europe/Warsaw")
+            private const val OVERLAP_DAYS = 3L
+            private const val INITIAL_HISTORY_DAYS = 365L
+
+            /** Odróżnia brak serwera (normalny stan, ponawiamy) od błędów, których ponawianie nie naprawi. */
+            fun classify(e: Exception): RefreshResult =
+                when (e) {
+                    is NotConfiguredException -> RefreshResult.NotConfigured
+                    is HttpException ->
+                        when {
+                            e.code() == HTTP_UNAUTHORIZED -> RefreshResult.Unauthorized
+                            e.code() >= HTTP_SERVER_ERROR -> RefreshResult.Unavailable
+                            else -> RefreshResult.InvalidResponse
+                        }
+                    // Laptop-serwer bywa wyłączony; to normalny stan.
+                    is IOException -> RefreshResult.Unavailable
+                    // SerializationException (zły JSON), DateTimeParseException (zła data) i inne:
+                    // odpowiedź niezgodna z kontraktem, a nie brak serwera.
+                    else -> RefreshResult.InvalidResponse
+                }
+
+            private const val HTTP_UNAUTHORIZED = 401
+            private const val HTTP_SERVER_ERROR = 500
         }
     }

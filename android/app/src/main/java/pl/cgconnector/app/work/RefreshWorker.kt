@@ -21,7 +21,10 @@ class RefreshWorker
         override suspend fun doWork(): Result =
             when (repository.refresh()) {
                 is RefreshResult.Success -> Result.success()
-                RefreshResult.NotConfigured -> Result.success()
+                RefreshResult.NotConfigured,
+                RefreshResult.Unauthorized,
+                RefreshResult.InvalidResponse,
+                -> Result.success()
                 RefreshResult.Unavailable -> if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
             }
 

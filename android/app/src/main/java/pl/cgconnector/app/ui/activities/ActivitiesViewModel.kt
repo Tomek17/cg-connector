@@ -33,6 +33,10 @@ sealed interface ActivitiesEvent {
     data object ServerUnavailable : ActivitiesEvent
 
     data object NotConfigured : ActivitiesEvent
+
+    data object Unauthorized : ActivitiesEvent
+
+    data object InvalidResponse : ActivitiesEvent
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -75,6 +79,8 @@ class ActivitiesViewModel
                         is RefreshResult.Success -> ActivitiesEvent.Refreshed
                         RefreshResult.Unavailable -> ActivitiesEvent.ServerUnavailable
                         RefreshResult.NotConfigured -> ActivitiesEvent.NotConfigured
+                        RefreshResult.Unauthorized -> ActivitiesEvent.Unauthorized
+                        RefreshResult.InvalidResponse -> ActivitiesEvent.InvalidResponse
                     }
                 isRefreshing.value = false
                 _events.send(event)

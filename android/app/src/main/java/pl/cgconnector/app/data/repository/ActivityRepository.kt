@@ -17,5 +17,12 @@ sealed interface RefreshResult {
 
     data object NotConfigured : RefreshResult
 
+    /** Brak sieci, timeout, 5xx: laptop-serwer jest wyłączony albo uśpiony. Warto ponowić. */
     data object Unavailable : RefreshResult
+
+    /** 401: token odrzucony. Ponawianie nic nie da, użytkownik musi wkleić nowy token. */
+    data object Unauthorized : RefreshResult
+
+    /** Odpowiedź niezgodna z kontraktem (JSON, inne 4xx). Ponawianie nic nie da. */
+    data object InvalidResponse : RefreshResult
 }
