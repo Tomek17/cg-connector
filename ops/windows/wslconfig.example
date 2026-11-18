@@ -1,0 +1,15 @@
+# Przykladowy plik C:\Users\<twoja-nazwa>\.wslconfig dla serwera CG-connector.
+# Skopiuj go (PowerShell):
+#   Copy-Item .\wslconfig.example $env:USERPROFILE\.wslconfig
+# Jesli masz juz .wslconfig, dopisz tylko brakujace linie do istniejacych sekcji.
+# Zmiany dzialaja po: wsl --shutdown (i ponownym uruchomieniu WSL).
+
+[general]
+# Nie zamykaj dystrybucji Ubuntu, gdy nie ma otwartego okna terminala
+# (domyslnie 15 s). -1 = nigdy. Bez tego serwer gasnie chwile po starcie.
+instanceIdleTimeout=-1
+
+[wsl2]
+# Nie zamykaj maszyny wirtualnej WSL przy bezczynnosci (domyslnie 60 s).
+# Jesli -1 nie zadziala, wpisz 2147483647.
+vmIdleTimeout=-1
