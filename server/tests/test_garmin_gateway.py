@@ -9,6 +9,7 @@ import pytest
 from garminconnect import (
     GarminConnectAuthenticationError,
     GarminConnectConnectionError,
+    GarminConnectNotFoundError,
     GarminConnectTooManyRequestsError,
 )
 
@@ -17,6 +18,7 @@ from cg_server.garmin.fake import FakeGarminGateway
 from cg_server.garmin.gateway import (
     GarminAuthError,
     GarminGateway,
+    GarminNotFound,
     GarminRateLimited,
     RealGarminGateway,
 )
@@ -77,6 +79,20 @@ class StubGarmin:
 
     def get_max_metrics_range(self, *args: Any) -> dict[str, Any]:
         return {"args": list(args)}
+
+    def _detail(self, name: str, activity_id: str) -> dict[str, Any]:
+        if StubGarmin.error is not None:
+            raise StubGarmin.error
+        return {"method": name, "id": activity_id}
+
+    def get_activity_splits(self, activity_id: str) -> dict[str, Any]:
+        return self._detail("splits", activity_id)
+
+    def get_activity_hr_in_timezones(self, activity_id: str) -> dict[str, Any]:
+        return self._detail("hr", activity_id)
+
+    def get_activity_exercise_sets(self, activity_id: int | str) -> dict[str, Any]:
+        return self._detail("sets", activity_id)
 
 
 @pytest.fixture(autouse=True)
@@ -167,3 +183,31 @@ def test_garmintokens_env_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GARMINTOKENS", "/tmp/garmin_tokens")  # noqa: S108
     RealGarminGateway().resume("{}")
     assert StubGarmin.env_tokens_seen == [None, None]
+
+
+def test_activity_detail_calls_pass_activity_id_as_string() -> None:
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    assert gw.get_activity_splits(17) == {"method": "splits", "id": "17"}
+    assert gw.get_activity_hr_in_timezones(17) == {"method": "hr", "id": "17"}
+    assert gw.get_activity_exercise_sets(17) == {"method": "sets", "id": "17"}
+
+
+def test_activity_detail_429_is_rate_limited() -> None:
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    StubGarmin.error = GarminConnectTooManyRequestsError("429")
+    with pytest.raises(GarminRateLimited):
+        gw.get_activity_splits(17)
+
+
+@pytest.mark.parametrize(
+    "library_error",
+    [GarminConnectNotFoundError("404"), connection_error(404)],
+)
+def test_404_is_not_found(library_error: Exception) -> None:
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    StubGarmin.error = library_error
+    with pytest.raises(GarminNotFound):
+        gw.get_activity_exercise_sets(17)
