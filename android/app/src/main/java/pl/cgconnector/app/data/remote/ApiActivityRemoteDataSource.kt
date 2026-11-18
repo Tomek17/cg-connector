@@ -13,9 +13,21 @@ class ApiActivityRemoteDataSource
             from: LocalDate,
             to: LocalDate,
         ): List<ActivityDto> {
-            val api = apiProvider.get() ?: throw NotConfiguredException()
-            return fetchAllPages(api, from, to)
+            return fetchAllPages(api(), from, to)
         }
+
+        override suspend fun fetchActivityDetail(id: Long): ActivityDetailDto = api().activity(id)
+
+        override suspend fun fetchVo2Max(
+            from: LocalDate,
+            to: LocalDate,
+        ): List<Vo2MaxPointDto> = api().vo2max(from = from.toString(), to = to.toString()).items
+
+        override suspend fun fetchMe(): MeDto = api().me()
+
+        override suspend fun fetchWeeklySummary(): SummaryDto = api().summary(period = "week")
+
+        private suspend fun api(): CgApi = apiProvider.get() ?: throw NotConfiguredException()
 
         companion object {
             /** Bezpiecznik na wypadek błędu serwera (has_more bez postępu). */

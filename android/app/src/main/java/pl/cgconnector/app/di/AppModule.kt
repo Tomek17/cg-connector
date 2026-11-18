@@ -15,7 +15,9 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import pl.cgconnector.app.data.local.ActivityDao
+import pl.cgconnector.app.data.local.ActivityDetailDao
 import pl.cgconnector.app.data.local.CgDatabase
+import pl.cgconnector.app.data.local.StatsDao
 import java.time.Clock
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -31,6 +33,12 @@ object AppModule {
 
     @Provides
     fun provideActivityDao(db: CgDatabase): ActivityDao = db.activityDao()
+
+    @Provides
+    fun provideActivityDetailDao(db: CgDatabase): ActivityDetailDao = db.activityDetailDao()
+
+    @Provides
+    fun provideStatsDao(db: CgDatabase): StatsDao = db.statsDao()
 
     @Provides
     @Singleton

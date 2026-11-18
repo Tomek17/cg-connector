@@ -2,8 +2,18 @@ package pl.cgconnector.app.data.remote
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import pl.cgconnector.app.data.local.ActivityDetailBundle
+import pl.cgconnector.app.data.local.ActivityDetailsEntity
 import pl.cgconnector.app.data.local.ActivityEntity
+import pl.cgconnector.app.data.local.ExerciseSetEntity
+import pl.cgconnector.app.data.local.HrZoneEntity
+import pl.cgconnector.app.data.local.LapEntity
+import pl.cgconnector.app.data.local.SummaryEntity
+import pl.cgconnector.app.data.local.SyncStatusEntity
+import pl.cgconnector.app.data.local.Vo2MaxEntity
 import pl.cgconnector.app.domain.ActivityType
+import java.time.Instant
+import java.time.LocalDate
 import java.time.OffsetDateTime
 
 // DTO zgodne z docs/api/openapi.json (serwer cg-server, REST /api/v1).
@@ -158,6 +168,8 @@ data class SummaryItemDto(
     @SerialName("avg_pace_min_per_km") val avgPaceMinPerKm: Double? = null,
 )
 
+// Mapowanie DTO → encje Room.
+
 fun ActivityDto.toEntity() =
     ActivityEntity(
         id = id,
@@ -171,4 +183,95 @@ fun ActivityDto.toEntity() =
         elevationGainM = elevationGainM,
         avgPowerW = avgPowerW,
         avgCadenceSpm = avgCadenceSpm,
+        movingDurationSec = movingDurationSec,
+        avgSpeedMps = avgSpeedMps,
+        paceMinPerKm = paceMinPerKm,
+        aerobicTrainingEffect = aerobicTrainingEffect,
+        anaerobicTrainingEffect = anaerobicTrainingEffect,
+        trainingLoad = trainingLoad,
+    )
+
+/** Szczegóły zawierają też pola podsumowania, więc odświeżają przy okazji wiersz w `activities`. */
+fun ActivityDetailDto.toBundle(fetchedAt: Instant) =
+    ActivityDetailBundle(
+        activity =
+            ActivityEntity(
+                id = id,
+                type = ActivityType.fromApi(type),
+                name = name,
+                startTime = OffsetDateTime.parse(startTime).toInstant(),
+                durationSec = durationSec,
+                distanceM = distanceM,
+                avgHr = avgHr,
+                maxHr = maxHr,
+                elevationGainM = elevationGainM,
+                avgPowerW = avgPowerW,
+                avgCadenceSpm = avgCadenceSpm,
+                movingDurationSec = movingDurationSec,
+                avgSpeedMps = avgSpeedMps,
+                paceMinPerKm = paceMinPerKm,
+                aerobicTrainingEffect = aerobicTrainingEffect,
+                anaerobicTrainingEffect = anaerobicTrainingEffect,
+                trainingLoad = trainingLoad,
+            ),
+        details = ActivityDetailsEntity(activityId = id, detailsAvailable = detailsAvailable, fetchedAt = fetchedAt),
+        // distinctBy: klucz główny tabel to (activity_id, numer); duplikat z serwera nie może wywrócić zapisu.
+        laps =
+            laps.distinctBy { it.index }.map {
+                LapEntity(
+                    activityId = id,
+                    index = it.index,
+                    distanceM = it.distanceM,
+                    durationSec = it.durationSec,
+                    avgHr = it.avgHr,
+                    maxHr = it.maxHr,
+                    avgSpeedMps = it.avgSpeedMps,
+                    paceMinPerKm = it.paceMinPerKm,
+                    elevationGainM = it.elevationGainM,
+                    avgPowerW = it.avgPowerW,
+                    avgCadenceSpm = it.avgCadenceSpm,
+                )
+            },
+        hrZones =
+            hrZones.distinctBy { it.zone }.map {
+                HrZoneEntity(activityId = id, zone = it.zone, seconds = it.seconds, lowBpm = it.lowBpm)
+            },
+        exerciseSets =
+            exerciseSets.mapIndexed { index, set ->
+                ExerciseSetEntity(
+                    activityId = id,
+                    index = index,
+                    setType = set.setType,
+                    category = set.category,
+                    exercise = set.exercise,
+                    reps = set.reps,
+                    weightKg = set.weightKg,
+                    durationSec = set.durationSec,
+                )
+            },
+    )
+
+fun Vo2MaxPointDto.toEntity() = Vo2MaxEntity(date = LocalDate.parse(date), sport = sport, value = value)
+
+fun SummaryDto.toEntities(): List<SummaryEntity> =
+    items.distinctBy { it.periodStart to it.type }.map {
+        SummaryEntity(
+            period = period,
+            periodStart = LocalDate.parse(it.periodStart),
+            periodEnd = LocalDate.parse(it.periodEnd),
+            type = it.type,
+            count = it.count,
+            distanceM = it.distanceM,
+            durationSec = it.durationSec,
+            elevationGainM = it.elevationGainM,
+            avgPaceMinPerKm = it.avgPaceMinPerKm,
+        )
+    }
+
+/** Dane serwera z `/me` nakładane na lokalny stan synchronizacji (pola aplikacji zostają). */
+fun MeDto.applyTo(status: SyncStatusEntity) =
+    status.copy(
+        serverLastSyncAt = lastSyncAt?.let { OffsetDateTime.parse(it).toInstant() },
+        serverLastSyncStatus = lastSyncStatus,
+        garminStatus = garminStatus,
     )

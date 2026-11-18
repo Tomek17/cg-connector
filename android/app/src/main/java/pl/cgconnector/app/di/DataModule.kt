@@ -11,6 +11,8 @@ import pl.cgconnector.app.data.remote.ApiActivityRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeActivityRemoteDataSource
 import pl.cgconnector.app.data.repository.ActivityRepository
 import pl.cgconnector.app.data.repository.OfflineFirstActivityRepository
+import pl.cgconnector.app.data.repository.RoomStatsRepository
+import pl.cgconnector.app.data.repository.StatsRepository
 import pl.cgconnector.app.data.settings.DataStoreServerConfigRepository
 import pl.cgconnector.app.data.settings.KeystoreTokenCipher
 import pl.cgconnector.app.data.settings.ServerConfigRepository
@@ -28,6 +30,9 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindActivityRepository(impl: OfflineFirstActivityRepository): ActivityRepository
+
+    @Binds
+    abstract fun bindStatsRepository(impl: RoomStatsRepository): StatsRepository
 
     companion object {
         @Provides
