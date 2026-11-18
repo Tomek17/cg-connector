@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -91,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.sessions = sessions
+    app.state.tz = ZoneInfo(settings.timezone)
 
     @app.exception_handler(Exception)
     async def internal_error(_request: Request, _exc: Exception) -> JSONResponse:
