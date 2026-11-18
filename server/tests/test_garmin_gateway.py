@@ -290,3 +290,24 @@ def test_workout_429_is_rate_limited() -> None:
     StubGarmin.error = connection_error(429)
     with pytest.raises(GarminRateLimited):
         gw.schedule_workout(555, "2026-11-20")
+
+
+def test_schedule_answer_keys_are_logged_once_without_values(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import logging
+
+    monkeypatch.setattr(gateway_module, "_logged_shapes", set())
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    with caplog.at_level(logging.INFO, logger="cg_server.garmin.gateway"):
+        gw.schedule_workout(555, "2026-11-20")
+        gw.schedule_workout(555, "2026-11-21")
+        gw.get_scheduled_workouts_by_period("2026-11-20", "2026-11-20")
+    messages = [r.getMessage() for r in caplog.records]
+    assert messages == [
+        "Garmin schedule_workout answer keys: ['workout', 'workoutScheduleId']",
+        "Garmin workoutScheduleByPeriod entry answer keys: "
+        "['date', 'workoutId', 'workoutScheduleId']",
+    ]
+    assert "777" not in " ".join(messages)

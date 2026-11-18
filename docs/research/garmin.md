@@ -178,6 +178,16 @@ Uwagi: dla VO2max trendu najtaniej `get_max_metrics_range(..., sport="running")`
 - Kolejne ćwiczenie: następny `create_strength_set` ze `step_order` += 3.
 - Rekomendacja: backend buduje JSON **wyłącznie** przez typowane modele biblioteki (walidacja Pydantic), nasz własny schemat `definition` (MCP/REST) mapujemy na helpery.
 
+### 3.5 Do potwierdzenia w spike'u na Enduro 3 (implementacja: `server/src/cg_server/outbox.py`)
+
+Uruchomienie: `cg-server workout-test --user tomek --date RRRR-MM-DD --kind run` (potem `--kind strength`), następnie synchronizacja zegarka z aplikacją Garmin Connect. Serwer loguje raz na proces **same nazwy pól** (bez wartości) odpowiedzi Garmina: `Garmin schedule_workout answer keys: [...]` i `Garmin workoutScheduleByPeriod entry answer keys: [...]`. Do sprawdzenia i wpisania tutaj:
+
+1. Pole z id wpisu kalendarza w odpowiedzi `schedule_workout` [P]. Kod próbuje kolejno `workoutScheduleId`, `scheduleId`, `id`.
+2. Pola wpisu w `get_scheduled_workouts_by_period` [P]: id treningu (`workoutId` albo `workout.workoutId`) i id wpisu (jak w p. 1).
+3. Czy trening (bieg z celem tempa, siła z ciężarem w kg) wyświetla się na zegarku poprawnie i czy jest widoczny ciężar.
+
+Zachowanie, dopóki pola nie są potwierdzone: jeśli odpowiedź nie ma id, serwer szuka wpisu w kalendarzu (trening + dzień). Wpis znaleziony bez id traktujemy jako już zaplanowany (nigdy nie planujemy drugi raz). Usuwanie takiego wpisu bez ustalonego id kończy się błędem `delete_failed: ...` (status `failed`, do usunięcia ręcznie w Garmin Connect), nigdy fałszywym „deleted”.
+
 ## 4. Zegarki: Enduro 3 i Fenix 8 / 8 Pro [F z instrukcji obsługi]
 
 | Funkcja | Enduro 3 | Fenix 8 (seria, w tym 8 Pro) |

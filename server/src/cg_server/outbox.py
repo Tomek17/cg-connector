@@ -192,12 +192,13 @@ class _UserOutbox:
         )
         self.session.commit()
 
-    def _find_in_calendar(self, garmin_workout_id: int, day: str) -> int | None:
+    def _find_in_calendar(self, garmin_workout_id: int, day: str) -> tuple[bool, int | None]:
+        """(is the workout in the Garmin calendar on that day, its entry id if known)."""
         entries = self.paced(self.gateway.get_scheduled_workouts_by_period, day, day)
         for entry in entries:
             if str(_entry_workout_id(entry)) == str(garmin_workout_id):
-                return schedule_id_of(entry)
-        return None
+                return True, schedule_id_of(entry)
+        return False, None
 
     def send(self, item: ScheduledWorkout) -> None:
         workout = item.workout
@@ -210,8 +211,11 @@ class _UserOutbox:
             workout.garmin_workout_id = self.paced(self.gateway.upload_workout, body)
             self.session.commit()  # saved before scheduling: a retry never uploads again
         garmin_id = workout.garmin_workout_id
-        schedule_id = self._find_in_calendar(garmin_id, day) if maybe_scheduled else None
-        if schedule_id is None:
+        found, schedule_id = (
+            self._find_in_calendar(garmin_id, day) if maybe_scheduled else (False, None)
+        )
+        # Found without a recognised id: still already scheduled, never schedule it twice.
+        if not found:
             try:
                 schedule_id = self.paced(self.gateway.schedule_workout, garmin_id, day)
             except GarminNotFound:
@@ -220,7 +224,7 @@ class _UserOutbox:
                 self.session.commit()
                 raise
             if schedule_id is None:  # answer without an id [not verified live]
-                schedule_id = self._find_in_calendar(garmin_id, day)
+                _, schedule_id = self._find_in_calendar(garmin_id, day)
         # One statement on the current row: a delete request that came in meanwhile
         # turns the entry into `deleting`, so it is removed from the calendar again.
         self.session.execute(
@@ -247,9 +251,21 @@ class _UserOutbox:
             self.unschedule(item)
 
     def unschedule(self, item: ScheduledWorkout) -> None:
-        if item.garmin_schedule_id is not None:
+        """Remove the entry from the Garmin calendar. Without a known entry id it is looked
+        up there (workout id + day); if that fails it is an error, never a false 'deleted'."""
+        schedule_id = item.garmin_schedule_id
+        garmin_workout_id = item.workout.garmin_workout_id
+        if schedule_id is None and garmin_workout_id is not None:
+            found, schedule_id = self._find_in_calendar(garmin_workout_id, item.date.isoformat())
+            if schedule_id is None:
+                raise OutboxError(
+                    "calendar entry has no known id; remove it in Garmin Connect"
+                    if found
+                    else "calendar entry not found; check Garmin Connect"
+                )
+        if schedule_id is not None:
             with contextlib.suppress(GarminNotFound):  # already removed in Garmin Connect
-                self.paced(self.gateway.unschedule_workout, item.garmin_schedule_id)
+                self.paced(self.gateway.unschedule_workout, schedule_id)
         item.status = ScheduleStatus.DELETED
         item.last_error = None
         item.next_attempt_at = None

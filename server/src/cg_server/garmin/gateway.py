@@ -16,6 +16,7 @@ The `GARMINTOKENS` environment variable is removed before every login, so the li
 never reads or writes plaintext token files; tokens only live encrypted in our database.
 """
 
+import logging
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -28,6 +29,8 @@ from garminconnect import (
     GarminConnectNotFoundError,
     GarminConnectTooManyRequestsError,
 )
+
+log = logging.getLogger(__name__)
 
 MfaPrompt = Callable[[], str]
 MaxMetrics = dict[str, Any] | list[dict[str, Any]]
@@ -143,6 +146,19 @@ def schedule_id_of(response: Any) -> int | None:
     return None
 
 
+_logged_shapes: set[str] = set()
+
+
+def _log_keys_once(what: str, response: Any) -> None:
+    """Log the field names (never values) of a Garmin answer once per process, so the
+    watch spike can confirm them (docs/research/garmin.md, "Do potwierdzenia")."""
+    if what in _logged_shapes:
+        return
+    _logged_shapes.add(what)
+    keys = sorted(map(str, response)) if isinstance(response, dict) else type(response).__name__
+    log.info("Garmin %s answer keys: %s", what, keys)
+
+
 @contextmanager
 def _translate_errors() -> Iterator[None]:
     try:
@@ -245,7 +261,9 @@ class RealGarminGateway:
 
     def schedule_workout(self, workout_id: int, date: str) -> int | None:
         with _translate_errors():
-            return schedule_id_of(self._session().schedule_workout(workout_id, date))
+            response = self._session().schedule_workout(workout_id, date)
+        _log_keys_once("schedule_workout", response)
+        return schedule_id_of(response)
 
     def unschedule_workout(self, schedule_id: int) -> None:
         with _translate_errors():
@@ -258,4 +276,6 @@ class RealGarminGateway:
     def get_scheduled_workouts_by_period(self, start: str, end: str) -> list[dict[str, Any]]:
         with _translate_errors():
             result = self._session().get_scheduled_workouts_by_period(start, end)
+        if isinstance(result, list) and result:
+            _log_keys_once("workoutScheduleByPeriod entry", result[0])
         return [r for r in result if isinstance(r, dict)] if isinstance(result, list) else []

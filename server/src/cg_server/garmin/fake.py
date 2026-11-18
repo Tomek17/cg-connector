@@ -111,6 +111,9 @@ class FakeGarminGateway:
         self.workouts: dict[int, dict[str, Any]] = {}
         self.calendar: dict[int, dict[str, Any]] = {}
         self._next_id = 9000
+        # Simulate Garmin answers without the (unverified) schedule id fields.
+        self.schedule_answer_has_id = True
+        self.calendar_entries_have_id = True
 
     def _call(self, name: str, *args: Any) -> None:
         self.calls.append(name)
@@ -254,7 +257,7 @@ class FakeGarminGateway:
             "workoutId": workout_id,
             "date": date,
         }
-        return schedule_id
+        return schedule_id if self.schedule_answer_has_id else None
 
     def unschedule_workout(self, schedule_id: int) -> None:
         self._call("unschedule_workout", schedule_id)
@@ -271,4 +274,8 @@ class FakeGarminGateway:
     def get_scheduled_workouts_by_period(self, start: str, end: str) -> list[dict[str, Any]]:
         self._call("get_scheduled_workouts_by_period", start, end)
         self._require_session()
-        return [dict(e) for e in self.calendar.values() if start <= e["date"] <= end]
+        entries = [dict(e) for e in self.calendar.values() if start <= e["date"] <= end]
+        if not self.calendar_entries_have_id:
+            for entry in entries:
+                del entry["workoutScheduleId"]
+        return entries

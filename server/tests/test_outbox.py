@@ -444,3 +444,82 @@ def test_errors_are_english_codes_send_vs_delete(session: Session, settings: Set
     session.refresh(item)
     assert item.status == ScheduleStatus.DELETING
     assert item.last_error == "delete_failed: Garmin HTTP 500"
+
+
+# --- unknown Garmin schedule id (field names not verified live) -----------------------------
+
+
+def test_schedule_answer_without_id_is_looked_up(session: Session, settings: Settings) -> None:
+    item = schedule(session)
+    fake = FakeGarminGateway()
+    fake.schedule_answer_has_id = False
+    run(session, settings, fake)
+    session.refresh(item)
+    assert item.status == ScheduleStatus.SENT
+    assert item.garmin_schedule_id in fake.calendar
+
+
+def test_calendar_match_without_id_counts_as_scheduled(
+    session: Session, settings: Settings
+) -> None:
+    item = schedule(session)
+    fake = FakeGarminGateway()
+    fake.resume("{}")
+    garmin_id = fake.upload_workout({"workoutName": "CG Easy"})
+    fake.schedule_workout(garmin_id, "2026-11-20")
+    fake.calendar_entries_have_id = False
+    item.workout.garmin_workout_id = garmin_id
+    session.commit()
+    fake.calls.clear()
+    run(session, settings, fake)
+    session.refresh(item)
+    assert "schedule_workout" not in fake.calls  # never twice
+    assert len(fake.calendar) == 1
+    assert item.status == ScheduleStatus.SENT
+    assert item.garmin_schedule_id is None
+
+
+def sent_without_id(
+    session: Session, settings: Settings, fake: FakeGarminGateway
+) -> ScheduledWorkout:
+    item = schedule(session)
+    fake.schedule_answer_has_id = False
+    fake.calendar_entries_have_id = False
+    run(session, settings, fake)
+    session.refresh(item)
+    assert (item.status, item.garmin_schedule_id) == (ScheduleStatus.SENT, None)
+    return item
+
+
+def test_delete_without_known_id_looks_it_up(session: Session, settings: Settings) -> None:
+    fake = FakeGarminGateway()
+    item = sent_without_id(session, settings, fake)
+    assert (
+        workouts.request_delete(session, user(session), item.id).status == ScheduleStatus.DELETING
+    )
+    fake.calendar_entries_have_id = True
+    run(session, settings, fake)
+    session.refresh(item)
+    assert item.status == ScheduleStatus.DELETED
+    assert fake.calendar == {}
+
+
+def test_delete_never_claims_deleted_when_id_cannot_be_found(
+    session: Session, settings: Settings
+) -> None:
+    fake = FakeGarminGateway()
+    item = sent_without_id(session, settings, fake)
+    workouts.request_delete(session, user(session), item.id)
+    now = NOW
+    for _ in range(MAX_ATTEMPTS):
+        run(session, settings, fake, now=now)
+        now += timedelta(days=1)
+    session.refresh(item)
+    assert item.status == ScheduleStatus.FAILED
+    assert item.last_error is not None
+    assert item.last_error.startswith("delete_failed: calendar entry has no known id")
+    assert len(fake.calendar) == 1
+    # Asking again retries the removal, it does not just mark it deleted.
+    assert (
+        workouts.request_delete(session, user(session), item.id).status == ScheduleStatus.DELETING
+    )

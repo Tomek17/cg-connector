@@ -9,7 +9,7 @@ import uuid
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import case, select, update
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -171,6 +171,13 @@ def request_delete(session: Session, user: User, scheduled_id: int) -> Scheduled
     sent yet: `deleted` at once. The workout template stays in the Garmin library.
     """
     item = get_scheduled(session, user, scheduled_id)
+    # Sent (even if Garmin's entry id is unknown) or an earlier delete failed: the outbox
+    # must remove it from the Garmin calendar.
+    in_garmin_calendar = or_(
+        ScheduledWorkout.garmin_schedule_id.is_not(None),
+        ScheduledWorkout.status.in_([ScheduleStatus.SENT.value, ScheduleStatus.DELETING.value]),
+        ScheduledWorkout.last_error.startswith("delete_failed"),
+    )
     # One statement, decided on the current row: the outbox may be saving the Garmin
     # schedule id at this very moment (it then turns `deleted` into `deleting`).
     session.execute(
@@ -181,7 +188,7 @@ def request_delete(session: Session, user: User, scheduled_id: int) -> Scheduled
         )
         .values(
             status=case(
-                (ScheduledWorkout.garmin_schedule_id.is_not(None), ScheduleStatus.DELETING.value),
+                (in_garmin_calendar, ScheduleStatus.DELETING.value),
                 else_=ScheduleStatus.DELETED.value,
             ),
             attempts=0,
