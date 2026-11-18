@@ -95,3 +95,43 @@ def test_garmin_activity_id_unique_per_user(settings: Settings) -> None:
         session.add(activity(tomek))
         with pytest.raises(IntegrityError):
             session.commit()
+
+
+def test_workout_client_id_unique_per_user(settings: Settings) -> None:
+    from cg_server.models import Workout, WorkoutOrigin, WorkoutSport
+
+    def workout(user: User) -> Workout:
+        return Workout(
+            user=user,
+            client_id="7f9c1f8e-2b7a-4a51-9a51-3c1f0e7b2d11",
+            name="x",
+            sport=WorkoutSport.RUNNING,
+            definition_json={},
+            created_by=WorkoutOrigin.APP,
+        )
+
+    sessions = open_db(settings)
+    with sessions() as session:
+        tomek, brat = User(name="tomek"), User(name="brat")
+        session.add_all([workout(tomek), workout(brat)])
+        session.commit()
+        session.add(workout(tomek))
+        with pytest.raises(IntegrityError):
+            session.commit()
+
+
+def test_workout_migration_downgrades(settings: Settings) -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    engine = create_db_engine(settings)
+    upgrade_db(engine)
+    config = Config()
+    config.set_main_option("script_location", "cg_server:migrations")
+    with engine.begin() as conn:
+        config.attributes["connection"] = conn
+        command.downgrade(config, "0004")
+    with engine.connect() as conn:
+        tables = set(inspect(conn).get_table_names())
+    assert "workouts" not in tables and "scheduled_workouts" not in tables
+    upgrade_db(engine)
