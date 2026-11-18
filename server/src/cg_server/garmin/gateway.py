@@ -100,6 +100,48 @@ class GarminGateway(Protocol):
         """Strength sets (`exerciseSets`); empty for non-strength activities."""
         ...
 
+    def upload_workout(self, workout: dict[str, Any]) -> int:
+        """Create a workout (JSON from `cg_server.workout_garmin`); return its `workoutId`."""
+        ...
+
+    def schedule_workout(self, workout_id: int, date: str) -> int | None:
+        """Put a workout on a day (YYYY-MM-DD) of the calendar; return the schedule id if
+        Garmin's answer has one (field name not verified live)."""
+        ...
+
+    def unschedule_workout(self, schedule_id: int) -> None:
+        """Remove a calendar entry; the workout itself stays in the library."""
+        ...
+
+    def delete_workout(self, workout_id: int) -> None:
+        """Delete a workout from the library."""
+        ...
+
+    def get_scheduled_workouts_by_period(self, start: str, end: str) -> list[dict[str, Any]]:
+        """Calendar entries between two days (YYYY-MM-DD)."""
+        ...
+
+
+SCHEDULE_ID_FIELDS = ("workoutScheduleId", "scheduleId", "id")
+
+
+def _positive_int(value: Any) -> int | None:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def schedule_id_of(response: Any) -> int | None:
+    """Id of a calendar entry in Garmin's answer to `schedule_workout` [not verified live]."""
+    if not isinstance(response, dict):
+        return None
+    for field in SCHEDULE_ID_FIELDS:
+        if (value := _positive_int(response.get(field))) is not None:
+            return value
+    return None
+
 
 @contextmanager
 def _translate_errors() -> Iterator[None]:
@@ -190,3 +232,30 @@ class RealGarminGateway:
     def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
         with _translate_errors():
             return self._session().get_activity_exercise_sets(str(activity_id))
+
+    def upload_workout(self, workout: dict[str, Any]) -> int:
+        with _translate_errors():
+            response = self._session().upload_workout(workout)
+        workout_id = (
+            _positive_int(response.get("workoutId")) if isinstance(response, dict) else None
+        )
+        if workout_id is None:
+            raise GarminError("Garmin: brak workoutId w odpowiedzi")
+        return workout_id
+
+    def schedule_workout(self, workout_id: int, date: str) -> int | None:
+        with _translate_errors():
+            return schedule_id_of(self._session().schedule_workout(workout_id, date))
+
+    def unschedule_workout(self, schedule_id: int) -> None:
+        with _translate_errors():
+            self._session().unschedule_workout(schedule_id)
+
+    def delete_workout(self, workout_id: int) -> None:
+        with _translate_errors():
+            self._session().delete_workout(workout_id)
+
+    def get_scheduled_workouts_by_period(self, start: str, end: str) -> list[dict[str, Any]]:
+        with _translate_errors():
+            result = self._session().get_scheduled_workouts_by_period(start, end)
+        return [r for r in result if isinstance(r, dict)] if isinstance(result, list) else []

@@ -17,6 +17,7 @@ from cg_server.garmin import gateway as gateway_module
 from cg_server.garmin.fake import FakeGarminGateway
 from cg_server.garmin.gateway import (
     GarminAuthError,
+    GarminError,
     GarminGateway,
     GarminNotFound,
     GarminRateLimited,
@@ -94,6 +95,34 @@ class StubGarmin:
     def get_activity_exercise_sets(self, activity_id: int | str) -> dict[str, Any]:
         return self._detail("sets", activity_id)
 
+    # Workouts: record calls, answer like Garmin (fields not verified live are marked [P]).
+    workout_calls: list[tuple[str, Any]] = []
+
+    def _workout_call(self, name: str, *args: Any) -> None:
+        StubGarmin.workout_calls.append((name, args))
+        if StubGarmin.error is not None:
+            raise StubGarmin.error
+
+    def upload_workout(self, workout_json: dict[str, Any]) -> dict[str, Any]:
+        self._workout_call("upload_workout", workout_json)
+        return {"workoutId": 555, "workoutName": workout_json["workoutName"]}
+
+    def schedule_workout(self, workout_id: int | str, date_str: str) -> dict[str, Any]:
+        self._workout_call("schedule_workout", workout_id, date_str)
+        return {"workoutScheduleId": 777, "workout": {"workoutId": workout_id}}
+
+    def unschedule_workout(self, scheduled_workout_id: int | str) -> Any:
+        self._workout_call("unschedule_workout", scheduled_workout_id)
+        return {}
+
+    def delete_workout(self, workout_id: int | str) -> Any:
+        self._workout_call("delete_workout", workout_id)
+        return {}
+
+    def get_scheduled_workouts_by_period(self, start: str, end: str) -> list[dict[str, Any]]:
+        self._workout_call("get_scheduled_workouts_by_period", start, end)
+        return [{"workoutScheduleId": 777, "workoutId": 555, "date": start}]
+
 
 @pytest.fixture(autouse=True)
 def stub_garmin(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -101,6 +130,7 @@ def stub_garmin(monkeypatch: pytest.MonkeyPatch) -> None:
     StubGarmin.instances = []
     StubGarmin.login_calls = 0
     StubGarmin.env_tokens_seen = []
+    StubGarmin.workout_calls = []
     monkeypatch.setattr(gateway_module, "Garmin", StubGarmin)
 
 
@@ -211,3 +241,52 @@ def test_404_is_not_found(library_error: Exception) -> None:
     StubGarmin.error = library_error
     with pytest.raises(GarminNotFound):
         gw.get_activity_exercise_sets(17)
+
+
+def test_workout_calls() -> None:
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    assert gw.upload_workout({"workoutName": "CG x"}) == 555
+    assert gw.schedule_workout(555, "2026-11-20") == 777
+    gw.unschedule_workout(777)
+    gw.delete_workout(555)
+    scheduled = gw.get_scheduled_workouts_by_period("2026-11-20", "2026-11-20")
+    assert scheduled == [{"workoutScheduleId": 777, "workoutId": 555, "date": "2026-11-20"}]
+    assert [name for name, _ in StubGarmin.workout_calls] == [
+        "upload_workout",
+        "schedule_workout",
+        "unschedule_workout",
+        "delete_workout",
+        "get_scheduled_workouts_by_period",
+    ]
+    assert StubGarmin.workout_calls[1][1] == (555, "2026-11-20")
+
+
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        ({"workoutScheduleId": 1}, 1),
+        ({"scheduleId": "2"}, 2),
+        ({"id": 3}, 3),
+        ({"something": "else"}, None),
+        ([], None),
+    ],
+)
+def test_schedule_id_is_read_from_known_fields(response: Any, expected: int | None) -> None:
+    assert gateway_module.schedule_id_of(response) == expected
+
+
+def test_upload_without_workout_id_is_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    monkeypatch.setattr(StubGarmin, "upload_workout", lambda self, w: {"no": "id"})
+    with pytest.raises(GarminError):
+        gw.upload_workout({"workoutName": "CG x"})
+
+
+def test_workout_429_is_rate_limited() -> None:
+    gw = RealGarminGateway()
+    gw.resume("{}")
+    StubGarmin.error = connection_error(429)
+    with pytest.raises(GarminRateLimited):
+        gw.schedule_workout(555, "2026-11-20")
