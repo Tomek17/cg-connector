@@ -7,9 +7,13 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import pl.cgconnector.app.data.repository.ActivityRepository
-import pl.cgconnector.app.data.repository.RefreshResult
+import java.time.Clock
 
-/** Pobiera nowe dane z serwera. Niedostępny serwer = ponowienie z backoffem. */
+/**
+ * Pobiera nowe dane z serwera i planuje następne uruchomienie wg [RefreshSchedule].
+ * Zawsze kończy się sukcesem: ponowienia planujemy sami (stałe co 1 h do 23:00), a nie przez
+ * Result.retry(), którego backoff rośnie z każdą próbą.
+ */
 @HiltWorker
 class RefreshWorker
     @AssistedInject
@@ -17,21 +21,16 @@ class RefreshWorker
         @Assisted context: Context,
         @Assisted params: WorkerParameters,
         private val repository: ActivityRepository,
+        private val scheduler: RefreshScheduler,
+        private val clock: Clock,
     ) : CoroutineWorker(context, params) {
-        override suspend fun doWork(): Result =
-            when (repository.refresh()) {
-                is RefreshResult.Success -> Result.success()
-                RefreshResult.NotConfigured,
-                RefreshResult.Unauthorized,
-                RefreshResult.InvalidResponse,
-                -> Result.success()
-                RefreshResult.Unavailable -> if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
-            }
+        override suspend fun doWork(): Result {
+            val result = repository.refresh()
+            scheduler.scheduleNext(RefreshSchedule.delayAfter(result, clock.instant()))
+            return Result.success()
+        }
 
         companion object {
             const val UNIQUE_NAME = "daily-refresh"
-
-            /** 1 h backoff liniowo: od ~14:20 do ~23:00 (laptop-serwer może włączyć się później). */
-            const val MAX_ATTEMPTS = 9
         }
     }

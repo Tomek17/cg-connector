@@ -15,8 +15,11 @@ Aplikacja Android CG-connector (Kotlin, Jetpack Compose Material 3). Stan: **M1,
 - **Repozytorium** `OfflineFirstActivityRepository`: przy odświeżeniu pobiera z serwera dane od
   (najnowsza lokalna aktywność − 3 dni), a przy pierwszym uruchomieniu za 365 dni. Wynik zapisuje do Room.
   Niedostępny serwer to wynik `Unavailable`, nie błąd. Dane lokalne zostają.
-- **WorkManager**: `RefreshWorker` raz dziennie ok. 14:20 (Europe/Warsaw), z ponowieniami co 1 h
-  (backoff liniowy), maksymalnie 9 prób, czyli mniej więcej do 23:00.
+- **WorkManager**: łańcuch jednorazowych zadań `RefreshWorker` pod unikalną nazwą. Pierwsze startuje
+  o najbliższej 14:20 (Europe/Warsaw, poprawnie przy zmianie czasu). Każde uruchomienie planuje
+  następne: przy braku serwera za 1 h, ale tylko do 23:00; w pozostałych przypadkach jutro o 14:20.
+  Logika jest w czystej funkcji `RefreshSchedule` z testami. Start aplikacji tylko odtwarza łańcuch
+  (`KEEP`), gdy go brakuje.
 - **Dane na razie są fałszywe.** `FakeActivityRemoteDataSource` generuje deterministyczne dane syntetyczne,
   bo serwer nie ma jeszcze `/api/v1`. Przełącznik to `USE_FAKE_API` w `app/build.gradle.kts`.
   Klient Retrofit (`CgApi`, `ApiActivityRemoteDataSource`) jest gotowy.

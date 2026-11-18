@@ -20,6 +20,6 @@ class CgApplication :
 
     override fun onCreate() {
         super.onCreate()
-        refreshScheduler.scheduleDaily()
+        refreshScheduler.ensureScheduled()
     }
 }

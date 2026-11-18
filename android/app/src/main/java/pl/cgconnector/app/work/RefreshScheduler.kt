@@ -1,45 +1,47 @@
 package pl.cgconnector.app.work
 
-import androidx.work.BackoffPolicy
 import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import java.time.Clock
 import java.time.Duration
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-/** Planuje codzienne odświeżenie ok. 14:20 czasu polskiego (po syncu serwera o 14:00). */
+/**
+ * Łańcuch jednorazowych zadań pod jedną unikalną nazwą: każde uruchomienie [RefreshWorker] planuje
+ * następne (za 1 h przy braku serwera w oknie ponowień, inaczej jutro o 14:20). OneTimeWork zamiast
+ * PeriodicWork, bo okresowe zadanie dryfuje i nie pozwala na stałe ponowienia co godzinę.
+ */
 class RefreshScheduler
     @Inject
     constructor(
         private val workManager: WorkManager,
         private val clock: Clock,
     ) {
-        fun scheduleDaily() {
+        /** Przy starcie aplikacji: nie rusza już zaplanowanego łańcucha (KEEP). */
+        fun ensureScheduled() {
+            enqueue(RefreshSchedule.delayUntilNextRun(clock.instant()), ExistingWorkPolicy.KEEP)
+        }
+
+        /**
+         * Z wnętrza działającego workera. KEEP nic by nie zrobił (bieżące zadanie jest jeszcze aktywne),
+         * więc dopinamy następne do łańcucha; startuje po zakończeniu bieżącego, z podanym opóźnieniem.
+         */
+        fun scheduleNext(delay: Duration) {
+            enqueue(delay, ExistingWorkPolicy.APPEND_OR_REPLACE)
+        }
+
+        private fun enqueue(
+            delay: Duration,
+            policy: ExistingWorkPolicy,
+        ) {
             val request =
-                PeriodicWorkRequestBuilder<RefreshWorker>(1, TimeUnit.DAYS)
-                    .setInitialDelay(delayUntilNextRun())
+                OneTimeWorkRequestBuilder<RefreshWorker>()
+                    .setInitialDelay(delay)
                     .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
-                    .setBackoffCriteria(BackoffPolicy.LINEAR, Duration.ofHours(1))
                     .build()
-            workManager.enqueueUniquePeriodicWork(RefreshWorker.UNIQUE_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
-        }
-
-        private fun delayUntilNextRun(): Duration {
-            val now = ZonedDateTime.now(clock.withZone(ZONE))
-            var next = now.with(RUN_AT)
-            if (!next.isAfter(now)) next = next.plusDays(1)
-            return Duration.between(now, next)
-        }
-
-        private companion object {
-            val ZONE: ZoneId = ZoneId.of("Europe/Warsaw")
-            val RUN_AT: LocalTime = LocalTime.of(14, 20)
+            workManager.enqueueUniqueWork(RefreshWorker.UNIQUE_NAME, policy, request)
         }
     }
