@@ -28,6 +28,7 @@ from pathlib import Path
 STAMP_FORMAT = "%Y-%m-%d_%H%M%S"
 STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}$")
 DB_SUFFIXES = {".sqlite", ".sqlite3", ".db"}
+PARTIAL_SUFFIX = ".czesciowa"
 
 
 def parse_stamp(name: str) -> datetime | None:
@@ -88,10 +89,16 @@ def mirror(src_root: Path, dest_root: Path, stamp: str) -> Path:
         raise FileNotFoundError(f"brak kopii {src}")
     dest_root.mkdir(parents=True, exist_ok=True)
     final = dest_root / stamp
-    tmp = dest_root / f".{stamp}.czesciowa"
-    shutil.rmtree(tmp, ignore_errors=True)
-    shutil.copytree(src, tmp)
-    tmp.rename(final)
+    # Resztki przerwanych kopii (np. laptop wyłączony w trakcie) usuwamy.
+    for leftover in dest_root.glob(f".*{PARTIAL_SUFFIX}"):
+        shutil.rmtree(leftover, ignore_errors=True)
+    tmp = dest_root / f".{stamp}{PARTIAL_SUFFIX}"
+    try:
+        shutil.copytree(src, tmp)
+        tmp.rename(final)
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
     return final
 
 

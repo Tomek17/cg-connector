@@ -238,9 +238,9 @@ Włączenie codziennej kopii o 14:30 (po synchronizacji o 14:00). Gdy laptop by�
 sudo ~/cg-connector/ops/wsl/install-backup-timer.sh
 ```
 
-Oczekiwany wynik: linia `Kopie na dysku Windows: /mnt/c/Users/<nazwa>/CG-kopie` i tabela z jedną linią `cg-backup.timer` oraz datą następnego uruchomienia (`NEXT`) dziś albo jutro o 14:30. Inny folder (np. dysk D:) podaj na końcu polecenia: `sudo ~/cg-connector/ops/wsl/install-backup-timer.sh /mnt/d/CG-kopie`.
+Oczekiwany wynik: linia `Kopie na dysku Windows: /mnt/c/Users/<nazwa>/CG-kopie` i tabela z jedną linią `cg-backup.timer` oraz datą następnego uruchomienia (`NEXT`) dziś albo jutro o 14:30. Inny folder podaj na końcu polecenia, np. `sudo ~/cg-connector/ops/wsl/install-backup-timer.sh /mnt/c/Users/<nazwa>/Kopie/CG`.
 
-> Folder z kopiami zawiera dane treningowe. Nie wybieraj folderu synchronizowanego z chmurą (OneDrive, „Dokumenty”, „Pulpit”), jeśli nie chcesz, żeby tam trafiły.
+> Folder z kopiami zawiera dane treningowe. Wybieraj folder **wewnątrz swojego profilu Windows** (`C:\Users\<nazwa>\…`): tam dostęp innym kontom Windows blokują uprawnienia NTFS. Uprawnienia linuksowe (`chmod`) na `/mnt/c` nie działają, więc folder poza profilem (np. `C:\CG` albo inny dysk) mogą czytać wszyscy użytkownicy komputera. Nie wybieraj też folderu synchronizowanego z chmurą (OneDrive, „Dokumenty”, „Pulpit”), jeśli nie chcesz, żeby kopie tam trafiły.
 
 Test od razu (nie trzeba czekać do 14:30):
 
@@ -259,10 +259,10 @@ cd ~/cg-connector/server && docker compose stop cg-server && sudo ls ~/cg-data/b
 Wpisz wybraną nazwę katalogu (np. `2026-11-18_143000`) i przywróć bazę:
 
 ```bash
-read -rp "Katalog kopii: " K && sudo rm -f ~/cg-data/cg.sqlite-wal ~/cg-data/cg.sqlite-shm && sudo install -o 10001 -g 10001 -m 600 ~/cg-data/backups/$K/cg.sqlite ~/cg-data/cg.sqlite && cd ~/cg-connector/server && docker compose start cg-server && unset K
+read -rp "Katalog kopii: " K && sudo rm -f ~/cg-data/cg.sqlite-wal ~/cg-data/cg.sqlite-shm && sudo install -o 10001 -g 10001 -m 600 ~/cg-data/backups/"$K"/cg.sqlite ~/cg-data/cg.sqlite && cd ~/cg-connector/server && docker compose start cg-server && unset K
 ```
 
-Oczekiwany wynik: `Container cg-connector-cg-server-1 Started`, a po chwili `curl http://127.0.0.1:8000/health` odpowiada. Kopię z dysku Windows (np. po reinstalacji WSL) przywracasz tak samo, zamieniając `~/cg-data/backups/$K` na `/mnt/c/Users/<nazwa>/CG-kopie/$K`.
+Oczekiwany wynik: `Container cg-connector-cg-server-1 Started`, a po chwili `curl http://127.0.0.1:8000/health` odpowiada. Kopię z dysku Windows (np. po reinstalacji WSL) przywracasz tak samo, zamieniając `~/cg-data/backups/"$K"` na `/mnt/c/Users/<nazwa>/CG-kopie/"$K"`.
 
 > Tokeny Garmina w bazie są zaszyfrowane kluczem z `server/.env` (`CG_ENCRYPTION_KEY`), którego kopia **nie zawiera** (to sekret). Przy przywracaniu na tym samym serwerze nic nie trzeba robić. Na nowej instalacji bez starego `.env` treningi i ustawienia wrócą, ale każdy użytkownik musi ponownie połączyć konto Garmin.
 

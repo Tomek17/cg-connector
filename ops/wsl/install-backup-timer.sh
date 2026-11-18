@@ -5,7 +5,15 @@
 # Windows (domyślnie C:\Users\<nazwa>\CG-kopie). Rotacja: 14 dni w obu miejscach.
 #
 # Użycie:  sudo ~/cg-connector/ops/wsl/install-backup-timer.sh [folder_w_WSL]
-#   np.    sudo ~/cg-connector/ops/wsl/install-backup-timer.sh /mnt/d/CG-kopie
+#   np.    sudo ~/cg-connector/ops/wsl/install-backup-timer.sh /mnt/c/Users/Tomek/Kopie/CG
+# Folder kopii musi leżeć w profilu użytkownika Windows (C:\Users\<nazwa>\...): tam
+# dostęp ogranicza NTFS; chmod na /mnt/c nie działa, więc umask/0600 nic nie dają.
+#
+# Uwaga (świadomie zaakceptowane ryzyko): usługa działa jako root i uruchamia skrypt
+# z repozytorium, które może edytować zwykły użytkownik WSL. Przy jednym użytkowniku,
+# który i tak ma sudo, nie daje to nowych uprawnień. Na komputerze z wieloma kontami
+# WSL repozytorium powinno należeć do roota.
+#
 # Ponowne uruchomienie nadpisuje ustawienia. Usunięcie:
 #   sudo systemctl disable --now cg-backup.timer
 set -euo pipefail

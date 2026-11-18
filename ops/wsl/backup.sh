@@ -33,10 +33,14 @@ RETENTION_DAYS=$((10#${RETENTION_DAYS}))
 
 if [[ -n "${WINDOWS_DIR}" ]]; then
   [[ -d "$(dirname "${WINDOWS_DIR}")" ]] || fail "nie istnieje folder nadrzędny ${WINDOWS_DIR} (czy dysk Windows jest widoczny w WSL?)"
-  # Folder danych z .env (ta sama wartość, której używa compose).
-  DATA_DIR="$(sed -n 's/^CG_HOST_DATA_DIR=//p' "${SERVER_DIR}/.env" | tail -n1)"
-  DATA_DIR="${DATA_DIR%\"}"; DATA_DIR="${DATA_DIR#\"}"
-  [[ -n "${DATA_DIR}" ]] || fail "brak CG_HOST_DATA_DIR w ${SERVER_DIR}/.env"
+  # Folder danych z .env, tak jak w compose: ${CG_HOST_DATA_DIR:-./data} względem server/.
+  DATA_DIR="$(sed -n 's/^[[:space:]]*CG_HOST_DATA_DIR[[:space:]]*=//p' "${SERVER_DIR}/.env" | tail -n1)"
+  DATA_DIR="${DATA_DIR%$'\r'}"
+  if [[ "${DATA_DIR}" =~ ^\"(.*)\"$ || "${DATA_DIR}" =~ ^\'(.*)\'$ ]]; then
+    DATA_DIR="${BASH_REMATCH[1]}"
+  fi
+  DATA_DIR="${DATA_DIR:-./data}"
+  [[ "${DATA_DIR}" == /* ]] || DATA_DIR="${SERVER_DIR}/${DATA_DIR#./}"
   [[ -r "${DATA_DIR}" && -x "${DATA_DIR}" ]] \
     || fail "brak dostępu do ${DATA_DIR} - kopię na dysk Windows uruchamiaj przez sudo"
 fi
