@@ -75,8 +75,9 @@ def compact_schema(value: Any) -> Any:
 
 
 def _result(data: dict[str, Any]) -> CallToolResult:
+    """Compact JSON text only, like the read tools (no structured copy: half the tokens)."""
     text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=data)
+    return CallToolResult(content=[TextContent(type="text", text=text)])
 
 
 def _item(item: ScheduledWorkout) -> dict[str, Any]:

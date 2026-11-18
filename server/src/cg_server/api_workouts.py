@@ -10,12 +10,10 @@
 
 from datetime import date, datetime, timedelta
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
-    Depends,
     HTTPException,
     Query,
     Request,
@@ -23,10 +21,9 @@ from fastapi import (
     status,
 )
 from pydantic import UUID4, BaseModel, Field
-from sqlalchemy.orm import Session
 
 from cg_server import workouts
-from cg_server.api import CurrentUser, db_session
+from cg_server.api import CurrentUser, DbSession, local_tz
 from cg_server.models import ScheduleStatus, WorkoutOrigin
 from cg_server.outbox import OutboxRunner
 from cg_server.workout_definition import DefinitionError, WorkoutDefinition
@@ -41,7 +38,6 @@ from cg_server.workout_views import (
 MAX_LIST_DAYS = 366
 
 router = APIRouter(prefix="/api/v1")
-Db = Annotated[Session, Depends(db_session)]
 
 
 class NewWorkout(BaseModel):
@@ -54,7 +50,7 @@ class ScheduleRequest(BaseModel):
 
 
 def _today(request: Request) -> date:
-    return datetime.now(ZoneInfo(request.app.state.settings.timezone)).date()
+    return datetime.now(local_tz(request)).date()
 
 
 def _send_soon(request: Request, tasks: BackgroundTasks, user_id: int) -> None:
@@ -65,7 +61,7 @@ def _send_soon(request: Request, tasks: BackgroundTasks, user_id: int) -> None:
 
 @router.post("/workouts", status_code=status.HTTP_201_CREATED)
 def create_workout(
-    body: NewWorkout, user: CurrentUser, session: Db, response: Response
+    body: NewWorkout, user: CurrentUser, session: DbSession, response: Response
 ) -> WorkoutOut:
     try:
         workout, created = workouts.create_workout(
@@ -87,7 +83,7 @@ def schedule_workout(
     workout_id: int,
     body: ScheduleRequest,
     user: CurrentUser,
-    session: Db,
+    session: DbSession,
     request: Request,
     response: Response,
     tasks: BackgroundTasks,
@@ -110,10 +106,14 @@ def schedule_workout(
 @router.get("/scheduled")
 def list_scheduled(
     user: CurrentUser,
-    session: Db,
+    session: DbSession,
     request: Request,
-    from_: Annotated[date | None, Query(alias="from")] = None,
-    to: date | None = None,
+    from_: Annotated[
+        date | None, Query(alias="from", description="Pierwszy dzień, włącznie; domyślnie dziś")
+    ] = None,
+    to: Annotated[
+        date | None, Query(description="Ostatni dzień, włącznie; domyślnie from + 30 dni")
+    ] = None,
 ) -> ScheduledList:
     start = from_ or _today(request)
     end = to or start + timedelta(days=30)
@@ -130,7 +130,7 @@ def list_scheduled(
 def delete_scheduled(
     scheduled_id: int,
     user: CurrentUser,
-    session: Db,
+    session: DbSession,
     request: Request,
     tasks: BackgroundTasks,
 ) -> ScheduledOut:

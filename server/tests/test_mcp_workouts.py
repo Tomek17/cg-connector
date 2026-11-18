@@ -20,7 +20,7 @@ from cg_server.garmin.fake import FakeGarminGateway
 from cg_server.models import GarminCredentials, GarminStatus
 from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import add_user
-from tests.helpers import BASE, PUBLIC_HOST, call_tool, login_tokens, running
+from tests.helpers import BASE, PUBLIC_HOST, login_tokens, running
 
 pytestmark = pytest.mark.anyio
 
@@ -70,6 +70,19 @@ def app(settings: Settings, fake: FakeGarminGateway, codes: dict[str, str]) -> I
         update={"env": "test", "public_host": PUBLIC_HOST, "sync_request_delay_s": 0}
     )
     yield create_app(app_settings, gateway_factory=lambda: fake)
+
+
+async def call_tool(http: httpx2.AsyncClient, token: str, name: str, args: dict[str, Any]) -> Any:
+    """Call a tool and parse its compact JSON text answer."""
+    http.headers["Authorization"] = f"Bearer {token}"
+    try:
+        async with Client(streamable_http_client(f"{BASE}/mcp", http_client=http)) as client:
+            result = await client.call_tool(name, args)
+    finally:
+        del http.headers["Authorization"]
+    assert not result.is_error, result
+    assert result.structured_content is None
+    return json.loads(result.content[0].text)  # type: ignore[union-attr]
 
 
 async def call_error(http: httpx2.AsyncClient, token: str, name: str, args: dict[str, Any]) -> str:
