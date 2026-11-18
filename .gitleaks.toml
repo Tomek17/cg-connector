@@ -1,2 +1,8 @@
 [extend]
 useDefault = true
+
+# Syntetyczne wartości z testów (nie są prawdziwymi sekretami).
+[allowlist]
+description = "Syntetyczne hasło testowe"
+regexTarget = "line"
+regexes = ['''bardzo-tajne-haslo-123''']
