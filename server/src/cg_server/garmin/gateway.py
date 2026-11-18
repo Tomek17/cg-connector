@@ -29,6 +29,7 @@ from garminconnect import (
 )
 
 MfaPrompt = Callable[[], str]
+MaxMetrics = dict[str, Any] | list[dict[str, Any]]
 
 
 class GarminError(Exception):
@@ -75,7 +76,21 @@ class GarminGateway(Protocol):
         end: str,
         aggregation: str = "daily",
         sport: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> MaxMetrics:
+        """VO2max etc. per day; Garmin returns a list of daily entries."""
+        ...
+
+    def get_activity_splits(self, activity_id: int) -> dict[str, Any]:
+        """Laps of an activity (`lapDTOs`)."""
+        ...
+
+    def get_activity_hr_in_timezones(self, activity_id: int) -> Any:
+        """Time in heart rate zones (Garmin returns a list of zones)."""
+        ...
+
+    def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
+        """Strength sets (`exerciseSets`); empty for non-strength activities."""
+        ...
 
 
 @contextmanager
@@ -147,6 +162,18 @@ class RealGarminGateway:
         end: str,
         aggregation: str = "daily",
         sport: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> MaxMetrics:
         with _translate_errors():
             return self._session().get_max_metrics_range(start, end, aggregation, sport)
+
+    def get_activity_splits(self, activity_id: int) -> dict[str, Any]:
+        with _translate_errors():
+            return self._session().get_activity_splits(str(activity_id))
+
+    def get_activity_hr_in_timezones(self, activity_id: int) -> Any:
+        with _translate_errors():
+            return self._session().get_activity_hr_in_timezones(str(activity_id))
+
+    def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
+        with _translate_errors():
+            return self._session().get_activity_exercise_sets(str(activity_id))

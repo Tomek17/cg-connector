@@ -1,8 +1,72 @@
-"""In-memory `GarminGateway` with synthetic data, for tests and local development."""
+"""In-memory `GarminGateway` with synthetic data, for tests and local development.
 
+All data here is made up (no real people, places or recordings). The shapes follow
+garminconnect 0.3.20 responses, including a few fields we must drop (GPS, owner), so tests
+can check that they never reach the database.
+"""
+
+from collections.abc import Callable
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from cg_server.garmin.gateway import GarminAuthError, MfaPrompt
+from cg_server.garmin.gateway import GarminAuthError, MaxMetrics, MfaPrompt
+
+CallHook = Callable[[str, tuple[Any, ...]], None]
+
+
+def make_activity(
+    activity_id: int,
+    start_local: datetime,
+    type_key: str = "running",
+    *,
+    utc_offset_h: int = 1,
+    **overrides: Any,
+) -> dict[str, Any]:
+    """One synthetic entry of `get_activities_by_date` (Garmin's activity list item)."""
+    running = "run" in type_key
+    activity: dict[str, Any] = {
+        "activityId": activity_id,
+        "activityName": f"Aktywność testowa {activity_id}",
+        "startTimeLocal": start_local.strftime("%Y-%m-%d %H:%M:%S"),
+        "startTimeGMT": (start_local - timedelta(hours=utc_offset_h)).strftime("%Y-%m-%d %H:%M:%S"),
+        "activityType": {"typeId": 1, "typeKey": type_key, "parentTypeId": 17},
+        "eventType": {"typeKey": "uncategorized"},
+        "distance": 10000.0 if running else 0.0,
+        "duration": 3000.0,
+        "movingDuration": 2950.0,
+        "elevationGain": 85.0 if running else None,
+        "averageSpeed": 3.3333 if running else 0.0,
+        "averageHR": 150.0,
+        "maxHR": 176.0,
+        "avgPower": 290.0 if running else None,
+        "averageRunningCadenceInStepsPerMinute": 172.0 if running else None,
+        "aerobicTrainingEffect": 3.2,
+        "anaerobicTrainingEffect": 1.1,
+        "activityTrainingLoad": 120.5,
+        "vO2MaxValue": 52.0 if running else None,
+        # Must never be stored:
+        "startLatitude": 50.0001,
+        "startLongitude": 19.0001,
+        "endLatitude": 50.0002,
+        "endLongitude": 19.0002,
+        "locationName": "Miasto Testowe",
+        "ownerId": 99999,
+        "ownerFullName": "Test Biegacz",
+        "ownerDisplayName": "test-biegacz",
+        "deviceId": 123456,
+    }
+    activity.update(overrides)
+    return activity
+
+
+def default_activities(today: date) -> list[dict[str, Any]]:
+    base = datetime(today.year, today.month, today.day)
+    return [
+        make_activity(1001, base - timedelta(days=6, hours=-7), "running"),
+        make_activity(1002, base - timedelta(days=5, hours=-18), "strength_training"),
+        make_activity(1003, base - timedelta(days=3, hours=-19), "indoor_climbing"),
+        make_activity(1004, base - timedelta(days=1, hours=-8), "trail_running"),
+    ]
 
 
 class FakeGarminGateway:
@@ -10,6 +74,9 @@ class FakeGarminGateway:
 
     `error`: raised by every call that would hit Garmin (e.g. `GarminRateLimited()`).
     `refreshed_tokens`: what `dumps()` returns after a session, simulating a token refresh.
+    `activities`, `vo2max` (list of (YYYY-MM-DD, value)): synthetic account data.
+    `on_call`: called as `on_call(method, args)` before each call; may raise to simulate
+    a failure in the middle of a sync.
     """
 
     def __init__(
@@ -19,17 +86,27 @@ class FakeGarminGateway:
         refreshed_tokens: str | None = None,
         full_name: str = "Test Biegacz",
         error: Exception | None = None,
+        activities: list[dict[str, Any]] | None = None,
+        vo2max: list[tuple[str, float]] | None = None,
+        on_call: CallHook | None = None,
     ) -> None:
         self.tokens = tokens
         self.refreshed_tokens = refreshed_tokens
         self.full_name = full_name
         self.error = error
+        self.activities = activities if activities is not None else default_activities(date.today())
+        self.vo2max = vo2max if vo2max is not None else []
+        self.on_call = on_call
         self.calls: list[str] = []
+        self.call_args: list[tuple[str, tuple[Any, ...]]] = []
         self.mfa_code: str | None = None
         self._session_tokens: str | None = None
 
-    def _call(self, name: str) -> None:
+    def _call(self, name: str, *args: Any) -> None:
         self.calls.append(name)
+        self.call_args.append((name, args))
+        if self.on_call is not None:
+            self.on_call(name, args)
         if self.error is not None:
             raise self.error
 
@@ -67,31 +144,17 @@ class FakeGarminGateway:
         activitytype: str | None = None,
         sortorder: str | None = None,
     ) -> list[dict[str, Any]]:
-        self._call("get_activities_by_date")
+        self._call("get_activities_by_date", startdate, enddate)
         self._require_session()
-        activities: list[dict[str, Any]] = [
-            {
-                "activityId": 1001,
-                "activityName": "Bieg testowy",
-                "startTimeLocal": f"{startdate} 07:00:00",
-                "activityType": {"typeKey": "running"},
-                "distance": 10000.0,
-                "duration": 3000.0,
-                "averageHR": 150.0,
-            },
-            {
-                "activityId": 1002,
-                "activityName": "Siłownia testowa",
-                "startTimeLocal": f"{startdate} 18:00:00",
-                "activityType": {"typeKey": "strength_training"},
-                "distance": 0.0,
-                "duration": 2700.0,
-                "averageHR": 110.0,
-            },
+        end = enddate or "9999-12-31"
+        found = [
+            a
+            for a in self.activities
+            if startdate <= a["startTimeLocal"][:10] <= end
+            and (activitytype is None or a["activityType"]["typeKey"] == activitytype)
         ]
-        if activitytype:
-            activities = [a for a in activities if a["activityType"]["typeKey"] == activitytype]
-        return activities
+        found.sort(key=lambda a: str(a["startTimeLocal"]), reverse=sortorder != "asc")
+        return [dict(a) for a in found]
 
     def get_max_metrics_range(
         self,
@@ -99,12 +162,62 @@ class FakeGarminGateway:
         end: str,
         aggregation: str = "daily",
         sport: str | None = None,
-    ) -> dict[str, Any]:
-        self._call("get_max_metrics_range")
+    ) -> MaxMetrics:
+        self._call("get_max_metrics_range", start, end)
+        self._require_session()
+        return [
+            {
+                "userId": 99999,
+                "generic": {
+                    "calendarDate": day,
+                    "vo2MaxPreciseValue": value,
+                    "vo2MaxValue": round(value),
+                },
+                "cycling": None,
+            }
+            for day, value in self.vo2max
+            if start <= day <= end
+        ]
+
+    def get_activity_splits(self, activity_id: int) -> dict[str, Any]:
+        self._call("get_activity_splits", activity_id)
         self._require_session()
         return {
-            "start": start,
-            "end": end,
-            "aggregation": aggregation,
-            "metrics": [{"calendarDate": start, "generic": {"vo2MaxPreciseValue": 52.3}}],
+            "activityId": activity_id,
+            "lapDTOs": [
+                {
+                    "lapIndex": i,
+                    "distance": 1000.0,
+                    "duration": 300.0 - i,
+                    "averageHR": 148.0 + i,
+                    "averageSpeed": 3.33,
+                    "startLatitude": 50.0001,
+                    "startLongitude": 19.0001,
+                }
+                for i in (1, 2)
+            ],
+        }
+
+    def get_activity_hr_in_timezones(self, activity_id: int) -> Any:
+        self._call("get_activity_hr_in_timezones", activity_id)
+        self._require_session()
+        return [
+            {"zoneNumber": z, "secsInZone": 600.0, "zoneLowBoundary": 100 + 15 * z}
+            for z in range(1, 6)
+        ]
+
+    def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
+        self._call("get_activity_exercise_sets", activity_id)
+        self._require_session()
+        return {
+            "activityId": activity_id,
+            "exerciseSets": [
+                {
+                    "exercises": [{"category": "SQUAT", "name": "BARBELL_BACK_SQUAT"}],
+                    "repetitionCount": 5,
+                    "weight": 80000.0,
+                    "duration": 30.0,
+                    "setType": "ACTIVE",
+                }
+            ],
         }
