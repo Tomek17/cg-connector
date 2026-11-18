@@ -41,6 +41,11 @@ class QueueViewModel
             if (item.canDelete) confirmDelete.value = item
         }
 
+        /** Ponowne zaplanowanie wpisu z błędem; wysyłka w tle. */
+        fun retry(item: QueuedWorkout) {
+            if (item.canRetry) viewModelScope.launch { repository.retry(item.id) }
+        }
+
         fun dismissDelete() {
             confirmDelete.value = null
         }
