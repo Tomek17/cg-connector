@@ -16,7 +16,8 @@ import javax.inject.Singleton
  * Serwer w pamięci dla buildu debug (`USE_FAKE_API`). Zachowuje się jak `/api/v1/workouts` i
  * `/api/v1/scheduled` z PR #10: idempotencja po `client_id`, jeden wpis na trening i dzień,
  * „wysłanie do Garmina” przy następnym odczycie listy. Nazwa treningu zawierająca [REJECT_MARKER]
- * daje 422, żeby dało się zobaczyć status „błąd” bez serwera.
+ * daje 422, a zawierająca [FAIL_MARKER] kończy „wysyłkę do Garmina” statusem `failed`, żeby dało się
+ * zobaczyć błędy i „Ponów” bez serwera.
  */
 @Singleton
 class FakeWorkoutRemoteDataSource
@@ -43,10 +44,17 @@ class FakeWorkoutRemoteDataSource
         ): ScheduledOutDto =
             simulate {
                 val workout = workouts.values.firstOrNull { it.id == workoutId } ?: throw httpError(404, "Nie znaleziono")
-                scheduled.values.firstOrNull {
-                    it.workoutId == workoutId && it.date == date.toString() && it.status != "deleting"
-                } ?: ScheduledOutDto(nextId++, workoutId, workout.name, workout.sport, date.toString(), "pending")
-                    .also { scheduled[it.id] = it }
+                val existing =
+                    scheduled.values.firstOrNull {
+                        it.workoutId == workoutId && it.date == date.toString() && it.status != "deleting"
+                    }
+                // Jak serwer: ponowne zaplanowanie wpisu z błędem przywraca go do kolejki.
+                when {
+                    existing == null ->
+                        ScheduledOutDto(nextId++, workoutId, workout.name, workout.sport, date.toString(), "pending")
+                    existing.status == "failed" -> existing.copy(status = "pending", lastError = null)
+                    else -> existing
+                }.also { scheduled[it.id] = it }
             }
 
         override suspend fun listScheduled(
@@ -56,7 +64,13 @@ class FakeWorkoutRemoteDataSource
             simulate {
                 scheduled.values.toList().forEach { item ->
                     when (item.status) {
-                        "pending" -> scheduled[item.id] = item.copy(status = "sent")
+                        "pending" ->
+                            scheduled[item.id] =
+                                if (FAIL_MARKER in item.name) {
+                                    item.copy(status = "failed", lastError = "send_failed (fake)")
+                                } else {
+                                    item.copy(status = "sent")
+                                }
                         "deleting" -> scheduled.remove(item.id)
                     }
                 }
@@ -81,6 +95,7 @@ class FakeWorkoutRemoteDataSource
 
         companion object {
             const val REJECT_MARKER = "[422]"
+            const val FAIL_MARKER = "[failed]"
             private const val SIMULATED_LATENCY_MS = 300L
 
             private fun httpError(
