@@ -123,56 +123,91 @@ class PruneTest(unittest.TestCase):
             self.assertEqual(cg_backup.prune(root, 14, now=datetime(2026, 11, 18)), [])
 
 
+class MirrorTest(unittest.TestCase):
+    def test_kopiuje_katalog_bez_sladow_tymczasowych(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dest = Path(tmp) / "src", Path(tmp) / "nowy" / "CG-kopie"
+            (src / "2026-11-18_143000").mkdir(parents=True)
+            make_db(src / "2026-11-18_143000" / "cg.sqlite")
+            final = cg_backup.mirror(src, dest, "2026-11-18_143000")
+            self.assertEqual(count_rows(final / "cg.sqlite"), 3)
+            self.assertEqual([p.name for p in dest.iterdir()], ["2026-11-18_143000"])
+            with self.assertRaises(FileNotFoundError):
+                cg_backup.mirror(src, dest, "2026-11-19_143000")
+
+
 class BackupShTest(unittest.TestCase):
     """backup.sh z atrapą `docker` (uruchamia skrypt lokalnie zamiast w kontenerze)."""
 
-    def test_kopia_i_rotacja(self) -> None:
+    def run_backup(self, root: Path, env_line: str, data: Path) -> tuple[Path, Path]:
+        """Uruchamia backup.sh; zwraca (katalog kopii lokalnej, folder "Windows")."""
+        server, bin_dir, win = root / "serwer cg", root / "bin", root / "Moje kopie"
+        for d in (server, data, bin_dir):
+            d.mkdir(parents=True, exist_ok=True)
+        (server / "compose.yaml").write_text("services: {}\n")
+        (server / ".env").write_text(f"CG_ENV=prod\n{env_line}\n")
+        make_db(data / "cg.sqlite", rows=5)
+        # Stare kopie do usunięcia przez rotację i resztka przerwanej kopii.
+        for old in ("2020-01-01_000000", "2026-01-01_000000"):
+            (data / "backups" / old).mkdir(parents=True)
+            (win / old).mkdir(parents=True)
+        (win / ".2026-01-02_000000.czesciowa").mkdir()
+
+        docker = bin_dir / "docker"
+        docker.write_text(
+            textwrap.dedent(
+                f"""\
+                #!/usr/bin/env bash
+                # Atrapa: bierze argumenty po "python -", /data -> {data}.
+                while [[ $# -gt 0 && "$1" != python ]]; do shift; done
+                shift 2
+                args=("${{@//\\/data/{data}}}")
+                exec "{sys.executable}" - "${{args[@]}}"
+                """
+            )
+        )
+        docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+        env = dict(
+            os.environ,
+            PATH=f"{bin_dir}:{os.environ['PATH']}",
+            CG_SERVER_DIR=str(server),
+            CG_BACKUP_RETENTION_DAYS="14",
+            CG_BACKUP_WINDOWS_DIR=str(win),  # "dysk Windows"
+        )
+        out = subprocess.run(
+            ["bash", str(OPS / "wsl" / "backup.sh")],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("integrity_check: ok", out.stdout)
+        local = list((data / "backups").iterdir())
+        self.assertEqual(len(local), 1, "stare kopie powinny zostać usunięte")
+        return local[0], win
+
+    def check_mirror(self, local: Path, win: Path) -> None:
+        self.assertEqual(count_rows(local / "cg.sqlite"), 5)
+        mirrored = list(win.iterdir())
+        self.assertEqual([p.name for p in mirrored], [local.name])
+        self.assertEqual(count_rows(mirrored[0] / "cg.sqlite"), 5)
+
+    def test_sciezki_ze_spacja_i_cudzyslow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            tmp_p = Path(tmp)
-            server, data, bin_dir = (tmp_p / n for n in ("server", "data", "bin"))
-            for d in (server, data, bin_dir):
-                d.mkdir()
-            (server / "compose.yaml").write_text("services: {}\n")
-            (server / ".env").write_text(f'CG_HOST_DATA_DIR="{data}"\n')
-            make_db(data / "cg.sqlite", rows=5)
-            # Stare kopie do usunięcia przez rotację.
-            for old in ("2020-01-01_000000", "2026-01-01_000000"):
-                (data / "backups" / old).mkdir(parents=True)
+            data = Path(tmp) / "dane cg"
+            self.check_mirror(*self.run_backup(Path(tmp), f'CG_HOST_DATA_DIR="{data}"', data))
 
-            docker = bin_dir / "docker"
-            docker.write_text(
-                textwrap.dedent(
-                    f"""\
-                    #!/usr/bin/env bash
-                    # Atrapa: bierze argumenty po "python -", /data -> {data}.
-                    while [[ $# -gt 0 && "$1" != python ]]; do shift; done
-                    shift 2
-                    args=("${{@//\\/data/{data}}}")
-                    exec {sys.executable} - "${{args[@]}}"
-                    """
-                )
-            )
-            docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+    def test_apostrofy_w_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "dane"
+            self.check_mirror(*self.run_backup(Path(tmp), f"CG_HOST_DATA_DIR='{data}'", data))
 
-            env = dict(
-                os.environ,
-                PATH=f"{bin_dir}:{os.environ['PATH']}",
-                CG_SERVER_DIR=str(server),
-                CG_BACKUP_RETENTION_DAYS="14",
-            )
-            out = subprocess.run(
-                ["bash", str(OPS / "wsl" / "backup.sh")],
-                env=env,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-            self.assertIn("integrity_check: ok", out.stdout)
-
-            local = list((data / "backups").iterdir())
-            self.assertEqual(len(local), 1, "stare kopie powinny zostać usunięte")
-            self.assertEqual(count_rows(local[0] / "cg.sqlite"), 5)
+    def test_pusty_data_dir_to_server_data(self) -> None:
+        # Jak w compose.yaml: ${CG_HOST_DATA_DIR:-./data} względem server/.
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "serwer cg" / "data"
+            self.check_mirror(*self.run_backup(Path(tmp), "CG_HOST_DATA_DIR=", data))
 
     def test_zla_retencja(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
