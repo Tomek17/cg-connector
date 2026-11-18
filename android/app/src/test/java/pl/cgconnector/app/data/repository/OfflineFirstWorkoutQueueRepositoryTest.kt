@@ -10,6 +10,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Protocol
+import okhttp3.Request
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Before
@@ -40,6 +42,16 @@ class OfflineFirstWorkoutQueueRepositoryTest {
     private val server = FakeWorkoutRemoteDataSource()
     private val remote = RecordingRemote(server)
     private var triggers = 0
+    private val pauseStore =
+        object : QueuePauseStore {
+            var until: Instant? = null
+
+            override suspend fun pausedUntil() = until
+
+            override suspend fun pauseUntil(until: Instant) {
+                this.until = until
+            }
+        }
 
     private val clock = Clock.fixed(Instant.parse("2030-01-10T08:00:00Z"), ZoneOffset.UTC)
     private val date = LocalDate.of(2030, 1, 12)
@@ -49,7 +61,7 @@ class OfflineFirstWorkoutQueueRepositoryTest {
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, CgDatabase::class.java).allowMainThreadQueries().build()
-        repository = OfflineFirstWorkoutQueueRepository(db.workoutQueueDao(), remote, { triggers++ }, Json, clock)
+        repository = OfflineFirstWorkoutQueueRepository(db.workoutQueueDao(), remote, { triggers++ }, pauseStore, Json, clock)
     }
 
     @After
@@ -127,18 +139,68 @@ class OfflineFirstWorkoutQueueRepositoryTest {
             assertThat(queue().single().deleteRequested).isTrue()
             remote.failure = null
             repository.sync()
-            assertThat(queue().single().status).isEqualTo(QueueStatus.DELETED)
+            assertThat(db.workoutQueueDao().getById(local)?.status).isEqualTo("deleted")
+            assertThat(queue()).isEmpty()
             assertThat(remote.created).isEmpty()
 
             val sent = repository.enqueue(workout.copy(name = "Drugi"), date)
             repository.sync()
             repository.requestDelete(sent)
             repository.sync()
-            val item = queue().first { it.id == sent }
+            val item = requireNotNull(db.workoutQueueDao().getById(sent))
             assertThat(remote.deleted).hasSize(1)
             // `deleting` od serwera, a po kolejnym odczycie listy wpis znika = usunięty.
-            assertThat(item.status).isEqualTo(QueueStatus.DELETED)
-            assertThat(item.canDelete).isFalse()
+            assertThat(item.status).isEqualTo("deleted")
+            assertThat(queue()).isEmpty()
+        }
+
+    @Test
+    fun delete_afterLostScheduleResponse_findsServerEntryAndDeletesIt() =
+        runTest {
+            val id = repository.enqueue(workout, date)
+            remote.loseScheduleResponse = true
+            assertThat(repository.sync()).isEqualTo(RefreshResult.Unavailable)
+            remote.loseScheduleResponse = false
+            assertThat(db.workoutQueueDao().getById(id)?.remoteScheduledId).isNull()
+
+            repository.requestDelete(id)
+            repository.sync()
+
+            assertThat(remote.deleted).hasSize(1)
+            assertThat(server.listScheduled(date, date)).isEmpty()
+            // Usunięte znikają z widoku kolejki.
+            assertThat(queue()).isEmpty()
+        }
+
+    @Test
+    fun tooManyRequests_pausesQueueUntilRetryAfter() =
+        runTest {
+            repository.enqueue(workout, date)
+            remote.failure = httpError(429, "{}", retryAfter = "120")
+
+            assertThat(repository.sync()).isEqualTo(RefreshResult.Unavailable)
+            assertThat(pauseStore.until).isEqualTo(clock.instant().plusSeconds(120))
+
+            remote.failure = null
+            assertThat(repository.sync()).isEqualTo(RefreshResult.Unavailable)
+            assertThat(remote.created).isEmpty()
+        }
+
+    @Test
+    fun retry_reschedulesFailedEntry() =
+        runTest {
+            val id = repository.enqueue(workout.copy(name = "Bieg ${FakeWorkoutRemoteDataSource.FAIL_MARKER}"), date)
+            repository.sync()
+            assertThat(queue().single().status).isEqualTo(QueueStatus.FAILED)
+            assertThat(queue().single().canRetry).isTrue()
+
+            repository.retry(id)
+            assertThat(queue().single().status).isEqualTo(QueueStatus.PENDING)
+            repository.sync()
+
+            // Ten sam wpis serwera (POST /schedule jest idempotentny), znów wysłany i znów „błąd” w fake.
+            assertThat(server.listScheduled(date, date)).hasSize(1)
+            assertThat(remote.created).hasSize(1)
         }
 
     @Test
@@ -159,6 +221,7 @@ class OfflineFirstWorkoutQueueRepositoryTest {
         private val delegate: WorkoutRemoteDataSource,
     ) : WorkoutRemoteDataSource by delegate {
         var failure: Exception? = null
+        var loseScheduleResponse = false
         val created = mutableListOf<NewWorkoutDto>()
         val deleted = mutableListOf<Long>()
 
@@ -167,6 +230,11 @@ class OfflineFirstWorkoutQueueRepositoryTest {
             failure?.let { throw it }
             return delegate.createWorkout(body).also { created += body }
         }
+
+        override suspend fun schedule(
+            workoutId: Long,
+            date: LocalDate,
+        ) = delegate.schedule(workoutId, date).also { if (loseScheduleResponse) throw IOException("response lost") }
 
         override suspend fun deleteScheduled(scheduledId: Long) =
             delegate.deleteScheduled(scheduledId).also { deleted += scheduledId }
@@ -178,6 +246,18 @@ class OfflineFirstWorkoutQueueRepositoryTest {
         fun httpError(
             code: Int,
             body: String,
-        ) = HttpException(Response.error<Any>(code, body.toResponseBody("application/json".toMediaType())))
+            retryAfter: String? = null,
+        ): HttpException {
+            val raw =
+                okhttp3.Response
+                    .Builder()
+                    .code(code)
+                    .message("error")
+                    .protocol(Protocol.HTTP_1_1)
+                    .request(Request.Builder().url("https://example.invalid/").build())
+                    .apply { retryAfter?.let { header("Retry-After", it) } }
+                    .build()
+            return HttpException(Response.error<Any>(body.toResponseBody("application/json".toMediaType()), raw))
+        }
     }
 }

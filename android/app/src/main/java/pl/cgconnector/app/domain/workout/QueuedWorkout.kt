@@ -41,4 +41,7 @@ data class QueuedWorkout(
      */
     val canDelete: Boolean
         get() = !deleteRequested && status in setOf(QueueStatus.PENDING, QueueStatus.SENT, QueueStatus.FAILED)
+
+    val canRetry: Boolean
+        get() = !deleteRequested && status == QueueStatus.FAILED
 }
