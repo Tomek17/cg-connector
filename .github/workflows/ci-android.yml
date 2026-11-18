@@ -29,11 +29,39 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build (debug + release bez podpisu, R8), testy jednostkowe, lint
         run: ./gradlew assembleDebug assembleRelease testDebugUnitTest lintDebug --stacktrace
+      # Jak działa kontrola schematu: plugin Room podaje KSP app/schemas/ jako wejście.
+      # Room zapisuje <wersja>.json do katalogu pośredniego TYLKO wtedy, gdy schemat z kodu
+      # różni się od zacommitowanego (albo pliku brak), a copyRoomSchemas kopiuje go do
+      # app/schemas/. Dlatego "copyRoomSchemas NO-SOURCE" w logu = schemat zgodny.
       - name: Schemat Room zacommitowany
-        # Schemat generuje build (KSP). Różnica = trzeba zacommitować app/schemas/ (diff poniżej).
         run: |
           git add --intent-to-add app/schemas
-          git diff --exit-code -- app/schemas
+          if ! git diff --exit-code -- app/schemas; then
+            echo "::error::Schemat Room w app/schemas/ nie zgadza się z kodem. Zbuduj lokalnie (./gradlew assembleDebug) i zacommituj app/schemas/ (diff powyżej). Zmiana encji wymaga podbicia wersji bazy i migracji."
+            exit 1
+          fi
+      - name: Kontrola kontroli — rozjechany schemat jest wykrywany
+        # Psujemy kopię schematu bieżącej wersji (najwyższy numer) i sprawdzamy, że KSP
+        # odtwarza go w app/schemas/. Chroni przed cichym wyłączeniem kontroli powyżej
+        # (np. zmiana konfiguracji pluginu Room albo exportSchema = false).
+        run: |
+          f=$(ls app/schemas/*/*.json | sort -V | tail -n1)
+          python3 - "$f" <<'PY'
+          import json, sys
+          p = sys.argv[1]
+          d = json.load(open(p))
+          col = d["database"]["entities"][0]["fields"][0]
+          col["affinity"] = "BLOB" if col["affinity"] != "BLOB" else "TEXT"
+          json.dump(d, open(p, "w"), indent=2)
+          PY
+          git diff --quiet -- "$f" && { echo "::error::Nie udało się zepsuć $f"; exit 1; }
+          ./gradlew :app:kspDebugKotlin --rerun :app:copyRoomSchemas --quiet
+          if ! git diff --exit-code -- "$f"; then
+            git checkout -- "$f"
+            echo "::error::Room nie odtworzył $f — kontrola schematu nie działa. Sprawdź room { schemaDirectory(...) } i exportSchema w @Database."
+            exit 1
+          fi
+          echo "OK: rozjechany $f został wykryty i odtworzony."
       - name: Podsumowanie lintu i testów w logu
         if: failure()
         run: |
