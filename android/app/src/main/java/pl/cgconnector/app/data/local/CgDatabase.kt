@@ -15,11 +15,13 @@ import androidx.room.TypeConverters
         Vo2MaxEntity::class,
         SummaryEntity::class,
         SyncStatusEntity::class,
+        QueuedWorkoutEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
     // 1→2: nowe tabele i kolumny NULL w activities; Room generuje SQL na podstawie schemas/1.json i 2.json.
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    // 2→3: nowa tabela workout_queue (kolejka treningów).
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 @TypeConverters(Converters::class)
 abstract class CgDatabase : RoomDatabase() {
@@ -28,6 +30,8 @@ abstract class CgDatabase : RoomDatabase() {
     abstract fun activityDetailDao(): ActivityDetailDao
 
     abstract fun statsDao(): StatsDao
+
+    abstract fun workoutQueueDao(): WorkoutQueueDao
 
     companion object {
         const val NAME = "cg.db"
