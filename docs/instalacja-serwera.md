@@ -60,7 +60,6 @@ Oczekiwany wynik: dwie linie `CG_HOST_DATA_DIR=/home/<twoja-nazwa>/cg-data` i `C
 
 ## Krok 4. Klucz szyfrowania (Fernet)
 
-> **Uwaga:** polecenie `cg-server gen-key` powstaje równolegle w innej gałęzi projektu. Jeśli w kroku pojawi się błąd `invalid choice: 'gen-key'`, ta część nie jest jeszcze scalona — pomiń ten krok i wróć do niego po aktualizacji kodu (`git pull`). Do testu tunelu klucz nie jest potrzebny.
 
 Pierwsze uruchomienie zbuduje obraz serwera (kilka minut, dużo tekstu na ekranie — to normalne):
 
