@@ -41,19 +41,24 @@ def snapshot(data_dir: Path, stamp: str) -> list[Path]:
     target = data_dir / "backups" / stamp
     target.mkdir(parents=True, exist_ok=False)
     copies = []
-    for db in dbs:
-        dst_path = target / db.name
-        src = sqlite3.connect(db)
-        dst = sqlite3.connect(dst_path)
-        try:
-            src.backup(dst)
-            (result,) = dst.execute("PRAGMA integrity_check").fetchone()
-        finally:
-            dst.close()
-            src.close()
-        if result != "ok":
-            raise RuntimeError(f"kopia {db.name} nie przeszła integrity_check: {result}")
-        copies.append(dst_path)
+    try:
+        for db in dbs:
+            dst_path = target / db.name
+            src = sqlite3.connect(db)
+            dst = sqlite3.connect(dst_path)
+            try:
+                src.backup(dst)
+                (result,) = dst.execute("PRAGMA integrity_check").fetchone()
+            finally:
+                dst.close()
+                src.close()
+            if result != "ok":
+                raise RuntimeError(f"kopia {db.name} nie przeszła integrity_check: {result}")
+            copies.append(dst_path)
+    except BaseException:
+        # Nieudana kopia nie może zostać jako "najnowsza" (rotacja zawsze ją zostawia).
+        shutil.rmtree(target, ignore_errors=True)
+        raise
     return copies
 
 

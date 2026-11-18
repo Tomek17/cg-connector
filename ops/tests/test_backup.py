@@ -73,6 +73,32 @@ class SnapshotTest(unittest.TestCase):
         self.assertFalse((self.data / "backups").exists())
 
 
+    def test_nieudana_kopia_jest_usuwana(self) -> None:
+        db = self.data / "cg.sqlite"
+        make_db(db, rows=2000)
+        # Uszkadzamy stronę danych (nie nagłówek): kopia stron ją powieli.
+        with open(db, "r+b") as f:
+            f.seek(4096 * 2 + 100)
+            f.write(b"\xff" * 2000)
+        with self.assertRaises((RuntimeError, sqlite3.DatabaseError)):
+            cg_backup.snapshot(self.data, "2026-11-18_143000")
+        self.assertEqual(list((self.data / "backups").iterdir()), [])
+
+    def test_uprawnienia_kopii_przez_main(self) -> None:
+        make_db(self.data / "cg.sqlite")
+        old_umask = os.umask(0o022)
+        try:
+            rc = cg_backup.main(
+                ["snapshot", "--data", str(self.data), "--stamp", "2026-11-18_143000"]
+            )
+        finally:
+            os.umask(old_umask)
+        self.assertEqual(rc, 0)
+        target = self.data / "backups" / "2026-11-18_143000"
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((target / "cg.sqlite").stat().st_mode), 0o600)
+
+
 class PruneTest(unittest.TestCase):
     def test_rotacja_po_nazwie_zostawia_najnowsza_i_obce_pliki(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
