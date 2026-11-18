@@ -201,7 +201,7 @@ class OfflineFirstWorkoutQueueRepository
             return items.size
         }
 
-        private fun today(): LocalDate = LocalDate.ofInstant(clock.instant(), ZONE)
+        private fun today(): LocalDate = clock.instant().atZone(ZONE).toLocalDate()
 
         private suspend fun guard(block: suspend () -> RefreshResult): RefreshResult =
             try {
