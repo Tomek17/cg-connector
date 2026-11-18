@@ -42,7 +42,7 @@ System od początku jest **wieloużytkownikowy**: dane, tokeny i treningi każde
 3. **Dostęp spoza domu jest konieczny**, bez otwierania portów na routerze.
 4. **Repo jest publiczne.** Zero sekretów, haseł, tokenów i danych osobowych/zdrowotnych w repo, w historii gita, w issues, w PR-ach i w logach CI.
 5. **0 zł.**
-6. **Garmin Connect przez nieoficjalną bibliotekę** `python-garminconnect` (oparta o `garth`). Wybór Tomka: pełna kontrola. To ryzyko (sekcja 9).
+6. **Garmin Connect przez nieoficjalną bibliotekę** `python-garminconnect` (od 0.3.0 z własnym klientem, bez wycofanego `garth`; przypięta `garminconnect[workout]==0.3.20`, patrz `docs/research/garmin.md`). Wybór Tomka: pełna kontrola. To ryzyko (sekcja 9).
 7. **Natywna aplikacja Android** na Samsung Galaxy S23 Ultra (Android 14+).
 
 ### Co z tego wynika dla użytkownika (musi trafić do dokumentacji)
@@ -89,14 +89,15 @@ System od początku jest **wieloużytkownikowy**: dane, tokeny i treningi każde
 - **Sync o 14:00 (Europe/Warsaw):** dla każdego użytkownika pobiera aktywności od ostatniej synchronizacji (z zakładką 3 dni na poprawki), szczegóły nowych aktywności i VO2max. **Catch-up:** przy starcie kontenera **oraz po wybudzeniu laptopa** (scheduler co 15 min sprawdza, czy dzisiejszy sync o 14:00 został pominięty, a APScheduler ma `misfire_grace_time`/`coalesce`), jeśli ostatni udany sync był przed dzisiejszą 14:00 a jest już po 14:00, albo był >24 h temu, sync uruchamia się od razu. Sync musi być odporny na przerwanie w połowie (uśpienie laptopa): transakcje per aktywność, wznowienie od ostatniego zapisanego punktu. Pierwszy sync pobiera historię (domyślnie 12 miesięcy), z przerwami między zapytaniami.
 - **Outbox:** treningi do wysłania mają status `pending → sent | failed`. Wysyłka: utworzenie treningu w Garmin Connect + zaplanowanie go na datę. Idempotencja przez `client_id` (UUID z aplikacji), żeby ponowienie nie robiło duplikatów.
 - **Wielu użytkowników:** tabela `users`; każdy rekord danych ma `user_id`; każde zapytanie filtruje po użytkowniku wynikającym z tokenu. **Nigdy** z parametru żądania.
-- **Tokeny Garmina:** hasło do Garmina podaje się **jednorazowo**, lokalnie, w skrypcie CLI na serwerze (`cg-server garmin-login --user tomek`, obsługa MFA). Zapisywane są tylko tokeny OAuth z `garth`, **zaszyfrowane** (Fernet, klucz w `.env` poza repo). Hasło nie jest nigdzie zapisywane.
+- **Tokeny Garmina:** hasło do Garmina podaje się **jednorazowo**, lokalnie, w skrypcie CLI na serwerze (`cg-server garmin-login --user tomek`, obsługa MFA). Zapisywane są tylko tokeny DI (`client.dumps()`), **zaszyfrowane** (Fernet, klucz w `.env` poza repo), zapisywane ponownie po każdej sesji (refresh token może się zmienić). Logowanie hasłem tylko raz; przy błędzie odświeżenia status „zaloguj ponownie”, a po HTTP 429 brak ponowień. Hasło nie jest nigdzie zapisywane.
 - **Kontrakt API:** OpenAPI generowane przez FastAPI, eksportowane do `docs/api/openapi.json` w CI. To kontrakt dla aplikacji Android.
 
 ### 3.2 Serwer MCP
 
 - Oficjalne **Python MCP SDK**, transport **Streamable HTTP**, zamontowany w tej samej aplikacji pod `/mcp`.
 - **Zweryfikowane 2026-11-18** ([Claude Help Center](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)): własne zdalne konektory MCP działają na **wszystkich planach, w tym Free**, ale **Free ma limit 1 własnego konektora**. Konektor dodaje się na claude.ai, potem działa też w aplikacji mobilnej Claude. Połączenia idą z chmury Anthropic, więc serwer musi mieć **publiczny adres HTTPS**. Obsługiwane uwierzytelnienie: OAuth, brak, albo stały sekret w nagłówku.
-- **Uwierzytelnienie v1.0:** każdy użytkownik ma osobny, długi, losowy token MCP (w nagłówku `Authorization: Bearer …` konfigurowanym w konektorze). Na serwerze przechowujemy tylko hash. Jeśli w M0 okaże się, że darmowy plan nie pozwala ustawić nagłówka, plan B: OAuth (minimalny serwer autoryzacji w FastAPI). Plan C: sekret w ścieżce URL (`/mcp/<token>`), świadomie i z rotacją.
+- **Uwierzytelnienie v1.0 (zmienione po M0, ADR-0003):** stały nagłówek w konektorze jest w becie tylko dla wybranych organizacji, więc na Free go nie ma. **Plan A: minimalny serwer OAuth 2.1 (DCR + PKCE)** na klasie `OAuthAuthorizationServerProvider` z SDK; użytkownik przy dodawaniu konektora wkleja swój osobisty kod CG (generowany CLI, w bazie tylko hash). Callback `https://claude.ai/api/mcp/auth_callback`, 401 z `resource_metadata`. Plan C (sekret w ścieżce URL) tylko awaryjnie.
+- **SDK `mcp` 2.x** (2.3.0): `FastMCP` → `MCPServer`, `stateless_http` przekazywane do `streamable_http_app()`, obowiązkowo `TransportSecuritySettings(allowed_hosts=[...ts.net])` (inaczej 421 za Funnelem). Użytkownik w narzędziu: `get_access_token().subject`. Szczegóły: `docs/research/mcp-tunel.md`.
 - **Narzędzia MCP (v1.0):**
   - `get_profile` — kto jestem, zegarek, data ostatniej synchronizacji.
   - `list_activities(from, to, type?)` — lista z podsumowaniem.
@@ -111,7 +112,8 @@ System od początku jest **wieloużytkownikowy**: dane, tokeny i treningi każde
 
 ### 3.3 Dostęp zdalny (tunel)
 
-- **Domyślnie: Tailscale Funnel.** Darmowy, stały adres `https://<maszyna>.<tailnet>.ts.net`, bez kupowania domeny i bez otwierania portów.
+- **Domyślnie: Tailscale Funnel** jako kontener sidecar `tailscale/tailscale` w compose (`TS_SERVE_CONFIG`, maszyna `cg-server`, wyłączone wygasanie klucza; zapas: aplikacja Tailscale na Windows). Docker Engine w WSL Ubuntu z systemd (zapas: Docker Desktop). ADR-0002.
+- Opis: Darmowy, stały adres `https://<maszyna>.<tailnet>.ts.net`, bez kupowania domeny i bez otwierania portów.
 - **Alternatywa: Cloudflare Tunnel.** Nazwany tunel wymaga domeny w Cloudflare (koszt), a darmowy „quick tunnel” zmienia adres przy każdym restarcie, co psuje konektor w claude.ai. Używać tylko, jeśli Tomek ma już domenę.
 - Researcher potwierdza wybór w M0 (ADR-0002).
 - Publicznie wystawione są tylko `/api/v1/*`, `/mcp` i `/health`. Brak panelu administracyjnego w sieci.
