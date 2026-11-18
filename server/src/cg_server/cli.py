@@ -23,6 +23,7 @@ from cg_server.garmin.gateway import (
     GarminRateLimited,
     RealGarminGateway,
 )
+from cg_server.logging_filter import uvicorn_log_config
 from cg_server.models import User, utcnow
 from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import UserError, add_user, get_user
@@ -198,7 +199,14 @@ def main(
 
     try:
         if args.command == "serve":
-            uvicorn.run("cg_server.app:app", host=args.host, port=args.port, proxy_headers=True)
+            uvicorn.run(
+                "cg_server.app:create_app",
+                factory=True,
+                host=args.host,
+                port=args.port,
+                proxy_headers=True,
+                log_config=uvicorn_log_config(),
+            )
         elif args.command == "gen-key":
             print(generate_key())
         elif args.command == "user-add":

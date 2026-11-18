@@ -6,13 +6,34 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CG_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="CG_", env_file=".env", extra="ignore", env_ignore_empty=True
+    )
 
     data_dir: Path = Path("/data")
     timezone: str = "Europe/Warsaw"
     sync_hour: int = 14
     # Fernet key for Garmin token encryption. Empty in .env.example, set on the server only.
     encryption_key: str = ""
+    # "production" hides OpenAPI; any other value (e.g. "test", "dev") exposes /openapi.json.
+    env: str = "production"
+    # Public host name of the tunnel, e.g. "cg-server.tail1234.ts.net" (no scheme, no path).
+    public_host: str = "localhost:8000"
+    # Allow OAuth redirect URIs on http://localhost / 127.0.0.1 (MCP Inspector, Claude Code).
+    oauth_allow_localhost: bool = False
+    max_request_bytes: int = 1024 * 1024
+    # Requests per minute per client IP on /authorize, /token, /register, /revoke.
+    rate_limit_per_minute: int = 30
+
+    @property
+    def is_production(self) -> bool:
+        return self.env == "production"
+
+    @property
+    def public_url(self) -> str:
+        host = self.public_host.split(":")[0]
+        scheme = "http" if host in ("localhost", "127.0.0.1") else "https"
+        return f"{scheme}://{self.public_host}"
 
 
 def get_settings() -> Settings:
