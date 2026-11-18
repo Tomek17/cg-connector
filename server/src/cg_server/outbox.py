@@ -3,7 +3,8 @@
 For each due entry of a user (`pending` or `deleting`, `next_attempt_at` passed):
 - `pending`: upload the workout if it has no `garmin_workout_id` yet, save that id at once
   (own transaction), then put it on the date in the Garmin calendar -> `sent`;
-- `deleting`: remove the calendar entry -> `deleted` (the workout template stays).
+- `deleting`: remove the calendar entry -> `deleted`; our "CG ..." workout is deleted from
+  the Garmin library too once no other entry uses it.
 
 Idempotency: the attempt is counted (and committed) before Garmin is contacted, so an
 entry whose process died becomes due again after the backoff. The workout id is saved
@@ -268,11 +269,43 @@ class _UserOutbox:
         if schedule_id is not None:
             with contextlib.suppress(GarminNotFound):  # already removed in Garmin Connect
                 self.paced(self.gateway.unschedule_workout, schedule_id)
+        self._delete_unused_template(item)
         item.status = ScheduleStatus.DELETED
         item.last_error = None
         item.next_attempt_at = None
         self.session.commit()
         self.result.deleted += 1
+
+    def _delete_unused_template(self, item: ScheduledWorkout) -> None:
+        """After its last calendar entry is gone, delete our "CG ..." workout from the Garmin
+        library too. Only ids from our own table are ever deleted (MASTER_PROMPT 7.11)."""
+        workout = item.workout
+        if workout.garmin_workout_id is None:
+            return
+        still_used = self.session.scalar(
+            select(ScheduledWorkout.id)
+            .where(
+                ScheduledWorkout.workout_id == workout.id,
+                ScheduledWorkout.id != item.id,
+                ScheduledWorkout.status.in_(
+                    [ScheduleStatus.PENDING, ScheduleStatus.SENT, ScheduleStatus.DELETING]
+                ),
+            )
+            .limit(1)
+        )
+        if still_used is not None:
+            return
+        try:
+            self.paced(self.gateway.delete_workout, workout.garmin_workout_id)
+        except GarminNotFound:
+            pass  # already deleted in Garmin Connect
+        except (GarminRateLimited, GarminAuthError):
+            raise
+        except Exception as e:  # the calendar entry is gone; a leftover template is harmless
+            log.warning("deleting workout template failed: %s", type(e).__name__)
+            return
+        workout.garmin_workout_id = None
+        self.session.commit()
 
     def process(self, items: list[ScheduledWorkout]) -> None:
         for item in items:

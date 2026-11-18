@@ -345,7 +345,8 @@ def test_delete_sent_entry_removes_it_from_garmin_calendar(
     session.refresh(item)
     assert item.status == ScheduleStatus.DELETED
     assert fake.calendar == {}
-    assert item.workout.garmin_workout_id in fake.workouts  # template stays
+    assert fake.workouts == {}  # our template is deleted with its last calendar entry
+    assert item.workout.garmin_workout_id is None
 
 
 def test_delete_already_gone_on_garmin(session: Session, settings: Settings) -> None:
@@ -533,3 +534,20 @@ def test_pending_after_its_day_fails_without_sending(session: Session, settings:
     assert item.status == ScheduleStatus.FAILED
     assert item.last_error is not None and item.last_error.startswith("date_passed")
     assert fake.calls == []
+
+
+def test_template_stays_while_another_day_uses_it(session: Session, settings: Settings) -> None:
+    first = schedule(session)
+    second, _ = workouts.schedule_workout(
+        session, user(session), first.workout_id, DAY + timedelta(1), today=TODAY
+    )
+    fake = FakeGarminGateway()
+    run(session, settings, fake)
+    assert len(fake.workouts) == 1 and len(fake.calendar) == 2
+    workouts.request_delete(session, user(session), first.id)
+    run(session, settings, fake)
+    assert len(fake.workouts) == 1 and len(fake.calendar) == 1
+    workouts.request_delete(session, user(session), second.id)
+    run(session, settings, fake)
+    assert fake.workouts == {} and fake.calendar == {}
+    assert "delete_workout" in fake.calls

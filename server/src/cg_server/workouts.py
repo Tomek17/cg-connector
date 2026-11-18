@@ -168,7 +168,7 @@ def request_delete(session: Session, user: User, scheduled_id: int) -> Scheduled
     """Delete one of this user's scheduled workouts (only CG-connector's own, MP 7.11).
 
     In the Garmin calendar already: status `deleting`, the outbox removes it there. Not
-    sent yet: `deleted` at once. The workout template stays in the Garmin library.
+    sent yet: `deleted` at once. The Garmin workout goes with its last entry.
     """
     item = get_scheduled(session, user, scheduled_id)
     # Sent (even if Garmin's entry id is unknown) or an earlier delete failed: the outbox
