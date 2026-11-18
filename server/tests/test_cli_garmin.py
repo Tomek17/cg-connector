@@ -6,6 +6,9 @@ import itertools
 from collections.abc import Iterator
 
 import pytest
+import requests
+from curl_cffi.curl import CurlError
+from garminconnect import GarminConnectConnectionError
 
 from cg_server.cli import main
 from cg_server.config import Settings
@@ -223,3 +226,28 @@ def test_check_429_records_time(settings: Settings) -> None:
     check(FakeGarminGateway(error=GarminRateLimited()))
     creds = credentials(settings)
     assert creds is not None and creds.rate_limited_at is not None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        GarminConnectConnectionError("HTTP 500: <html>tresc-odpowiedzi</html>"),
+        requests.ConnectionError("tresc-odpowiedzi"),
+        CurlError("tresc-odpowiedzi"),
+    ],
+)
+@pytest.mark.parametrize("command", ["garmin-login", "garmin-check"])
+def test_network_errors_give_short_message(
+    error: Exception, command: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["user-add", "--name", "tomek"])
+    login(FakeGarminGateway(tokens=TOKENS))
+    capsys.readouterr()
+
+    fake = FakeGarminGateway(error=error)
+    assert main([command, "--user", "tomek"], gateway_factory=lambda: fake) == 1
+
+    err = capsys.readouterr().err
+    assert "Błąd połączenia z Garmin Connect" in err
+    assert "tresc-odpowiedzi" not in err
+    assert "Traceback" not in err

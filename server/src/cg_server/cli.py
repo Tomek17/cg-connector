@@ -6,7 +6,10 @@ import sys
 from collections.abc import Callable
 from datetime import datetime
 
+import requests
 import uvicorn
+from curl_cffi.curl import CurlError
+from garminconnect import GarminConnectConnectionError
 from sqlalchemy.orm import Session
 
 from cg_server.config import Settings, get_settings
@@ -15,6 +18,7 @@ from cg_server.db import open_db
 from cg_server.garmin import accounts
 from cg_server.garmin.gateway import (
     GarminAuthError,
+    GarminError,
     GarminGateway,
     GarminRateLimited,
     RealGarminGateway,
@@ -31,6 +35,16 @@ RATE_LIMITED_MSG = (
 
 
 WAIT_HINT = "Jeśli niedawno był błąd 429, odczekaj 24 h przed ponownym logowaniem hasłem."
+
+
+# Network/server failures talking to Garmin. Their text may contain response bodies,
+# so only a short generic message is shown.
+GARMIN_CONNECTION_ERRORS = (
+    GarminConnectConnectionError,
+    GarminError,
+    requests.RequestException,
+    CurlError,
+)
 
 
 class CliError(Exception):
@@ -161,5 +175,11 @@ def main(
             cmd_garmin_check(get_settings(), args.user, gateway_factory())
     except (CliError, UserError, CryptoError) as e:
         print(f"Błąd: {e}", file=sys.stderr)
+        return 1
+    except GARMIN_CONNECTION_ERRORS:
+        print(
+            "Błąd: Błąd połączenia z Garmin Connect (sieć albo serwer Garmina). Spróbuj później.",
+            file=sys.stderr,
+        )
         return 1
     return 0
