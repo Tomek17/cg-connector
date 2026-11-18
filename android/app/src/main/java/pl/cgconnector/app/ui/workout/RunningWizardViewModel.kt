@@ -9,12 +9,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pl.cgconnector.app.data.repository.WorkoutQueueRepository
+import pl.cgconnector.app.domain.AppZone
 import pl.cgconnector.app.domain.workout.RunStepKind
 import pl.cgconnector.app.domain.workout.WorkoutProblem
 import pl.cgconnector.app.domain.workout.WorkoutValidator
 import java.time.Clock
 import java.time.LocalDate
-import java.time.ZoneId
+
 import javax.inject.Inject
 
 data class RunningWizardState(
@@ -37,7 +38,7 @@ class RunningWizardViewModel
     ) : ViewModel() {
         private var lastKey = 0L
         private val nextKey = { ++lastKey }
-        private val today = clock.instant().atZone(ZoneId.of("Europe/Warsaw")).toLocalDate()
+        private val today = clock.instant().atZone(AppZone.WARSAW).toLocalDate()
 
         private val _state =
             MutableStateFlow(

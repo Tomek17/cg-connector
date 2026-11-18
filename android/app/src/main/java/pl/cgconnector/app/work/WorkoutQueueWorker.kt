@@ -42,9 +42,8 @@ class WorkoutQueueWorker
     }
 
 /**
- * REPLACE zamiast KEEP/APPEND: nowy szkic albo „Odśwież” ma ruszyć od razu, a nie czekać na backoff
- * poprzedniej próby. Przerwanie trwającej wysyłki jest bezpieczne, bo każda operacja na serwerze jest
- * idempotentna (`client_id`, jeden wpis na trening i dzień, powtórne usunięcie).
+ * APPEND_OR_REPLACE: nowe wyzwolenie (szkic, „Odśwież”) nie przerywa trwającej wysyłki i nie zeruje
+ * backoffu po braku serwera; dopina jedno uruchomienie po bieżącym, więc nowy szkic nie zostanie pominięty.
  */
 class WorkManagerWorkoutQueueTrigger
     @Inject
@@ -57,7 +56,7 @@ class WorkManagerWorkoutQueueTrigger
                     .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
                     .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_SECONDS, TimeUnit.SECONDS)
                     .build()
-            workManager.enqueueUniqueWork(WorkoutQueueWorker.UNIQUE_NAME, ExistingWorkPolicy.REPLACE, request)
+            workManager.enqueueUniqueWork(WorkoutQueueWorker.UNIQUE_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
         }
 
         private companion object {

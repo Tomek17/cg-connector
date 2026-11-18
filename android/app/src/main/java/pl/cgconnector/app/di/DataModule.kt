@@ -13,8 +13,10 @@ import pl.cgconnector.app.data.remote.FakeActivityRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeWorkoutRemoteDataSource
 import pl.cgconnector.app.data.remote.WorkoutRemoteDataSource
 import pl.cgconnector.app.data.repository.ActivityRepository
+import pl.cgconnector.app.data.repository.DataStoreQueuePauseStore
 import pl.cgconnector.app.data.repository.OfflineFirstActivityRepository
 import pl.cgconnector.app.data.repository.OfflineFirstWorkoutQueueRepository
+import pl.cgconnector.app.data.repository.QueuePauseStore
 import pl.cgconnector.app.data.repository.RoomStatsRepository
 import pl.cgconnector.app.data.repository.StatsRepository
 import pl.cgconnector.app.data.repository.WorkoutQueueRepository
@@ -43,6 +45,9 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindWorkoutQueueRepository(impl: OfflineFirstWorkoutQueueRepository): WorkoutQueueRepository
+
+    @Binds
+    abstract fun bindQueuePauseStore(impl: DataStoreQueuePauseStore): QueuePauseStore
 
     @Binds
     abstract fun bindWorkoutQueueTrigger(impl: WorkManagerWorkoutQueueTrigger): WorkoutQueueTrigger

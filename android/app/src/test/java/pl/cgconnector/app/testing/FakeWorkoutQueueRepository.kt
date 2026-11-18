@@ -34,6 +34,12 @@ class FakeWorkoutQueueRepository(
         items.value = items.value.map { if (it.id == id) it.copy(deleteRequested = true) else it }
     }
 
+    val retryRequests = mutableListOf<Long>()
+
+    override suspend fun retry(id: Long) {
+        retryRequests += id
+    }
+
     override fun refresh() {
         refreshCalls++
     }

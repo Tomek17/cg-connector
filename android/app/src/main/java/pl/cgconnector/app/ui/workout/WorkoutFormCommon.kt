@@ -20,6 +20,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.workout.WorkoutProblem
@@ -91,7 +94,11 @@ fun ProblemList(
     positionLabel: Int = R.string.wizard_problem_at,
 ) {
     if (problems.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // Czytnik ekranu ogłasza błędy po „Zapisz”, bez przenoszenia fokusu.
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
         problems.forEach { problem ->
             val text = stringResource(problem.code.textRes())
             Text(

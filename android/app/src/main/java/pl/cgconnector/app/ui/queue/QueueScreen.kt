@@ -50,6 +50,7 @@ fun QueueRoute(
         state = state,
         onRefresh = viewModel::refresh,
         onDelete = viewModel::askDelete,
+        onRetry = viewModel::retry,
         onConfirmDelete = viewModel::confirmDelete,
         onDismissDelete = viewModel::dismissDelete,
         floatingActionButton = floatingActionButton,
@@ -62,6 +63,7 @@ fun QueueScreen(
     state: QueueUiState,
     onRefresh: () -> Unit,
     onDelete: (QueuedWorkout) -> Unit,
+    onRetry: (QueuedWorkout) -> Unit,
     onConfirmDelete: () -> Unit,
     onDismissDelete: () -> Unit,
     floatingActionButton: @Composable () -> Unit = {},
@@ -88,7 +90,7 @@ fun QueueScreen(
                 item {
                     Text(stringResource(R.string.queue_watch_hint), style = MaterialTheme.typography.bodySmall)
                 }
-                items(state.items, key = { it.id }) { item -> QueueRow(item, onDelete = { onDelete(item) }) }
+                items(state.items, key = { it.id }) { item -> QueueRow(item, onDelete = { onDelete(item) }, onRetry = { onRetry(item) }) }
             }
         }
     }
@@ -108,6 +110,7 @@ fun QueueScreen(
 private fun QueueRow(
     item: QueuedWorkout,
     onDelete: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -134,6 +137,12 @@ private fun QueueRow(
                         },
                     modifier = Modifier.weight(1f),
                 )
+                if (item.canRetry) {
+                    val description = stringResource(R.string.queue_retry_description, item.name)
+                    TextButton(onClick = onRetry, modifier = Modifier.semantics { contentDescription = description }) {
+                        Text(stringResource(R.string.queue_retry))
+                    }
+                }
                 if (item.canDelete) {
                     val description = stringResource(R.string.queue_delete_description, item.name)
                     TextButton(onClick = onDelete, modifier = Modifier.semantics { contentDescription = description }) {
@@ -142,8 +151,9 @@ private fun QueueRow(
                 }
             }
             if (item.status == QueueStatus.FAILED && item.lastError != null) {
+                Text(stringResource(R.string.queue_error_intro), style = MaterialTheme.typography.bodySmall)
                 Text(
-                    stringResource(R.string.queue_error, item.lastError),
+                    item.lastError,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
