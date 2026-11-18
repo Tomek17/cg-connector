@@ -25,10 +25,15 @@ from garminconnect import (
     Garmin,
     GarminConnectAuthenticationError,
     GarminConnectConnectionError,
+    GarminConnectNotFoundError,
     GarminConnectTooManyRequestsError,
 )
 
 MfaPrompt = Callable[[], str]
+MaxMetrics = dict[str, Any] | list[dict[str, Any]]
+# `hrTimeInZones`: garminconnect annotates dict, but Garmin returns a list of zones
+# ({"zoneNumber", "secsInZone", "zoneLowBoundary"}); accept both.
+HrZones = dict[str, Any] | list[dict[str, Any]]
 
 
 class GarminError(Exception):
@@ -37,6 +42,10 @@ class GarminError(Exception):
 
 class GarminRateLimited(GarminError):
     """Garmin answered HTTP 429 (or the SSO equivalent). Do not retry."""
+
+
+class GarminNotFound(GarminError):
+    """HTTP 404: the resource does not exist (e.g. no details for this activity)."""
 
 
 class GarminAuthError(GarminError):
@@ -75,7 +84,21 @@ class GarminGateway(Protocol):
         end: str,
         aggregation: str = "daily",
         sport: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> MaxMetrics:
+        """VO2max etc. per day; Garmin returns a list of daily entries."""
+        ...
+
+    def get_activity_splits(self, activity_id: int) -> dict[str, Any]:
+        """Laps of an activity (`lapDTOs`)."""
+        ...
+
+    def get_activity_hr_in_timezones(self, activity_id: int) -> HrZones:
+        """Time in heart rate zones (Garmin returns a list of zones)."""
+        ...
+
+    def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
+        """Strength sets (`exerciseSets`); empty for non-strength activities."""
+        ...
 
 
 @contextmanager
@@ -86,9 +109,14 @@ def _translate_errors() -> Iterator[None]:
         raise GarminRateLimited("Garmin: zbyt wiele zapytań (HTTP 429)") from e
     except GarminConnectAuthenticationError as e:
         raise GarminAuthError("Garmin: błąd uwierzytelnienia") from e
+    except GarminConnectNotFoundError as e:
+        raise GarminNotFound("Garmin: nie znaleziono (HTTP 404)") from e
     except GarminConnectConnectionError as e:
-        if getattr(e.response, "status_code", None) == 429:
+        status = getattr(e.response, "status_code", None)
+        if status == 429:
             raise GarminRateLimited("Garmin: zbyt wiele zapytań (HTTP 429)") from e
+        if status == 404:
+            raise GarminNotFound("Garmin: nie znaleziono (HTTP 404)") from e
         raise
 
 
@@ -147,6 +175,18 @@ class RealGarminGateway:
         end: str,
         aggregation: str = "daily",
         sport: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> MaxMetrics:
         with _translate_errors():
             return self._session().get_max_metrics_range(start, end, aggregation, sport)
+
+    def get_activity_splits(self, activity_id: int) -> dict[str, Any]:
+        with _translate_errors():
+            return self._session().get_activity_splits(str(activity_id))
+
+    def get_activity_hr_in_timezones(self, activity_id: int) -> HrZones:
+        with _translate_errors():
+            return self._session().get_activity_hr_in_timezones(str(activity_id))
+
+    def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
+        with _translate_errors():
+            return self._session().get_activity_exercise_sets(str(activity_id))

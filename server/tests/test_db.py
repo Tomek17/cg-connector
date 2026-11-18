@@ -60,3 +60,38 @@ def test_existing_database_permissions_are_tightened(settings: Settings) -> None
     db_path(settings).chmod(0o644)
     open_db(settings)
     assert (db_path(settings).stat().st_mode & 0o777) == 0o600
+
+
+def test_sync_tables_exist(settings: Settings) -> None:
+    engine = create_db_engine(settings)
+    upgrade_db(engine)
+    with engine.connect() as conn:
+        tables = set(inspect(conn).get_table_names())
+    assert {"activities", "activity_details", "vo2max", "sync_runs"} <= tables
+
+
+def test_garmin_activity_id_unique_per_user(settings: Settings) -> None:
+    from datetime import UTC, datetime
+
+    from cg_server.models import Activity, ActivityKind
+
+    def activity(user: User) -> Activity:
+        return Activity(
+            user=user,
+            garmin_activity_id=42,
+            kind=ActivityKind.RUNNING,
+            type_key="running",
+            start_time_utc=datetime(2026, 11, 1, 6, tzinfo=UTC),
+            start_time_local=datetime(2026, 11, 1, 7),
+        )
+
+    sessions = open_db(settings)
+    with sessions() as session:
+        tomek, brat = User(name="tomek"), User(name="brat")
+        # The same Garmin id for two different users is fine...
+        session.add_all([activity(tomek), activity(brat)])
+        session.commit()
+        # ...but not twice for one user.
+        session.add(activity(tomek))
+        with pytest.raises(IntegrityError):
+            session.commit()

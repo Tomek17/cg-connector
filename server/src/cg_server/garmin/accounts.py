@@ -65,10 +65,21 @@ def _set_status(session: Session, user: User, status: GarminStatus) -> None:
     session.commit()
 
 
-def _mark_rate_limited(session: Session, user: User) -> None:
+def mark_rate_limited(session: Session, user: User) -> None:
+    """Record a 429: status `rate_limited` and the time, which starts the 24 h pause."""
     creds = _credentials(user)
     creds.status = GarminStatus.RATE_LIMITED
     creds.rate_limited_at = utcnow()
+    session.commit()
+
+
+def mark_needs_login(session: Session, user: User) -> None:
+    _set_status(session, user, GarminStatus.NEEDS_LOGIN)
+
+
+def store_session_tokens(session: Session, user: User, tokens: str, key: str) -> None:
+    """Save tokens after a data session (sync) without touching status or the 429 time."""
+    _credentials(user).encrypted_tokens = encrypt(tokens, key)
     session.commit()
 
 
@@ -97,7 +108,7 @@ def login(
     try:
         tokens = gateway.login(email, password, prompt_mfa)
     except GarminRateLimited:
-        _mark_rate_limited(session, user)
+        mark_rate_limited(session, user)
         raise
     except GarminAuthError:
         # A failed re-login (e.g. mistyped password) must not discard working tokens.
@@ -120,7 +131,7 @@ def check(session: Session, user: User, gateway: GarminGateway, *, key: str) -> 
         gateway.resume(tokens)
         gateway.get_profile()
     except GarminRateLimited:
-        _mark_rate_limited(session, user)
+        mark_rate_limited(session, user)
         raise
     except GarminAuthError:
         _set_status(session, user, GarminStatus.NEEDS_LOGIN)

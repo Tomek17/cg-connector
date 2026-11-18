@@ -4,13 +4,15 @@ import argparse
 import getpass
 import sys
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import requests
 import uvicorn
 from curl_cffi.curl import CurlError
 from garminconnect import GarminConnectConnectionError
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from cg_server.config import ConfigError, Settings, get_settings
@@ -25,7 +27,9 @@ from cg_server.garmin.gateway import (
     RealGarminGateway,
 )
 from cg_server.logging_filter import uvicorn_log_config
-from cg_server.models import User, utcnow
+from cg_server.models import Activity, SyncRun, SyncStatus, User, utcnow
+from cg_server.sync import SyncOptions, sync_user
+from cg_server.synclock import SyncBusy
 from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import UserError, add_user, get_user
 
@@ -180,6 +184,74 @@ def cmd_garmin_check(settings: Settings, name: str, gateway: GarminGateway) -> N
     print(f"OK, zalogowano jako {full_name or '(brak nazwy w profilu Garmin)'}.")
 
 
+def cmd_sync(settings: Settings, name: str, gateway: GarminGateway) -> None:
+    key = _require_key(settings)
+    with open_db(settings)() as session:
+        user = _require_user(session, name)
+        print(f"Synchronizacja danych Garmin dla „{name}”…")
+        try:
+            result = sync_user(
+                session,
+                user,
+                gateway,
+                key=key,
+                options=SyncOptions.from_settings(settings),
+                lock_dir=settings.data_dir,
+            )
+        except SyncBusy as e:
+            raise CliError(
+                "Synchronizacja już trwa (serwer albo inne polecenie). Spróbuj za chwilę."
+            ) from e
+    summary = (
+        f"Status: {result.status.value}; nowe aktywności: {result.activities_new}, "
+        f"zaktualizowane: {result.activities_updated}, wpisy VO2max: {result.vo2max_points}."
+    )
+    if result.status != SyncStatus.OK:
+        raise CliError(f"{summary} {result.error or ''}".strip())
+    print(summary)
+
+
+def _local(value: datetime | None, tz: ZoneInfo) -> str:
+    if value is None:
+        return "nigdy"
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(tz).strftime("%Y-%m-%d %H:%M")
+
+
+def cmd_sync_status(settings: Settings) -> None:
+    tz = ZoneInfo(settings.timezone)
+    with open_db(settings)() as session:
+        users = session.scalars(select(User).order_by(User.name)).all()
+        if not users:
+            print("Brak użytkowników. Dodaj: cg-server user-add --name <nazwa>")
+        for user in users:
+            last = session.scalars(
+                select(SyncRun)
+                .where(SyncRun.user_id == user.id)
+                .order_by(SyncRun.started_at.desc(), SyncRun.id.desc())
+                .limit(1)
+            ).one_or_none()
+            last_ok = session.scalar(
+                select(func.max(SyncRun.finished_at)).where(
+                    SyncRun.user_id == user.id, SyncRun.status == SyncStatus.OK
+                )
+            )
+            activities = session.scalar(
+                select(func.count()).select_from(Activity).where(Activity.user_id == user.id)
+            )
+            garmin = user.garmin_credentials.status.value if user.garmin_credentials else "brak"
+            line = f"{user.name}: Garmin: {garmin}; ostatni sync: "
+            if last is None:
+                line += "nigdy"
+            else:
+                line += f"{_local(last.started_at, tz)} ({last.status.value})"
+                if last.error:
+                    line += f" – {last.error}"
+            line += f"; ostatni udany: {_local(last_ok, tz)}; aktywności: {activities}"
+            print(line)
+
+
 def main(
     argv: list[str] | None = None, *, gateway_factory: GatewayFactory = RealGarminGateway
 ) -> int:
@@ -206,6 +278,10 @@ def main(
     sub.add_parser("app-token", help="wygeneruj nowy token aplikacji Android").add_argument(
         "--user", required=True
     )
+    sub.add_parser("sync", help="pobierz teraz dane z Garmin Connect").add_argument(
+        "--user", required=True
+    )
+    sub.add_parser("sync-status", help="pokaż stan synchronizacji wszystkich użytkowników")
     args = parser.parse_args(argv)
 
     try:
@@ -230,6 +306,10 @@ def main(
             cmd_garmin_login(get_settings(), args.user, gateway_factory(), force=args.force)
         elif args.command == "garmin-check":
             cmd_garmin_check(get_settings(), args.user, gateway_factory())
+        elif args.command == "sync":
+            cmd_sync(get_settings(), args.user, gateway_factory())
+        elif args.command == "sync-status":
+            cmd_sync_status(get_settings())
     except (CliError, UserError, CryptoError, ConfigError) as e:
         print(f"Błąd: {e}", file=sys.stderr)
         return 1

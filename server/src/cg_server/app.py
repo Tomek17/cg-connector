@@ -1,7 +1,7 @@
 """FastAPI application factory: REST API, OAuth login page and MCP (`/mcp`) in one app."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -19,6 +19,7 @@ from cg_server.db import open_db
 from cg_server.login_page import login_router
 from cg_server.mcp_server import build_mcp
 from cg_server.oauth import CLAUDE_CALLBACKS, MAX_CLIENT_METADATA_BYTES, CgOAuthProvider
+from cg_server.scheduler import scheduler_running
 from cg_server.security import (
     BodySizeLimitMiddleware,
     PathAllowlistMiddleware,
@@ -75,7 +76,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        async with mcp.session_manager.run():
+        # MCP session manager + daily Garmin sync scheduler (off with CG_SCHEDULER_ENABLED).
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(mcp.session_manager.run())
+            await stack.enter_async_context(scheduler_running(settings))
             yield
 
     app = FastAPI(
