@@ -98,6 +98,17 @@ cd ~/cg-connector/server && docker compose up -d --build && sleep 20 && docker c
 
 Oczekiwany wynik: dwie linie z kontenerami `cg-connector-cg-server-1` i `cg-connector-tailscale-1`, w kolumnie STATUS `Up …` (przy serwerze może być `(healthy)` albo przez pierwszą minutę `(health: starting)`).
 
+> **⚠️ ZRÓB TO TERAZ: wyłącz wygasanie klucza maszyny (Disable key expiry)**
+>
+> Od razu po pierwszym starcie, zanim przejdziesz dalej. Bez tego **po 180 dniach tunel przestanie działać** (Claude i aplikacja stracą połączenie) i trzeba będzie rejestrować maszynę od nowa.
+>
+> 1. Otwórz <https://login.tailscale.com/admin/machines>.
+> 2. Przy maszynie **cg-server** kliknij **…** (trzy kropki) → **Disable key expiry**.
+>
+> Oczekiwany wynik: przy `cg-server` znika data wygaśnięcia (albo pojawia się napis *Expiry disabled*). Jeśli maszyny `cg-server` nie ma na liście, zobacz problem P4 w [Rozwiązywaniu problemów](#rozwiązywanie-problemów).
+
+## Krok 7. Sprawdzenie serwera i tunelu
+
 Sprawdzenie serwera na laptopie:
 
 ```bash
@@ -137,19 +148,10 @@ Klucz Tailscale nie jest już potrzebny (maszyna jest zarejestrowana, stan leży
 cd ~/cg-connector/server && sed -i "s|^TS_AUTHKEY=.*|TS_AUTHKEY=|" .env
 ```
 
-## Krok 7. Wyłączenie wygasania klucza maszyny
-
-Bez tego po 180 dniach tunel przestanie działać i trzeba będzie logować się od nowa.
-
-1. Otwórz <https://login.tailscale.com/admin/machines>.
-2. Przy maszynie **cg-server** kliknij **…** (trzy kropki) → **Disable key expiry**.
-
-Oczekiwany wynik: przy `cg-server` znika data wygaśnięcia (albo pojawia się napis *Expiry disabled*).
-
 ## Krok 8. Test z telefonu (z internetu)
 
 1. W telefonie **wyłącz Wi-Fi** (żeby ruch szedł przez dane komórkowe, czyli „z zewnątrz”).
-2. W przeglądarce otwórz: `https://cg-server.<twój-tailnet>.ts.net/health` (adres z kroku 6).
+2. W przeglądarce otwórz: `https://cg-server.<twój-tailnet>.ts.net/health` (adres z kroku 7).
 
 Oczekiwany wynik: `{"status":"ok","version":"…"}` i kłódka przy adresie (poprawny certyfikat HTTPS). Za pierwszym razem może to potrwać do minuty, a nowy adres bywa widoczny w internecie dopiero po ok. 10 minutach.
 
@@ -293,7 +295,7 @@ Na **nowym** komputerze (WSL Ubuntu + Docker jak w „Zanim zaczniesz”):
    ```
 
    Oczekiwany wynik: trzy linie; `cg-data` z właścicielem `10001`, `cg-tailscale` z właścicielem `root`.
-3. Kroki 6 (bez nowego klucza Tailscale), 8, 9 i 10.
+3. Kroki 6 i 7 (bez nowego klucza Tailscale; wygasanie klucza jest już wyłączone), 8, 9 i 10.
 
 Oczekiwany wynik: `tailscale funnel status` pokazuje ten sam adres co wcześniej, a w panelu Tailscale jest nadal jedna maszyna `cg-server`.
 
