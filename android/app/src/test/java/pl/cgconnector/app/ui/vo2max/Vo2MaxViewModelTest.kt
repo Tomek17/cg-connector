@@ -85,8 +85,11 @@ class Vo2MaxViewModelTest {
         assertThat(data.points.map { it.x }).containsExactly(0f, 0.2f, 1f).inOrder()
         assertThat(data.points.first().y).isWithin(1e-6f).of(1f / 12)
         assertThat(data.points.last().y).isWithin(1e-6f).of(11f / 12)
-        assertThat(data.minValue).isWithin(1e-9).of(49.8)
-        assertThat(data.maxValue).isWithin(1e-9).of(52.2)
+        // Etykiety i opis: rzeczywiste skrajne pomiary, nie granice osi z marginesem.
+        assertThat(data.minValue).isEqualTo(50.0)
+        assertThat(data.maxValue).isEqualTo(52.0)
+        assertThat(data.minY).isWithin(1e-6f).of(1f / 12)
+        assertThat(data.maxY).isWithin(1e-6f).of(11f / 12)
     }
 
     @Test
@@ -94,7 +97,8 @@ class Vo2MaxViewModelTest {
         assertThat(LineChartMath.normalize(emptyList())).isNull()
         val single = LineChartMath.normalize(listOf(point("2026-11-01", 50.0)))!!
         assertThat(single.points.single()).isEqualTo(ChartPoint(0.5f, 0.5f))
-        assertThat(single.minValue).isEqualTo(49.0)
-        assertThat(single.maxValue).isEqualTo(51.0)
+        assertThat(single.minValue).isEqualTo(50.0)
+        assertThat(single.maxValue).isEqualTo(50.0)
+        assertThat(single.minY).isEqualTo(0.5f)
     }
 }

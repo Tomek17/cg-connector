@@ -108,6 +108,8 @@
     <string name="vo2_value">%1$.1f</string>
     <string name="vo2_measured_at">pomiar z %1$s</string>
     <string name="vo2_change">Zmiana w ostatnich %1$d dniach: %2$s</string>
+    <string name="vo2_axis_max">maks. %1$.1f</string>
+    <string name="vo2_axis_min">min. %1$.1f</string>
     <string name="vo2_chart_description">Wykres VO2max od %1$s do %2$s, wartości od %3$.1f do %4$.1f</string>
     <string name="vo2_sport_running">Bieg</string>
     <string name="vo2_sport_cycling">Rower</string>

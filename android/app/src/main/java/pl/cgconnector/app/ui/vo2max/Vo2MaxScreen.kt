@@ -105,7 +105,10 @@ fun Vo2MaxScreen(
                     )
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(R.string.vo2_value, data.maxValue), style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            stringResource(R.string.vo2_axis_max, data.maxValue),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
                         LineChart(
                             data = data,
                             modifier =
@@ -114,7 +117,10 @@ fun Vo2MaxScreen(
                                     .height(200.dp)
                                     .semantics { contentDescription = description },
                         )
-                        Text(stringResource(R.string.vo2_value, data.minValue), style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            stringResource(R.string.vo2_axis_min, data.minValue),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(DATE.format(first), style = MaterialTheme.typography.labelSmall)
                             Text(DATE.format(latest.date), style = MaterialTheme.typography.labelSmall)
@@ -136,7 +142,8 @@ private fun LineChart(
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier) {
         val stroke = 2.dp.toPx()
-        listOf(0f, 0.5f, 1f).forEach { fraction ->
+        // Linie siatki na wysokości rzeczywistego minimum i maksimum (podpisanych pod i nad wykresem).
+        listOf(data.minY, data.maxY).distinct().forEach { fraction ->
             val y = size.height * (1 - fraction)
             drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
         }

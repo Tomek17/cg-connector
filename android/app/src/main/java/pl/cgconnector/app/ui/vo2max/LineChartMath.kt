@@ -5,10 +5,16 @@ import pl.cgconnector.app.domain.Vo2MaxPoint
 /** Punkt wykresu w układzie 0..1 (x od lewej, y od dołu). */
 data class ChartPoint(val x: Float, val y: Float)
 
+/**
+ * [minValue]/[maxValue] to rzeczywiste skrajne pomiary (do etykiet i opisu dostępności),
+ * a [minY]/[maxY] to ich położenie na wykresie w układzie 0..1 (oś ma margines).
+ */
 data class ChartData(
     val points: List<ChartPoint>,
     val minValue: Double,
     val maxValue: Double,
+    val minY: Float,
+    val maxY: Float,
 )
 
 /** Czysta geometria wykresu liniowego (bez Compose), testowana na JVM. */
@@ -34,6 +40,12 @@ object LineChartMath {
                 val y = ((point.value - min) / (max - min)).toFloat()
                 ChartPoint(x, y)
             }
-        return ChartData(chartPoints, min, max)
+        return ChartData(
+            points = chartPoints,
+            minValue = rawMin,
+            maxValue = rawMax,
+            minY = ((rawMin - min) / (max - min)).toFloat(),
+            maxY = ((rawMax - min) / (max - min)).toFloat(),
+        )
     }
 }
