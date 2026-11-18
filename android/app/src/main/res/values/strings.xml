@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="pl">
+    <string name="app_name">CG-connector</string>
+
+    <!-- Konfiguracja -->
+    <string name="settings_title">Konfiguracja</string>
+    <string name="settings_intro">Podaj adres swojego serwera CG i osobisty token aplikacji. Token jest przechowywany zaszyfrowany kluczem z Android Keystore.</string>
+    <string name="settings_server_url_label">Adres serwera</string>
+    <string name="settings_server_url_hint">https://cg-server.twoj-tailnet.ts.net</string>
+    <string name="settings_token_label">Token aplikacji</string>
+    <string name="settings_token_saved_hint">Token zapisany. Zostaw puste, aby go nie zmieniać.</string>
+    <string name="settings_show_token">Pokaż token</string>
+    <string name="settings_hide_token">Ukryj token</string>
+    <string name="settings_save">Zapisz</string>
+    <string name="settings_save_failed">Nie udało się zapisać konfiguracji</string>
+    <string name="error_url_empty">Podaj adres serwera</string>
+    <string name="error_url_invalid">Nieprawidłowy adres serwera</string>
+    <string name="error_url_not_https">Adres musi zaczynać się od https://</string>
+    <string name="error_url_has_credentials">Adres nie może zawierać loginu ani hasła</string>
+    <string name="error_url_has_query">Adres nie może zawierać parametrów (?…) ani fragmentu (#…)</string>
+    <string name="error_token_empty">Podaj token</string>
+    <string name="error_token_too_short">Token jest za krótki (min. %1$d znaków)</string>
+    <string name="error_token_whitespace">Token nie może zawierać spacji</string>
+
+    <!-- Lista treningów -->
+    <string name="activities_title">Treningi</string>
+    <string name="activities_refresh">Odśwież</string>
+    <string name="activities_settings">Konfiguracja</string>
+    <string name="activities_empty">Brak treningów. Dane pojawią się po synchronizacji z serwerem.</string>
+    <string name="activities_empty_filtered">Brak treningów tego typu.</string>
+    <string name="activities_refresh_failed">Serwer niedostępny. Pokazuję dane zapisane w telefonie.</string>
+    <string name="activities_refreshed">Dane odświeżone</string>
+    <string name="filter_all">Wszystkie</string>
+
+    <string name="activity_type_running">Bieg</string>
+    <string name="activity_type_strength">Siłownia</string>
+    <string name="activity_type_climbing">Wspinaczka</string>
+    <string name="activity_type_other">Inne</string>
+
+    <string name="activity_untitled">Trening bez nazwy</string>
+    <string name="activity_distance_km">%1$.2f km</string>
+    <string name="activity_avg_hr">śr. tętno %1$d bpm</string>
+    <string name="activity_duration_hms">%1$d:%2$02d:%3$02d</string>
+    <string name="activity_duration_ms">%1$d:%2$02d</string>
+</resources>
