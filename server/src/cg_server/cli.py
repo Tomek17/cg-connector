@@ -38,6 +38,7 @@ from cg_server.models import (
     SyncRun,
     SyncStatus,
     User,
+    Vo2Max,
     WorkoutOrigin,
     utcnow,
 )
@@ -228,10 +229,26 @@ def cmd_sync(settings: Settings, name: str, gateway: GarminGateway) -> None:
             raise CliError(
                 "Synchronizacja już trwa (serwer albo inne polecenie). Spróbuj za chwilę."
             ) from e
+        latest = session.execute(
+            select(Vo2Max.value, Vo2Max.date, Vo2Max.sport)
+            .where(Vo2Max.user_id == user.id)
+            .order_by(Vo2Max.date.desc(), Vo2Max.sport)
+            .limit(1)
+        ).first()
     summary = (
         f"Status: {result.status.value}; nowe aktywności: {result.activities_new}, "
-        f"zaktualizowane: {result.activities_updated}, wpisy VO2max: {result.vo2max_points}."
+        f"zaktualizowane: {result.activities_updated}, "
+        f"pobrane pomiary VO2max (liczba): {result.vo2max_points}."
     )
+    if latest is not None:
+        summary += (
+            f" Najnowszy VO2max: {latest.value:g} ({latest.date.isoformat()}, {latest.sport})."
+        )
+    if result.status == SyncStatus.PARTIAL:
+        # Not an error: the per-run request limit was reached; the rest comes on later runs.
+        print(f"{summary} {result.error or ''}".strip())
+        print("To nie błąd: resztę historii serwer pobierze sam w kolejnych przebiegach.")
+        return
     if result.status != SyncStatus.OK:
         raise CliError(f"{summary} {result.error or ''}".strip())
     print(summary)

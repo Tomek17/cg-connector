@@ -46,6 +46,41 @@ def test_sync_command(capsys: pytest.CaptureFixture[str]) -> None:
     assert "fake-access" not in out
 
 
+def test_sync_reports_latest_vo2max_and_partial_is_not_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    logged_in_user()
+    capsys.readouterr()
+    today = date.today()
+    vo2 = [((today - timedelta(days=d)).isoformat(), 44.0 + d / 10) for d in (5, 1)]
+    monkeypatch.setenv("CG_SYNC_MAX_REQUESTS_PER_RUN", "2")
+    fake = FakeGarminGateway(activities=recent_activities(), vo2max=vo2)
+
+    code = main(["sync", "--user", "tomek"], gateway_factory=lambda: fake)
+    captured = capsys.readouterr()
+
+    assert code == 0, captured.err
+    assert "partial" in captured.out
+    assert "To nie błąd" in captured.out
+    assert "Błąd" not in captured.err
+
+
+def test_sync_prints_latest_vo2max_value(capsys: pytest.CaptureFixture[str]) -> None:
+    logged_in_user()
+    capsys.readouterr()
+    today = date.today()
+    vo2 = [
+        ((today - timedelta(days=5)).isoformat(), 48.0),
+        ((today - timedelta(days=1)).isoformat(), 50.2),
+    ]
+    fake = FakeGarminGateway(activities=recent_activities(), vo2max=vo2)
+
+    assert main(["sync", "--user", "tomek"], gateway_factory=lambda: fake) == 0
+    out = capsys.readouterr().out
+    assert "pobrane pomiary VO2max (liczba): 2" in out
+    assert "Najnowszy VO2max: 50.2" in out
+
+
 def test_sync_unknown_user(capsys: pytest.CaptureFixture[str]) -> None:
     fake = FakeGarminGateway()
     assert main(["sync", "--user", "nikt"], gateway_factory=lambda: fake) == 1
