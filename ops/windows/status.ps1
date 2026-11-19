@@ -64,10 +64,19 @@ $health = & curl.exe --silent --show-error --max-time 5 $HealthUrl 2>&1
 $healthOk = ($LASTEXITCODE -eq 0) -and ("$health" -match '"status"\s*:\s*"ok"')
 Write-Check $healthOk "Serwer: $HealthUrl" "$health"
 
-# 5. Tunel (Funnel)
-$funnel = & wsl.exe -d $Distro --exec bash -lc "cd $serverDir && docker compose exec -T tailscale tailscale funnel status 2>&1"
-$funnelOk = ($LASTEXITCODE -eq 0) -and ("$funnel" -match "Funnel on")
-Write-Check $funnelOk "Tunel Tailscale Funnel" (($funnel | Select-Object -First 3) -join " | ")
+# 5. Tunel: ngrok (plan B, profil "ngrok") albo Tailscale Funnel
+if ($running -contains "ngrok") {
+    $publicHost = & wsl.exe -d $Distro --exec bash -lc "cd $serverDir && grep -E '^CG_PUBLIC_HOST=' .env | cut -d= -f2-"
+    $publicHost = "$publicHost".Trim()
+    $publicUrl = "https://$publicHost/health"
+    $pub = & curl.exe --silent --show-error --max-time 15 $publicUrl 2>&1
+    $pubOk = ($LASTEXITCODE -eq 0) -and ("$pub" -match '"status"\s*:\s*"ok"')
+    Write-Check $pubOk "Tunel ngrok: $publicUrl" $(if (-not $pubOk) { "$pub | W WSL: cd $serverDir && docker compose logs ngrok" })
+} else {
+    $funnel = & wsl.exe -d $Distro --exec bash -lc "cd $serverDir && docker compose exec -T tailscale tailscale funnel status 2>&1"
+    $funnelOk = ($LASTEXITCODE -eq 0) -and ("$funnel" -match "Funnel on")
+    Write-Check $funnelOk "Tunel Tailscale Funnel" (($funnel | Select-Object -First 3) -join " | ")
+}
 
 # 6. Autostart
 $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue

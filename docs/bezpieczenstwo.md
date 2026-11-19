@@ -76,14 +76,15 @@ claude.ai (konektor MCP, OAuth)        Aplikacja Android (token aplikacji)
 2. **IP klienta za Tailscale Funnel.** Rate limit i blokada IP opierają się na `X-Forwarded-For`. Tailscale Serve go **nadpisuje** adresem klienta (`ipn/ipnlocal/serve.go`). uvicorn ufa nagłówkom tylko od adresów lokalnych i prywatnych (sieć compose) i bierze skrajnie prawy niezaufany adres (#30).
    - Do sprawdzenia przy instalacji: w logu `cg-server` przy żądaniu przez Funnel widać publiczny adres klienta, a nie `172.x`.
    - Gdyby Funnel nie przekazywał prawdziwego IP, limity byłyby wspólne dla wszystkich. Atakujący mógłby wtedy na 15 min zablokować logowanie konektora (ale nie dostęp do danych).
-3. **Otwarta rejestracja klientów (DCR).** Wymaga jej claude.ai. Rejestracja niczego nie daje bez kodu CG, a ograniczają ją limity z T6.
-4. **Limity w pamięci procesu** (rate limit, blokada IP, oczekujące logowania) zerują się po restarcie kontenera. To akceptowalne przy jednym procesie i jednym serwerze.
-5. **Kontener `tailscale`** działa jako root w trybie userspace, bez `NET_ADMIN`. Nie ma `read_only` ani `cap_drop`, bo nie było to testowane, a awaria oznacza brak tunelu. Do ponownej oceny po teście na laptopie.
-6. **Wykrycie ponownego użycia refresh tokenu** odwołuje cały grant, także przy legalnym retry claude.ai po zerwanym połączeniu. Objaw: Claude prosi o ponowne połączenie konektora. Naprawa: połączyć ponownie.
-7. **Baza danych nie jest szyfrowana w spoczynku** (poza tokenami Garmina). Zalecenie dla Tomka: BitLocker na laptopie (bezpłatny w Windows Pro; w Windows Home „Szyfrowanie urządzenia”, jeśli sprzęt je obsługuje).
-8. **`/health` jest publiczne** i zwraca wersję serwera. Wersja jest i tak jawna w publicznym repo.
-9. **CodeQL obejmuje tylko Pythona.** Analiza Kotlina wymaga builda Androida w CI. Do rozważenia po ustabilizowaniu `ci-android`. Do tego czasu Android ma lint i review.
-10. **Akcje GitHub przypięte tagiem** (`@v4`), nie SHA. Ryzyko ograniczają minimalne `permissions` i brak `pull_request_target`. Dependabot aktualizuje akcje.
+3. **Plan B: ngrok (profil `ngrok`, domyślnie wyłączony).** Inaczej niż Funnel, ngrok kończy TLS na swoich serwerach, więc firma ngrok technicznie widzi ruch w postaci jawnej: tokeny konektora (`cga_`, tokeny OAuth) i dane treningowe zwracane przez `/mcp` i `/api/v1/`. Hasło Garmina przez tunel nie idzie (logowanie do Garmina jest tylko lokalne). Używamy ngrok tylko, gdy Funnel nie działa, i wracamy na Funnel, gdy zacznie. ngrok dopisuje adres klienta na końcu `X-Forwarded-For`, więc reguła „skrajnie prawy niezaufany adres” nadal daje prawdziwe IP. Ścieżki ogranicza `ops/ngrok/policy.yml` (te same co `serve.json`).
+4. **Otwarta rejestracja klientów (DCR).** Wymaga jej claude.ai. Rejestracja niczego nie daje bez kodu CG, a ograniczają ją limity z T6.
+5. **Limity w pamięci procesu** (rate limit, blokada IP, oczekujące logowania) zerują się po restarcie kontenera. To akceptowalne przy jednym procesie i jednym serwerze.
+6. **Kontener `tailscale`** działa jako root w trybie userspace, bez `NET_ADMIN`. Nie ma `read_only` ani `cap_drop`, bo nie było to testowane, a awaria oznacza brak tunelu. Do ponownej oceny po teście na laptopie.
+7. **Wykrycie ponownego użycia refresh tokenu** odwołuje cały grant, także przy legalnym retry claude.ai po zerwanym połączeniu. Objaw: Claude prosi o ponowne połączenie konektora. Naprawa: połączyć ponownie.
+8. **Baza danych nie jest szyfrowana w spoczynku** (poza tokenami Garmina). Zalecenie dla Tomka: BitLocker na laptopie (bezpłatny w Windows Pro; w Windows Home „Szyfrowanie urządzenia”, jeśli sprzęt je obsługuje).
+9. **`/health` jest publiczne** i zwraca wersję serwera. Wersja jest i tak jawna w publicznym repo.
+10. **CodeQL obejmuje tylko Pythona.** Analiza Kotlina wymaga builda Androida w CI. Do rozważenia po ustabilizowaniu `ci-android`. Do tego czasu Android ma lint i review.
+11. **Akcje GitHub przypięte tagiem** (`@v4`), nie SHA. Ryzyko ograniczają minimalne `permissions` i brak `pull_request_target`. Dependabot aktualizuje akcje.
 
 ## 6. Incydent: co robić
 

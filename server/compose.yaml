@@ -1,4 +1,4 @@
-# CG-connector: serwer + tunel Tailscale Funnel (ADR-0002).
+# CG-connector: serwer + tunel Tailscale Funnel (ADR-0002) albo, awaryjnie, ngrok.
 # Uruchamianie: w katalogu server/  ->  docker compose up -d --build
 # Sekrety tylko w server/.env (wzór: .env.example). Nigdy w tym pliku.
 name: cg-connector
@@ -22,6 +22,7 @@ services:
       # Klucz Tailscale jest tylko dla kontenera tailscale; nadpisujemy go pustym,
       # żeby nie trafił do środowiska serwera (env_file wczytuje cały .env).
       TS_AUTHKEY: ""
+      NGROK_AUTHTOKEN: ""
     volumes:
       - ${CG_HOST_DATA_DIR:-./data}:/data
     # Port tylko na 127.0.0.1 (lokalny podgląd /health, status.ps1).
@@ -56,5 +57,36 @@ services:
       - ${CG_HOST_TS_DIR:-./tailscale-state}:/var/lib/tailscale
       # Montujemy katalog (nie plik), żeby zmiany serve.json były widoczne bez restartu.
       - ../ops/tailscale:/config:ro
+    depends_on:
+      - cg-server
+
+  # Plan B tunelu (ADR-0002, docs/instalacja-serwera.md "Plan B: ngrok").
+  # Startuje TYLKO z profilem ngrok: w .env ustaw COMPOSE_PROFILES=ngrok.
+  # Darmowy plan ngrok: jedna stała domena *.ngrok-free.app, 20 000 żądań/mies.
+  ngrok:
+    profiles: ["ngrok"]
+    # Przypięty digestem; aktualizuje go Dependabot (ekosystem docker-compose).
+    image: ngrok/ngrok:3.39.13-debian@sha256:ff3b5c3674432d14a786349908b7bdf28ee56c25662637afcbe7180d471993ef
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}   # z .env, nigdy w tym pliku
+      HOME: /tmp                              # system plików tylko do odczytu
+    # Ten sam adres co CG_PUBLIC_HOST. Polityka ruchu przepuszcza tylko te ścieżki,
+    # które Funnel wystawia w ops/tailscale/serve.json; reszta dostaje 404.
+    command:
+      - http
+      - cg-server:8000
+      - --url=https://${CG_PUBLIC_HOST:-brak-CG_PUBLIC_HOST}
+      - --traffic-policy-file=/config/policy.yml
+      - --log=stdout
+    volumes:
+      - ../ops/ngrok:/config:ro
     depends_on:
       - cg-server
