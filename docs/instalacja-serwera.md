@@ -199,13 +199,13 @@ wsl --shutdown
 
 ### 9b. Zadanie w Harmonogramie zadań
 
-W **Ubuntu** wygeneruj gotowe polecenie z właściwą ścieżką:
+W **PowerShell** (zwykłym, nie „jako administrator”) wklej:
 
-```bash
-echo "powershell -ExecutionPolicy Bypass -File \"$(wslpath -w ~/cg-connector/ops/windows/install-autostart.ps1)\""
+```powershell
+powershell -ExecutionPolicy Bypass -File (wsl.exe -e bash -lc 'wslpath -w ~/cg-connector/ops/windows/install-autostart.ps1')
 ```
 
-Skopiuj wypisaną linię (zaczyna się od `powershell -ExecutionPolicy Bypass -File "\\wsl.localhost\…`) i wklej w **PowerShell** (zwykłym). Oczekiwany wynik:
+Oczekiwany wynik:
 
 ```
 Dystrybucja WSL: Ubuntu
@@ -220,17 +220,17 @@ Jeśli po wybudzeniu Windows nie prosi o hasło/PIN (wznowienie bez blokady ekra
 
 ### 9c. Sprawdzenie
 
-Wygeneruj polecenie tak samo jak wyżej, ale dla `status.ps1`:
+W **PowerShell**:
 
-```bash
-echo "powershell -ExecutionPolicy Bypass -File \"$(wslpath -w ~/cg-connector/ops/windows/status.ps1)\""
+```powershell
+powershell -ExecutionPolicy Bypass -File (wsl.exe -e bash -lc 'wslpath -w ~/cg-connector/ops/windows/status.ps1')
 ```
 
-Wklej wypisaną linię w PowerShell. Oczekiwany wynik: same `[OK]` (WSL, Docker, kontenery `cg-server` i `tailscale`, `/health`, tunel, autostart) i na końcu `Wszystko dziala.`
+Oczekiwany wynik: same `[OK]` (WSL, Docker, kontenery `cg-server` i `tailscale`, `/health`, tunel, autostart) i na końcu `Wszystko dziala.`
 
 Ostateczny test: uruchom ponownie Windows, zaloguj się, **nie otwieraj Ubuntu**, odczekaj ok. 2 minuty i sprawdź adres `/health` z telefonu (krok 8).
 
-Aby wyłączyć autostart, uruchom w ten sam sposób `uninstall-autostart.ps1` (serwer i dane zostają nietknięte).
+Aby wyłączyć autostart, uruchom tak samo `uninstall-autostart.ps1` (zamiast `status.ps1`) (serwer i dane zostają nietknięte).
 
 ## Krok 10. Codzienna kopia zapasowa
 
