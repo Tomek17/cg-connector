@@ -186,12 +186,10 @@ Oczekiwany wynik: `{"status":"ok","version":"…"}` i kłódka przy adresie (pop
 Domyślnie WSL wyłącza Ubuntu kilkanaście sekund po zamknięciu ostatniego okna terminala — razem z serwerem. W PowerShell:
 
 ```powershell
-if (Test-Path "$env:USERPROFILE\.wslconfig") { notepad "$env:USERPROFILE\.wslconfig" } else { wsl.exe -d Ubuntu --exec bash -lc 'cat ~/cg-connector/ops/windows/wslconfig.example' | Set-Content -Encoding ascii "$env:USERPROFILE\.wslconfig"; Get-Content "$env:USERPROFILE\.wslconfig" | Select-String '=' }
+if ((Test-Path "$env:USERPROFILE\.wslconfig") -and (Get-Content "$env:USERPROFILE\.wslconfig" | Select-String '\S')) { notepad "$env:USERPROFILE\.wslconfig" } else { "[general]`ninstanceIdleTimeout=-1`n`n[wsl2]`nvmIdleTimeout=-1" | Set-Content -Encoding ascii "$env:USERPROFILE\.wslconfig"; Get-Content "$env:USERPROFILE\.wslconfig" | Select-String '=' }
 ```
 
 Oczekiwany wynik: `instanceIdleTimeout=-1` i `vmIdleTimeout=-1`. Jeśli zamiast tego otworzył się Notatnik, masz już własny `.wslconfig` — dopisz w nim te dwie linie we właściwych sekcjach (wzór: `ops/windows/wslconfig.example`), zapisz i zamknij.
-
-> Jeśli Twoja dystrybucja nazywa się inaczej niż `Ubuntu` (sprawdź: `wsl -l -v`), zamień `Ubuntu` w poleceniu na tę nazwę, np. `Ubuntu-24.04`.
 
 Następnie (zamknie wszystkie okna Ubuntu i serwer na chwilę):
 
