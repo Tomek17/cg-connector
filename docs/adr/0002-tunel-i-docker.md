@@ -24,3 +24,8 @@ Serwer działa na laptopie (Windows + WSL), który zmienia sieci i bywa uśpiony
 - Adres się nie zmienia przy zmianie sieci; po wybudzeniu tunel odnawia się sam.
 - Serwer MCP musi mieć `allowed_hosts` z adresem `*.ts.net`.
 - Migracja na PC w Łomży = przeniesienie folderu z danymi, `.env` i stanu Tailscale.
+
+## Aktualizacja 2026-11-19: ngrok jako plan B
+
+Na laptopie Tomka Funnel działał lokalnie, ale Tailscale nie opublikował publicznego wpisu DNS (`…ts.net` → NXDOMAIN po kilku godzinach). To znany, nienaprawiony błąd Tailscale (tailscale/tailscale#21698, #21847, #21502), bez obejścia po naszej stronie. Dodaliśmy opcjonalny kontener `ngrok` (profil Compose `ngrok`, domyślnie wyłączony): darmowa, stała domena `*.ngrok-free.app`, te same ścieżki co Funnel (`ops/ngrok/policy.yml`), token tylko w `.env`. Tailscale Funnel zostaje domyślnym tunelem. Koszty ngrok free: limit 20 000 żądań/mies. i strona ostrzeżenia ngrok przy pierwszym wejściu z przeglądarki.
+

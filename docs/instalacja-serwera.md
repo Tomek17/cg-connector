@@ -316,6 +316,26 @@ Oczekiwany wynik: `tailscale funnel status` pokazuje ten sam adres co wcześniej
 
 ---
 
+## Plan B: ngrok (gdy Funnel nie działa)
+
+Używaj tylko wtedy, gdy adres `…ts.net` nie działa z internetu (patrz P3, punkt 5). ngrok w darmowym planie daje jedną **stałą** domenę `…ngrok-free.app` (nie zmienia się po restarcie), 20 000 żądań i 1 GB transferu miesięcznie, co dla dwóch osób wystarczy z zapasem. Kontener ngrok przepuszcza tylko te same ścieżki co Funnel (`ops/ngrok/policy.yml`). Tailscale może dalej działać obok, nie przeszkadza.
+
+1. Załóż darmowe konto na <https://dashboard.ngrok.com/signup>.
+2. W panelu ngrok otwórz **Domains** i skopiuj swoją darmową domenę (np. `abc-def.ngrok-free.app`). Jeśli lista jest pusta, kliknij **New Domain** / **Create Domain**.
+3. W panelu ngrok otwórz **Your Authtoken** i skopiuj token. To sekret: wklejasz go tylko do pliku `.env` na laptopie, nigdzie indziej (ani do czatu).
+4. W Ubuntu otwórz `.env`: `nano ~/cg-connector/server/.env` i ustaw:
+   ```
+   COMPOSE_PROFILES=ngrok
+   NGROK_AUTHTOKEN=<token z punktu 3>
+   CG_PUBLIC_HOST=<domena z punktu 2, bez https://>
+   ```
+   Zapisz: `Ctrl+O`, `Enter`, `Ctrl+X`. (Brak tych linii w starszym `.env`? Dopisz je na końcu.)
+5. W Ubuntu: `cd ~/cg-connector/server && docker compose up -d && docker compose logs --tail 20 ngrok`. W logu powinno być `started tunnel` z Twoją domeną.
+6. Z telefonu (dane komórkowe) otwórz `https://<domena>/health`. Za pierwszym razem ngrok pokaże stronę z ostrzeżeniem „You are about to visit…”: kliknij **Visit Site**. Powinieneś zobaczyć `{"status":"ok"}`. Ta strona ngrok pojawia się tylko w przeglądarce (raz na 7 dni); Claude i aplikacja jej nie widzą.
+7. Adres konektora w claude.ai to od teraz `https://<domena>/mcp`. Przy logowaniu konektora (strona z kodem CG) też możesz zobaczyć ostrzeżenie ngrok: kliknij **Visit Site**.
+
+Powrót na Tailscale, gdy Funnel zacznie działać: w `.env` wyczyść `COMPOSE_PROFILES=`, przywróć `CG_PUBLIC_HOST=cg-server.<tailnet>.ts.net`, potem `docker compose up -d --remove-orphans`, a w claude.ai usuń i dodaj konektor z nowym adresem.
+
 ## Rozwiązywanie problemów
 
 Pierwszy krok zawsze: `status.ps1` (krok 9c) oraz logi:
@@ -350,6 +370,7 @@ Sprawdź też, czy w `.env` jest pełna ścieżka: `grep CG_HOST_DATA_DIR ~/cg-c
 2. Nowy adres bywa widoczny w internecie dopiero po ok. 10 minutach — odczekaj.
 3. Upewnij się, że telefon nie jest w tej samej sieci Wi-Fi co laptop (test ma iść przez dane komórkowe).
 4. Niektóre sieci firmowe/hotelowe blokują Tailscale — sprawdź z innej sieci (np. hotspot z telefonu dla laptopa).
+5. Jeśli po godzinie `Resolve-DnsName cg-server.<tailnet>.ts.net -Server 8.8.8.8` (w PowerShell) zwraca tylko `SOA` bez adresu IP, Tailscale nie opublikował wpisu DNS. To znany błąd po stronie Tailscale ([#21698](https://github.com/tailscale/tailscale/issues/21698), [#21847](https://github.com/tailscale/tailscale/issues/21847)). Spróbuj raz `docker compose exec tailscale tailscale funnel reset && docker compose restart tailscale` i odczekaj 10 minut. Jeśli nie pomoże, zgłoś to do wsparcia Tailscale (identyfikator z `docker compose exec tailscale tailscale bugreport`) i przejdź na [Plan B: ngrok](#plan-b-ngrok-gdy-funnel-nie-działa).
 
 ### P4. W panelu Tailscale pojawia się `cg-server-1` albo kontener `tailscale` pisze o nieprawidłowym kluczu (`invalid key`, `expired`)
 

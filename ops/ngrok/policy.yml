@@ -1,0 +1,29 @@
+# Polityka ruchu ngrok (plan B tunelu). Wystawia DOKŁADNIE te same ścieżki co
+# ops/tailscale/serve.json; wszystko inne dostaje 404 i nie dociera do serwera.
+# Zmieniasz listę ścieżek? Zmień ją w obu plikach.
+on_http_request:
+  - expressions:
+      - >-
+        !(
+          req.url.path in [
+            '/health',
+            '/mcp',
+            '/.well-known/oauth-authorization-server',
+            '/.well-known/oauth-protected-resource',
+            '/authorize',
+            '/token',
+            '/register',
+            '/revoke'
+          ]
+          || req.url.path.startsWith('/mcp/')
+          || req.url.path.startsWith('/api/v1/')
+          || req.url.path.startsWith('/.well-known/oauth-protected-resource/')
+          || req.url.path.startsWith('/.well-known/oauth-authorization-server/')
+        )
+    actions:
+      - type: custom-response
+        config:
+          status_code: 404
+          body: "404 Not Found"
+          headers:
+            content-type: text/plain
