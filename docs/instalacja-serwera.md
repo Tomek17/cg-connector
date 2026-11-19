@@ -21,6 +21,18 @@ Czas: ok. 30–45 minut (najdłużej trwa pierwsze budowanie obrazu).
 
    Oczekiwany wynik: między innymi linia `Hello from Docker!`. Jeśli widzisz `permission denied`, zobacz problem [P1](#p1-permission-denied-przy-poleceniu-docker).
 
+   Sprawdź też dodatek Compose:
+
+   ```bash
+   docker compose version
+   ```
+
+   Oczekiwany wynik: `Docker Compose version v2.…`. Jeśli zamiast tego widzisz `unknown flag` albo `'compose' is not a docker command`, doinstaluj go:
+
+   ```bash
+   sudo apt-get update && (sudo apt-get install -y docker-compose-plugin || sudo apt-get install -y docker-compose-v2) && docker compose version
+   ```
+
 2. **Konto Tailscale** (plan Personal, darmowy) z włączonymi w panelu <https://login.tailscale.com/admin>:
    - **DNS → MagicDNS** oraz **HTTPS Certificates** (Enable HTTPS),
    - **Access controls → Funnel** dodany do polityki (przycisk *Add Funnel to policy*, potem *Save*).
