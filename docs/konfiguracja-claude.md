@@ -8,7 +8,7 @@ Każda osoba podłącza konektor **na swoim koncie Claude** i loguje się **swoi
 
 ## Co jest potrzebne
 
-1. **Działający serwer** z publicznym adresem `https://<nazwa>.ts.net` (np. `https://cg-server.twoj-tailnet.ts.net`). Instalacja: [instalacja-serwera.md](instalacja-serwera.md).
+1. **Działający serwer** z publicznym adresem `https://<nazwa>.ts.net` (np. `https://cg-server.twoj-tailnet.ts.net`) albo, przy planie B, `https://<domena>.ngrok-free.dev`. Instalacja: [instalacja-serwera.md](instalacja-serwera.md).
 2. **Użytkownik na serwerze**, zalogowany do Garmin Connect i z co najmniej jedną synchronizacją (patrz [niżej](#przygotowanie-użytkownika-na-serwerze-robi-tomek)).
 3. **Osobisty kod CG** (zaczyna się od `cgc_`). Generuje go Tomek poleceniem `cg-server user-code`.
 4. **Konto Claude** (wystarczy darmowe) i przeglądarka na komputerze lub telefonie.
@@ -65,17 +65,17 @@ docker compose exec cg-server cg-server sync-status
 ## Dodanie konektora w claude.ai
 
 1. Otwórz <https://claude.ai> i zaloguj się na **swoje** konto.
-2. Wejdź w **Ustawienia → Konektory** i kliknij **Dodaj własny konektor**. W angielskim interfejsie dokumentacja Anthropic opisuje to jako **Customize → Connectors → Add custom connector**. ⚠️ *do potwierdzenia w teście (dokładna ścieżka menu na koncie Free).*
+2. Wejdź na <https://claude.ai/customize/connectors> (w menu: **Customize → Connectors**; to **nie** jest w Ustawieniach). Kliknij **+ Add**, potem **Add custom connector**. (Sprawdzone na żywo 2026-11-21.)
 3. Wypełnij:
    - **Nazwa:** `CG-connector`
-   - **Adres URL:** `https://<nazwa>.ts.net/mcp`, np. `https://cg-server.twoj-tailnet.ts.net/mcp`. Na końcu musi być **`/mcp`**.
-   - **OAuth Client ID / Client Secret** (jeśli są w „Ustawieniach zaawansowanych”): **zostaw puste**. Claude zarejestruje się na serwerze sam (dynamiczna rejestracja klienta). ⚠️ *do potwierdzenia w teście.*
-4. Kliknij **Dodaj**, a potem **Połącz** (Connect). ⚠️ *do potwierdzenia w teście (nazwy przycisków).*
+   - **Adres URL:** `https://<adres serwera>/mcp`, np. `https://cg-server.twoj-tailnet.ts.net/mcp` albo przy planie B `https://<domena>.ngrok-free.dev/mcp`. Na końcu musi być **`/mcp`**.
+   - Jeśli pojawią się opcje: **Authentication** → **Sign in now**, **OAuth client** → **Register automatically** (nie „Use Claude's published identity”), **Request headers** puste.
+4. Kliknij **Add**, potem **Connect**. Przy planie B (ngrok) najpierw może pojawić się strona ostrzeżenia ngrok: kliknij **Visit Site**.
 5. Otworzy się strona **CG-connector** z serwera z napisem „Aplikacja „…” chce połączyć się z Twoimi danymi z Garmin Connect” i adresem powrotu (`claude.ai` albo `claude.com`). Sprawdź, że adres powrotu to jeden z nich.
 6. W polu **„Wklej swój kod CG-connector”** wklej kod `cgc_…` i kliknij **Połącz z Claude**.
 7. Wrócisz do claude.ai, a konektor będzie oznaczony jako połączony.
 8. W nowej rozmowie włącz konektor: przycisk **„+”** (lub ikona narzędzi) → **Konektory** → włącz **CG-connector**. ⚠️ *do potwierdzenia w teście.*
-9. Sprawdzenie: zapytaj „Kim jestem w CG-connector i kiedy była ostatnia synchronizacja?”. Claude powinien wywołać `get_profile` i podać Twoją nazwę użytkownika oraz datę ostatniego syncu.
+9. Sprawdzenie (działa, test na żywo 2026-11-21): zapytaj „Kim jestem w CG-connector i kiedy była ostatnia synchronizacja?”. Claude powinien wywołać `get_profile` i podać Twoją nazwę użytkownika oraz datę ostatniego syncu.
 
 ### Jak działa logowanie (dla ciekawych)
 
