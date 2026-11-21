@@ -70,14 +70,12 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
+    # Bez read_only: skrypt startowy obrazu zapisuje token do
+    # /var/lib/ngrok/auth-config.yml (z read_only kontener się restartował).
     cap_drop:
       - ALL
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}   # z .env, nigdy w tym pliku
-      HOME: /tmp                              # system plików tylko do odczytu
     # Ten sam adres co CG_PUBLIC_HOST. Polityka ruchu przepuszcza tylko te ścieżki,
     # które Funnel wystawia w ops/tailscale/serve.json; reszta dostaje 404.
     command:
