@@ -1,6 +1,7 @@
 # Polityka ruchu ngrok (plan B tunelu). Wystawia DOKŁADNIE te same ścieżki co
 # ops/tailscale/serve.json; wszystko inne dostaje 404 i nie dociera do serwera.
-# Zmieniasz listę ścieżek? Zmień ją w obu plikach.
+# Lista musi odpowiadać PUBLIC_PATHS w server/src/cg_server/security.py.
+# Zmieniasz listę ścieżek? Zmień ją w obu plikach (i w security.py).
 on_http_request:
   - expressions:
       - >-
@@ -11,6 +12,7 @@ on_http_request:
             '/.well-known/oauth-authorization-server',
             '/.well-known/oauth-protected-resource',
             '/authorize',
+            '/authorize/login',
             '/token',
             '/register',
             '/revoke'
