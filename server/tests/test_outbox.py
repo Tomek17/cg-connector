@@ -320,7 +320,7 @@ def test_429_stops_and_pauses_like_sync(session: Session, settings: Settings) ->
     # During the 24 h pause nothing goes to Garmin.
     fake.on_call = None
     fake.calls.clear()
-    later = datetime.now(UTC) + timedelta(hours=1)
+    later = NOW + timedelta(hours=1)
     assert run(session, settings, fake, now=later).skipped == "rate_limited"
     assert fake.calls == []
 
@@ -403,8 +403,10 @@ def test_shares_the_sync_lock(session: Session, settings: Settings) -> None:
 def test_runner_sends_for_all_users_and_survives_errors(
     sessions: sessionmaker[Session], settings: Settings, tmp_path: Path
 ) -> None:
+    # The runner uses the real clock, so the workout day must be in the real future.
+    day = date.today() + timedelta(days=2)
     with sessions() as session:
-        mine, theirs = schedule(session), schedule(session, "brat")
+        mine, theirs = schedule(session, day=day), schedule(session, "brat", day=day)
     fakes: list[FakeGarminGateway] = []
 
     def factory() -> FakeGarminGateway:
