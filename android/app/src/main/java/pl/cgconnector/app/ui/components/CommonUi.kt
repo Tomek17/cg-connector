@@ -20,7 +20,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.ActivityType
+import pl.cgconnector.app.domain.workout.WorkoutSport
 import pl.cgconnector.app.ui.theme.StatusTone
+import pl.cgconnector.app.ui.theme.sportColors
 import pl.cgconnector.app.ui.theme.successColor
 import pl.cgconnector.app.ui.theme.toneColors
 
@@ -64,18 +66,28 @@ fun ActivityType.iconRes(): Int =
         ActivityType.OTHER -> R.drawable.ic_type_other
     }
 
+/** Rodzaj zaplanowanego treningu → typ aktywności (ikona i kolor); bouldering to wspinaczka. */
+fun WorkoutSport.activityType(): ActivityType =
+    when (this) {
+        WorkoutSport.RUNNING -> ActivityType.RUNNING
+        WorkoutSport.STRENGTH -> ActivityType.STRENGTH
+        WorkoutSport.BOULDERING -> ActivityType.CLIMBING
+        WorkoutSport.OTHER -> ActivityType.OTHER
+    }
+
 /** Ikona typu treningu w kółku; opis pomija się, bo nazwa typu stoi obok w tekście. */
 @Composable
 fun ActivityTypeIcon(
     type: ActivityType,
     modifier: Modifier = Modifier,
 ) {
-    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = modifier.size(40.dp)) {
+    val colors = sportColors(type)
+    Surface(shape = CircleShape, color = colors.container, modifier = modifier.size(40.dp)) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 painterResource(type.iconRes()),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                tint = colors.content,
                 modifier = Modifier.size(22.dp),
             )
         }
