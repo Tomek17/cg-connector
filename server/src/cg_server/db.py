@@ -1,10 +1,14 @@
 """SQLite database: engine, Alembic migrations, sessions."""
 
+import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from alembic import command
 from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -32,9 +36,37 @@ def create_db_engine(settings: Settings) -> Engine:
     return engine
 
 
+def backup_before_migration(engine: Engine, config: Config) -> Path | None:
+    """Copy the database next to the daily backups before a schema change.
+
+    Only when the database already has data at an older revision; the copy goes to
+    `<data_dir>/backups/przed-aktualizacja-<revision>-<time>/cg.sqlite` (the daily backup
+    rotation leaves such folders alone). Restoring: docs/instalacja-serwera.md."""
+    path = engine.url.database
+    if not path or path == ":memory:":
+        return None
+    with engine.connect() as conn:
+        current = MigrationContext.configure(conn).get_current_revision()
+    if current is None or current == ScriptDirectory.from_config(config).get_current_head():
+        return None
+    stamp = datetime.now(UTC).strftime("%Y-%m-%d_%H%M%S")
+    target = Path(path).parent / "backups" / f"przed-aktualizacja-{current}-{stamp}"
+    target.mkdir(mode=0o700, parents=True, exist_ok=True)
+    copy = target / "cg.sqlite"
+    src, dst = sqlite3.connect(path), sqlite3.connect(copy)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    copy.chmod(0o600)
+    return copy
+
+
 def upgrade_db(engine: Engine) -> None:
     config = Config()
     config.set_main_option("script_location", MIGRATIONS)
+    backup_before_migration(engine, config)
     with engine.begin() as conn:
         config.attributes["connection"] = conn
         command.upgrade(config, "head")
