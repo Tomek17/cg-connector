@@ -73,7 +73,7 @@ val SHORT_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Fo
 
 /** Wskaźnik ładowania albo błąd z przyciskiem „Spróbuj ponownie”; `true` = jest co pokazać na ekranie. */
 @Composable
-fun LoadState(
+fun readyOrStatus(
     isLoading: Boolean,
     error: LoadError?,
     onRetry: () -> Unit,

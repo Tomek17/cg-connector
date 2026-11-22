@@ -67,7 +67,7 @@ fun ProgressScreen(
             item {
                 val error = state.error
                 if (error != null) {
-                    LoadState(isLoading = false, error = error, onRetry = onRetry, modifier = Modifier.padding(top = 8.dp))
+                    readyOrStatus(isLoading = false, error = error, onRetry = onRetry, modifier = Modifier.padding(top = 8.dp))
                 } else {
                     Text(
                         stringResource(R.string.progress_hint),
@@ -108,7 +108,7 @@ fun ProgressCategoryScreen(
             )
         },
     ) { padding ->
-        if (!LoadState(state.isLoading, state.error, onRetry, Modifier.padding(padding))) return@Scaffold
+        if (!readyOrStatus(state.isLoading, state.error, onRetry, Modifier.padding(padding))) return@Scaffold
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),

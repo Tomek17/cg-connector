@@ -64,7 +64,7 @@ fun TagProgressScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { BackIconButton(onClick = onBack) }) },
     ) { padding ->
-        if (!LoadState(state.isLoading, state.error, onRetry, Modifier.padding(padding))) return@Scaffold
+        if (!readyOrStatus(state.isLoading, state.error, onRetry, Modifier.padding(padding))) return@Scaffold
         val progress = state.progress
         val tag = state.tag
         LazyColumn(
