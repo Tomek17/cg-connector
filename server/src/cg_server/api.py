@@ -178,7 +178,7 @@ class ActivityDetail(ActivitySummary):
 
 
 class TagUpdate(BaseModel):
-    tag: str | None = Field(description="Klucz tagu albo null, żeby usunąć")
+    tag: str | None = Field(default=None, description="Klucz tagu; null albo brak pola usuwa tag")
 
 
 class TagCountOut(BaseModel):

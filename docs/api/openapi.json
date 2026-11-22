@@ -2449,13 +2449,10 @@
               }
             ],
             "title": "Tag",
-            "description": "Klucz tagu albo null, żeby usunąć"
+            "description": "Klucz tagu; null albo brak pola usuwa tag"
           }
         },
         "type": "object",
-        "required": [
-          "tag"
-        ],
         "title": "TagUpdate"
       },
       "ValidationError": {

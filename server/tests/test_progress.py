@@ -95,6 +95,12 @@ def test_tag_must_match_activity_type(client: TestClient, token: str) -> None:
     assert put_tag(client, token, 1, "sprint").status_code == 422
     assert put_tag(client, token, 9, "base").status_code == 404  # another user's activity
     assert put_tag(client, token, 1, None).json()["tag"] is None
+    put_tag(client, token, 1, "tempo")
+    # The app's JSON leaves null fields out: an empty body clears the tag too.
+    cleared = client.put(
+        "/api/v1/activities/1/tag", json={}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert cleared.json()["tag"] is None
 
 
 def test_running_progress_uses_work_laps_only(client: TestClient, token: str) -> None:

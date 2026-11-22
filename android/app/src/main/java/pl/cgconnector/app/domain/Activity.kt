@@ -22,4 +22,5 @@ data class Activity(
     val aerobicTrainingEffect: Double? = null,
     val anaerobicTrainingEffect: Double? = null,
     val trainingLoad: Double? = null,
+    val tag: ActivityTag? = null,
 )

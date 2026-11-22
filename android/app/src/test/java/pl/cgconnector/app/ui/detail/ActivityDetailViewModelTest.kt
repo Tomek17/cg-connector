@@ -10,10 +10,14 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import pl.cgconnector.app.data.repository.Loaded
 import pl.cgconnector.app.data.repository.RefreshResult
 import pl.cgconnector.app.domain.ActivityDetail
+import pl.cgconnector.app.domain.ActivityTag
+import pl.cgconnector.app.domain.LoadError
 import pl.cgconnector.app.domain.Lap
 import pl.cgconnector.app.testing.FakeActivityRepository
+import pl.cgconnector.app.testing.FakeProgressRepository
 import pl.cgconnector.app.testing.MainDispatcherRule
 import pl.cgconnector.app.testing.testActivity
 import java.time.Clock
@@ -50,7 +54,7 @@ class ActivityDetailViewModelTest {
             repo.details.value = mapOf(1L to detail(fetched = false))
             repo.onDetailFetched = { id -> repo.details.value = mapOf(id to detail(fetched = true)) }
 
-            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            val viewModel = ActivityDetailViewModel(handle, repo, FakeProgressRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(repo.detailRequests).containsExactly(1L)
@@ -67,7 +71,7 @@ class ActivityDetailViewModelTest {
             val repo = FakeActivityRepository()
             repo.details.value = mapOf(1L to detail(fetched = true))
 
-            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            val viewModel = ActivityDetailViewModel(handle, repo, FakeProgressRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(repo.detailRequests).isEmpty()
@@ -80,7 +84,7 @@ class ActivityDetailViewModelTest {
             val repo = FakeActivityRepository(detailResult = RefreshResult.Unavailable)
             repo.details.value = mapOf(1L to detail(fetched = false))
 
-            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            val viewModel = ActivityDetailViewModel(handle, repo, FakeProgressRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.error).isEqualTo(DetailError.OFFLINE)
@@ -99,7 +103,7 @@ class ActivityDetailViewModelTest {
             val repo = FakeActivityRepository(detailResult = RefreshResult.Unauthorized)
             repo.details.value = mapOf(1L to detail(fetched = false))
 
-            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            val viewModel = ActivityDetailViewModel(handle, repo, FakeProgressRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.error).isEqualTo(DetailError.UNAUTHORIZED)
@@ -110,7 +114,7 @@ class ActivityDetailViewModelTest {
         runTest {
             val repo = FakeActivityRepository(detailResult = RefreshResult.InvalidResponse)
 
-            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            val viewModel = ActivityDetailViewModel(handle, repo, FakeProgressRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(viewModel.uiState.value.isLoading).isFalse()
@@ -139,7 +143,7 @@ class ActivityDetailViewModelTest {
             repo.details.value =
                 mapOf(1L to detail(fetched = true).copy(detailsAvailable = false, detailsFetchedAt = now.minus(Duration.ofHours(30))))
 
-            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            val viewModel = ActivityDetailViewModel(handle, repo, FakeProgressRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertThat(repo.detailRequests).containsExactly(1L)
@@ -151,12 +155,31 @@ class ActivityDetailViewModelTest {
             val repo = FakeActivityRepository()
             repo.details.value = mapOf(1L to detail(fetched = true))
             repo.onDetailFetched = { throw IllegalStateException("boom") }
-            val viewModel = ActivityDetailViewModel(handle, repo, clock)
+            val viewModel = ActivityDetailViewModel(handle, repo, FakeProgressRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             val failure = runCatching { viewModel.fetch() }
 
             assertThat(failure.isFailure).isTrue()
             assertThat(viewModel.uiState.value.isFetching).isFalse()
+        }
+
+    @Test
+    fun `tag change is saved and failure is shown`() =
+        runTest {
+            val repo = FakeActivityRepository()
+            repo.details.value = mapOf(1L to detail(fetched = true))
+            val progress = FakeProgressRepository()
+            val viewModel = ActivityDetailViewModel(handle, repo, progress, clock)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            viewModel.setTag(ActivityTag.INTERVALS)
+            assertThat(progress.savedTags).containsExactly(1L to ActivityTag.INTERVALS)
+            assertThat(viewModel.uiState.value.isSavingTag).isFalse()
+            assertThat(viewModel.uiState.value.tagError).isNull()
+
+            progress.setTagResult = Loaded.Failed(LoadError.OFFLINE)
+            viewModel.setTag(null)
+            assertThat(viewModel.uiState.value.tagError).isEqualTo(LoadError.OFFLINE)
         }
 }

@@ -49,6 +49,15 @@ class ApiActivityRemoteDataSourceTest {
         ): ScheduledListDto = error("unused")
 
         override suspend fun deleteScheduled(scheduledId: Long): ScheduledOutDto = error("unused")
+
+        override suspend fun setActivityTag(
+            id: Long,
+            body: TagUpdateDto,
+        ): ActivityDto = error("unused")
+
+        override suspend fun progressTags(): ProgressTagsDto = error("unused")
+
+        override suspend fun tagProgress(tag: String): TagProgressDto = error("unused")
     }
 
     private fun dto(

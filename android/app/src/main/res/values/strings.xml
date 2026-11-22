@@ -307,4 +307,62 @@
     <string name="problem_minutes">czas od 1 do 600 minut</string>
     <string name="problem_date_past">Data nie może być w przeszłości</string>
     <string name="problem_date_far">Można planować najwyżej 365 dni naprzód</string>
+
+    <!-- Tagi aktywności i zakładka Progress -->
+    <string name="nav_progress">Progress</string>
+    <string name="progress_title">Progress</string>
+    <string name="progress_category_strength">Siłownia</string>
+    <string name="progress_category_running">Bieganie</string>
+    <string name="progress_category_climbing">Ścianka wspinaczkowa</string>
+    <plurals name="progress_activities_count">
+        <item quantity="one">%1$d aktywność</item>
+        <item quantity="few">%1$d aktywności</item>
+        <item quantity="many">%1$d aktywności</item>
+        <item quantity="other">%1$d aktywności</item>
+    </plurals>
+    <string name="progress_tag_last">%1$s · ostatnio %2$s</string>
+    <string name="progress_tag_none">Brak aktywności z tym tagiem</string>
+    <string name="progress_hint">Tagi nadaje Claude w czacie albo Ty w szczegółach treningu.</string>
+    <string name="progress_empty_tag">Nie ma jeszcze aktywności z tym tagiem. Poproś Claude o otagowanie treningów albo ustaw tag w szczegółach treningu.</string>
+    <string name="progress_offline">Serwer niedostępny. Wykresy pobierają się prosto z serwera, spróbuj, gdy będzie online.</string>
+    <string name="progress_retry">Spróbuj ponownie</string>
+    <string name="progress_chart_pace">Tempo (min/km)</string>
+    <string name="progress_chart_hr">Średnie tętno (bpm)</string>
+    <string name="progress_chart_cadence">Kadencja (kroki/min)</string>
+    <string name="progress_chart_distance">Dystans (km)</string>
+    <string name="progress_chart_weight">Ciężar (kg)</string>
+    <string name="progress_chart_reps">Powtórzenia</string>
+    <string name="progress_chart_description">%1$s: %2$d sesji od %3$s do %4$s, od %5$s do %6$s</string>
+    <string name="progress_work_laps_note">Tempo, tętno i kadencja liczone tylko z odcinków roboczych (bez rozgrzewki, schłodzenia i przerw), gdy zegarek je oznaczył.</string>
+    <string name="progress_sessions">Sesje</string>
+    <string name="progress_run_row">%1$s km · %2$s/km · %3$s bpm</string>
+    <string name="progress_work_laps">%1$d odc. roboczych</string>
+    <string name="progress_whole_run">cały bieg</string>
+    <string name="progress_exercises">Ćwiczenia</string>
+    <plurals name="progress_exercise_sessions">
+        <item quantity="one">%1$d sesja</item>
+        <item quantity="few">%1$d sesje</item>
+        <item quantity="many">%1$d sesji</item>
+        <item quantity="other">%1$d sesji</item>
+    </plurals>
+    <string name="progress_no_exercises">W treningach z tym tagiem nie ma zapisanych serii z powtórzeniami lub ciężarem.</string>
+    <string name="progress_climbing_soon">Wykresy ścianki (najlepszy top w skali V i liczba prób udanych i nieudanych) pojawią się w następnej wersji, gdy serwer zacznie pobierać problemy z Garmina.</string>
+    <string name="tag_intervals">Interwały</string>
+    <string name="tag_tempo">Tempo</string>
+    <string name="tag_long">Długi bieg</string>
+    <string name="tag_base">Baza</string>
+    <string name="tag_strides">Przebieżki</string>
+    <string name="tag_upper">Góra ciała</string>
+    <string name="tag_fbw">FBW</string>
+    <string name="tag_push">Push</string>
+    <string name="tag_pull">Pull</string>
+    <string name="tag_legs">Legs</string>
+    <string name="tag_wall">Ścianka</string>
+    <string name="tag_label">Tag</string>
+    <string name="tag_none">Bez tagu</string>
+    <string name="tag_change">Zmień</string>
+    <string name="tag_dialog_title">Tag treningu</string>
+    <string name="tag_cancel">Anuluj</string>
+    <string name="tag_saving">Zapisuję tag…</string>
+    <string name="tag_save_failed">Nie udało się zapisać tagu: %1$s</string>
 </resources>

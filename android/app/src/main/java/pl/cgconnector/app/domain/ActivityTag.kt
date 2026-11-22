@@ -1,0 +1,80 @@
+package pl.cgconnector.app.domain
+
+import java.time.LocalDate
+
+/**
+ * Tag aktywności (jeden na aktywność). [key] to wartość w API serwera (`cg_server.tags.TAGS`),
+ * [type] to rodzaj aktywności, do którego tag pasuje. Kolejność wpisów = kolejność na ekranach.
+ */
+enum class ActivityTag(val key: String, val type: ActivityType) {
+    INTERVALS("intervals", ActivityType.RUNNING),
+    TEMPO("tempo", ActivityType.RUNNING),
+    LONG("long", ActivityType.RUNNING),
+    BASE("base", ActivityType.RUNNING),
+    STRIDES("strides", ActivityType.RUNNING),
+    UPPER("upper", ActivityType.STRENGTH),
+    FBW("fbw", ActivityType.STRENGTH),
+    PUSH("push", ActivityType.STRENGTH),
+    PULL("pull", ActivityType.STRENGTH),
+    LEGS("legs", ActivityType.STRENGTH),
+    WALL("wall", ActivityType.CLIMBING),
+    ;
+
+    companion object {
+        /** Nieznany klucz (nowszy serwer) = `null`: aplikacja pokazuje aktywność bez tagu. */
+        fun fromKey(key: String?): ActivityTag? = entries.firstOrNull { it.key == key }
+
+        fun forType(type: ActivityType): List<ActivityTag> = entries.filter { it.type == type }
+
+        /** Kategorie zakładki Progress w kolejności z ekranu. */
+        val CATEGORIES = listOf(ActivityType.STRENGTH, ActivityType.RUNNING, ActivityType.CLIMBING)
+    }
+}
+
+/** Ile aktywności ma dany tag i kiedy była ostatnia. */
+data class TagCount(
+    val tag: ActivityTag,
+    val count: Int,
+    val lastDate: LocalDate,
+)
+
+/** Jeden bieg z tagiem; tempo, tętno i kadencja tylko z odcinków roboczych, gdy [workLaps] > 0. */
+data class RunPoint(
+    val activityId: Long,
+    val date: LocalDate,
+    val name: String?,
+    val distanceM: Double?,
+    val paceMinPerKm: Double?,
+    val avgHr: Int?,
+    val avgCadenceSpm: Int?,
+    val workLaps: Int,
+)
+
+/** Jedna seria ćwiczenia; [setNumber] liczony od 1 w ramach ćwiczenia w danej sesji. */
+data class SetPoint(
+    val activityId: Long,
+    val date: LocalDate,
+    val setNumber: Int,
+    val weightKg: Double?,
+    val reps: Int?,
+)
+
+data class ExerciseProgress(
+    val category: String?,
+    val exercise: String,
+    val sessions: Int,
+    /** Od najstarszej sesji. */
+    val sets: List<SetPoint>,
+)
+
+/** Dane do wykresów jednego tagu; wypełniona jest lista pasująca do rodzaju tagu. */
+data class TagProgress(
+    val tag: ActivityTag,
+    /** Od najstarszego biegu. */
+    val running: List<RunPoint>,
+    /** Od najczęściej wykonywanego ćwiczenia. */
+    val strength: List<ExerciseProgress>,
+)
+
+/** Dlaczego nie udało się pobrać danych z serwera (zakładka Progress działa tylko online). */
+enum class LoadError { OFFLINE, UNAUTHORIZED, NOT_CONFIGURED, INVALID_RESPONSE }

@@ -13,8 +13,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import pl.cgconnector.app.data.repository.ActivityRepository
+import pl.cgconnector.app.data.repository.Loaded
+import pl.cgconnector.app.data.repository.ProgressRepository
 import pl.cgconnector.app.data.repository.RefreshResult
 import pl.cgconnector.app.domain.ActivityDetail
+import pl.cgconnector.app.domain.ActivityTag
+import pl.cgconnector.app.domain.LoadError
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -28,6 +32,9 @@ data class ActivityDetailUiState(
     val detail: ActivityDetail? = null,
     val isFetching: Boolean = false,
     val error: DetailError? = null,
+    val isSavingTag: Boolean = false,
+    /** Ostatnia nieudana zmiana tagu; znika przy następnej próbie. */
+    val tagError: LoadError? = null,
 )
 
 @HiltViewModel
@@ -36,6 +43,7 @@ class ActivityDetailViewModel
     constructor(
         savedStateHandle: SavedStateHandle,
         private val repository: ActivityRepository,
+        private val progressRepository: ProgressRepository,
         private val clock: Clock,
     ) : ViewModel() {
         /** Argument trasy `ActivityDetailDestination.activityId`. */
@@ -43,10 +51,18 @@ class ActivityDetailViewModel
 
         private val isFetching = MutableStateFlow(false)
         private val error = MutableStateFlow<DetailError?>(null)
+        private val tagSave = MutableStateFlow(TagSave())
 
         val uiState: StateFlow<ActivityDetailUiState> =
-            combine(repository.observeActivityDetail(activityId), isFetching, error) { detail, fetching, err ->
-                ActivityDetailUiState(isLoading = false, detail = detail, isFetching = fetching, error = err)
+            combine(repository.observeActivityDetail(activityId), isFetching, error, tagSave) { detail, fetching, err, tag ->
+                ActivityDetailUiState(
+                    isLoading = false,
+                    detail = detail,
+                    isFetching = fetching,
+                    error = err,
+                    isSavingTag = tag.isSaving,
+                    tagError = tag.error,
+                )
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), ActivityDetailUiState())
 
         init {
@@ -54,6 +70,21 @@ class ActivityDetailViewModel
                 if (shouldAutoFetch(repository.observeActivityDetail(activityId).first(), clock.instant())) fetch()
             }
         }
+
+        /** Zapis na serwerze, potem w Room; ekran odświeża się z bazy. `null` usuwa tag. */
+        fun setTag(tag: ActivityTag?) {
+            if (tagSave.value.isSaving) return
+            tagSave.value = TagSave(isSaving = true)
+            viewModelScope.launch {
+                val result = progressRepository.setTag(activityId, tag)
+                tagSave.value = TagSave(error = (result as? Loaded.Failed)?.error)
+            }
+        }
+
+        private data class TagSave(
+            val isSaving: Boolean = false,
+            val error: LoadError? = null,
+        )
 
         fun refresh() {
             viewModelScope.launch { fetch() }
