@@ -27,7 +27,8 @@ class StrengthWizardTest {
     private val clock = Clock.fixed(Instant.parse("2030-01-10T08:00:00Z"), ZoneOffset.UTC)
     private val repository = FakeWorkoutQueueRepository()
     private val templates = FakeWorkoutTemplateRepository()
-    private val viewModel = StrengthWizardViewModel(repository, templates, SavedStateHandle(), clock)
+    // Leniwie: model musi powstać po ustawieniu Dispatchers.Main przez regułę, inaczej viewModelScope działa w tle.
+    private val viewModel by lazy { StrengthWizardViewModel(repository, templates, SavedStateHandle(), clock) }
 
     @Test
     fun `form maps reps, time, weight with comma and rest`() {

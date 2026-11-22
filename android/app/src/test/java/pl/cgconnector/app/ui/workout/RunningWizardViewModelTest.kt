@@ -29,7 +29,8 @@ class RunningWizardViewModelTest {
     private val clock = Clock.fixed(Instant.parse("2030-01-09T23:30:00Z"), ZoneOffset.UTC)
     private val repository = FakeWorkoutQueueRepository()
     private val templates = FakeWorkoutTemplateRepository()
-    private val viewModel = RunningWizardViewModel(repository, templates, SavedStateHandle(), clock)
+    // Leniwie: model musi powstać po ustawieniu Dispatchers.Main przez regułę, inaczej viewModelScope działa w tle.
+    private val viewModel by lazy { RunningWizardViewModel(repository, templates, SavedStateHandle(), clock) }
 
     @Test
     fun `defaults to tomorrow and saves template to queue`() {
