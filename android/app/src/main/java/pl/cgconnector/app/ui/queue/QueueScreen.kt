@@ -44,6 +44,7 @@ private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, 
 
 @Composable
 fun QueueRoute(
+    onCopy: (QueuedWorkout) -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     viewModel: QueueViewModel = hiltViewModel(),
 ) {
@@ -55,6 +56,7 @@ fun QueueRoute(
         onRefresh = viewModel::refresh,
         onDelete = viewModel::askDelete,
         onRetry = viewModel::retry,
+        onCopy = onCopy,
         onConfirmDelete = viewModel::confirmDelete,
         onDismissDelete = viewModel::dismissDelete,
         floatingActionButton = floatingActionButton,
@@ -71,6 +73,7 @@ fun QueueScreen(
     onConfirmDelete: () -> Unit,
     onDismissDelete: () -> Unit,
     floatingActionButton: @Composable () -> Unit = {},
+    onCopy: (QueuedWorkout) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -94,7 +97,7 @@ fun QueueScreen(
                 item {
                     Text(stringResource(R.string.queue_watch_hint), style = MaterialTheme.typography.bodySmall)
                 }
-                items(state.items, key = { it.id }) { item -> QueueRow(item, onDelete = { onDelete(item) }, onRetry = { onRetry(item) }) }
+                items(state.items, key = { it.id }) { item -> QueueRow(item, onDelete = { onDelete(item) }, onRetry = { onRetry(item) }, onCopy = { onCopy(item) }) }
             }
         }
     }
@@ -115,6 +118,7 @@ private fun QueueRow(
     item: QueuedWorkout,
     onDelete: () -> Unit,
     onRetry: () -> Unit,
+    onCopy: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -129,6 +133,12 @@ private fun QueueRow(
                     val description = stringResource(R.string.queue_retry_description, item.name)
                     TextButton(onClick = onRetry, modifier = Modifier.semantics { contentDescription = description }) {
                         Text(stringResource(R.string.queue_retry))
+                    }
+                }
+                if (item.canCopy && item.sport != null) {
+                    val description = stringResource(R.string.queue_copy_description, item.name)
+                    TextButton(onClick = onCopy, modifier = Modifier.semantics { contentDescription = description }) {
+                        Text(stringResource(R.string.queue_copy))
                     }
                 }
                 if (item.canDelete) {

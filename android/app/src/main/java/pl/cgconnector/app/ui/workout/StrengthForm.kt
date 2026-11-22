@@ -1,9 +1,11 @@
 package pl.cgconnector.app.ui.workout
 
+import pl.cgconnector.app.domain.workout.ExerciseCatalog
 import pl.cgconnector.app.domain.workout.StrengthExercise
 import pl.cgconnector.app.domain.workout.StrengthWorkout
+import pl.cgconnector.app.ui.format.Formatters
 
-/** Ćwiczenie w edycji; [byTime] = na czas (s) zamiast powtórzeń. */
+/** Ćwiczenie w edycji; [name] to nazwa z katalogu Garmina, [byTime] = na czas (s) zamiast powtórzeń. */
 data class ExerciseForm(
     val key: Long,
     val name: String = "",
@@ -16,53 +18,38 @@ data class ExerciseForm(
 )
 
 object StrengthForm {
-    /**
-     * Częste ćwiczenia z katalogu Garmina (`garminconnect.exercises`, sprawdzone 2026-11-18). Nazwa musi być
-     * dokładnie z katalogu; inną serwer odrzuci z podpowiedzią, a wpis dostanie status „błąd”.
-     */
-    val SUGGESTIONS =
-        listOf(
-            "Barbell Back Squat",
-            "Barbell Front Squat",
-            "Goblet Squat",
-            "Barbell Deadlift",
-            "Romanian Deadlift",
-            "Barbell Hip Thrust with Bench",
-            "Hip Raise",
-            "Barbell Bench Press",
-            "Dumbbell Bench Press",
-            "Barbell Shoulder Press",
-            "Dumbbell Shoulder Press",
-            "Barbell Row",
-            "Dumbbell Row",
-            "Pull-up",
-            "Chin-up",
-            "Push-up",
-            "Lat Pull-down",
-            "Face Pull",
-            "Lunge",
-            "Dumbbell Lunge",
-            "Dumbbell Bulgarian Split Squat",
-            "Dumbbell Biceps Curl",
-            "Triceps Extension",
-            "Bench Dip",
-            "Calf Raise",
-            "Kettlebell Swing",
-            "Plank",
-            "Side Plank",
-            "Crunch",
-            "Russian Twist",
-            "Mountain Climber",
-            "Burpee",
-        )
-    private const val MAX_SUGGESTIONS = 5
-
-    /** Podpowiedzi dla wpisanego tekstu; pusto, gdy nazwa już pasuje dokładnie. */
-    fun suggestionsFor(text: String): List<String> {
-        val query = text.trim()
-        if (query.isEmpty() || SUGGESTIONS.any { it.equals(query, ignoreCase = true) }) return emptyList()
-        return SUGGESTIONS.filter { it.contains(query, ignoreCase = true) }.take(MAX_SUGGESTIONS)
+    /** Nowe ćwiczenie wybrane z katalogu: wartości startowe zależne od tego, czy to ćwiczenie „na czas”. */
+    fun newExercise(
+        key: Long,
+        garminName: String,
+    ): ExerciseForm {
+        val timed = TIMED.any { garminName.contains(it, ignoreCase = true) }
+        return ExerciseForm(key = key, name = garminName, byTime = timed)
     }
+
+    /** Ćwiczenia zwykle robione na czas (deski, zwisy, noszenie). */
+    private val TIMED = listOf("Plank", "L Sit", "Farmer", "Wall Squat", "Hollow Hold")
+
+    /** Definicja (szablon albo kopia z Planu) → formularz do dalszej edycji. */
+    fun fromDefinition(
+        workout: StrengthWorkout,
+        nextKey: () -> Long,
+    ): List<ExerciseForm> =
+        workout.exercises.map { exercise ->
+            ExerciseForm(
+                key = nextKey(),
+                name = exercise.name,
+                sets = exercise.sets.toString(),
+                byTime = exercise.seconds != null,
+                reps = (exercise.reps ?: 10).toString(),
+                seconds = (exercise.seconds ?: 30).toString(),
+                weightKg = exercise.weightKg?.let { Formatters.weight(it) } ?: "",
+                restSeconds = exercise.restSeconds.toString(),
+            )
+        }
+
+    /** Nazwa do pokazania: polska z katalogu, a dla nazw spoza listy oryginalna z katalogu Garmina. */
+    fun displayName(garminName: String): String = ExerciseCatalog.polishName(garminName) ?: garminName
 
     /** Jak w [RunningForm]: zły tekst = -1 (poza każdym zakresem), błąd zgłasza walidator z numerem ćwiczenia. */
     fun toDefinition(

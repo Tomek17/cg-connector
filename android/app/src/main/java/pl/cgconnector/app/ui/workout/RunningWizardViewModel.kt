@@ -1,5 +1,6 @@
 package pl.cgconnector.app.ui.workout
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -8,9 +9,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import pl.cgconnector.app.data.repository.UserTemplate
 import pl.cgconnector.app.data.repository.WorkoutQueueRepository
+import pl.cgconnector.app.data.repository.WorkoutTemplateRepository
 import pl.cgconnector.app.domain.AppZone
 import pl.cgconnector.app.domain.workout.RunStepKind
+import pl.cgconnector.app.domain.workout.RunningWorkout
 import pl.cgconnector.app.domain.workout.WorkoutProblem
 import pl.cgconnector.app.domain.workout.WorkoutValidator
 import java.time.Clock
@@ -27,6 +31,10 @@ data class RunningWizardState(
     val isSaving: Boolean = false,
     /** Zapisany w kolejce: ekran wraca do listy. */
     val isSaved: Boolean = false,
+    /** Szablony biegowe zapisane przez użytkownika. */
+    val userTemplates: List<UserTemplate> = emptyList(),
+    /** Jednorazowy komunikat „Zapisano szablon” (pokazany i skasowany przez ekran). */
+    val templateSaved: Boolean = false,
 )
 
 @HiltViewModel
@@ -34,6 +42,8 @@ class RunningWizardViewModel
     @Inject
     constructor(
         private val repository: WorkoutQueueRepository,
+        private val templates: WorkoutTemplateRepository,
+        savedStateHandle: SavedStateHandle,
         clock: Clock,
     ) : ViewModel() {
         private var lastKey = 0L
@@ -50,7 +60,50 @@ class RunningWizardViewModel
                 ),
             )
         val state: StateFlow<RunningWizardState> = _state.asStateFlow()
-        private val initial = _state.value
+        /** Stan, od którego liczymy „niezapisane zmiany” (po skopiowaniu treningu z Planu: kopia). */
+        private var initial = _state.value
+
+        init {
+            viewModelScope.launch {
+                templates.observeTemplates().collect { all ->
+                    _state.update { s -> s.copy(userTemplates = all.filter { it.definition is RunningWorkout }) }
+                }
+            }
+            val copyFrom = savedStateHandle.get<Long>(ARG_COPY_FROM_ID) ?: NO_COPY
+            if (copyFrom != NO_COPY) {
+                viewModelScope.launch {
+                    (repository.definition(copyFrom) as? RunningWorkout)?.let { copy ->
+                        applyTemplate(copy)
+                        initial = _state.value
+                    }
+                }
+            }
+        }
+
+        /** Szablon (wbudowany, własny albo kopia z Planu) zastępuje nazwę i kroki; data zostaje. */
+        fun applyTemplate(template: RunningWorkout) =
+            _state.update { it.copy(name = template.name, blocks = RunningForm.fromDefinition(template, nextKey), problems = emptyList()) }
+
+        /** Zapisuje bieżący trening jako własny szablon; z błędami w krokach pokazuje problemy i nie zapisuje. */
+        fun saveAsTemplate() {
+            val current = _state.value
+            val definition = RunningForm.toDefinition(current.name, current.blocks)
+            val problems = WorkoutValidator.validate(definition)
+            if (problems.isNotEmpty()) {
+                _state.update { it.copy(problems = problems) }
+                return
+            }
+            viewModelScope.launch {
+                templates.save(definition)
+                _state.update { it.copy(problems = emptyList(), templateSaved = true) }
+            }
+        }
+
+        fun deleteTemplate(id: String) {
+            viewModelScope.launch { templates.delete(id) }
+        }
+
+        fun onTemplateSavedShown() = _state.update { it.copy(templateSaved = false) }
 
         /** Czy użytkownik coś zmienił od otwarcia kreatora (wtedy wyjście pyta o odrzucenie zmian). */
         fun hasUnsavedChanges(): Boolean =
@@ -100,7 +153,10 @@ class RunningWizardViewModel
         private fun updateBlocks(transform: (List<BlockForm>) -> List<BlockForm>) =
             _state.update { it.copy(blocks = transform(it.blocks)) }
 
-        private companion object {
-            const val DEFAULT_NAME = "Interwały"
+        companion object {
+            /** Nazwa pola musi zgadzać się z `RunningWizardDestination.copyFromId`. */
+            const val ARG_COPY_FROM_ID = "copyFromId"
+            const val NO_COPY = -1L
+            private const val DEFAULT_NAME = "Interwały"
         }
     }

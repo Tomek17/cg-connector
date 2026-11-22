@@ -31,8 +31,11 @@ import pl.cgconnector.app.ui.settings.SettingsRoute
 import pl.cgconnector.app.ui.today.TodayRoute
 import pl.cgconnector.app.ui.vo2max.Vo2MaxRoute
 import pl.cgconnector.app.ui.workout.NewWorkoutButton
+import pl.cgconnector.app.domain.workout.WorkoutSport
 import pl.cgconnector.app.ui.workout.RunningWizardRoute
+import pl.cgconnector.app.ui.workout.RunningWizardViewModel
 import pl.cgconnector.app.ui.workout.StrengthWizardRoute
+import pl.cgconnector.app.ui.workout.StrengthWizardViewModel
 import kotlin.reflect.KClass
 
 @Serializable
@@ -54,11 +57,17 @@ data object TodayDestination
 @Serializable
 data object QueueDestination
 
+/** [copyFromId]: id wpisu Planu do skopiowania; nazwa pola = `RunningWizardViewModel.ARG_COPY_FROM_ID`. */
 @Serializable
-data object RunningWizardDestination
+data class RunningWizardDestination(
+    val copyFromId: Long = RunningWizardViewModel.NO_COPY,
+)
 
+/** [copyFromId]: id wpisu Planu do skopiowania; nazwa pola = `StrengthWizardViewModel.ARG_COPY_FROM_ID`. */
 @Serializable
-data object StrengthWizardDestination
+data class StrengthWizardDestination(
+    val copyFromId: Long = StrengthWizardViewModel.NO_COPY,
+)
 
 /** Zakładki dolnego paska. */
 private enum class TopLevel(
@@ -132,10 +141,17 @@ fun CgNavHost(isConfigured: Boolean) {
             composable<Vo2MaxDestination> { Vo2MaxRoute(onBack = { navController.popBackStack() }) }
             composable<QueueDestination> {
                 QueueRoute(
+                    onCopy = { item ->
+                        when (item.sport) {
+                            WorkoutSport.RUNNING -> navController.navigate(RunningWizardDestination(copyFromId = item.id))
+                            WorkoutSport.STRENGTH -> navController.navigate(StrengthWizardDestination(copyFromId = item.id))
+                            null -> Unit
+                        }
+                    },
                     floatingActionButton = {
                         NewWorkoutButton(
-                            onNewRunning = { navController.navigate(RunningWizardDestination) },
-                            onNewStrength = { navController.navigate(StrengthWizardDestination) },
+                            onNewRunning = { navController.navigate(RunningWizardDestination()) },
+                            onNewStrength = { navController.navigate(StrengthWizardDestination()) },
                         )
                     },
                 )

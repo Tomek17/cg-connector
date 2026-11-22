@@ -8,6 +8,7 @@ import pl.cgconnector.app.domain.workout.RunStepKind
 import pl.cgconnector.app.domain.workout.RunningWorkout
 import pl.cgconnector.app.domain.workout.StepEnd
 import pl.cgconnector.app.domain.workout.StepTarget
+import java.util.Locale
 
 enum class EndType { TIME, DISTANCE, LAP }
 
@@ -78,6 +79,46 @@ object RunningForm {
                     }
                 },
         )
+
+    /** Definicja (szablon albo kopia z Planu) → bloki formularza do dalszej edycji. */
+    fun fromDefinition(
+        workout: RunningWorkout,
+        nextKey: () -> Long,
+    ): List<BlockForm> =
+        workout.items.map { item ->
+            when (item) {
+                is RunStep -> BlockForm(nextKey(), listOf(stepForm(item, nextKey)))
+                is RepeatBlock -> BlockForm(nextKey(), item.steps.map { stepForm(it, nextKey) }, repeatTimes = item.times.toString())
+            }
+        }
+
+    private fun stepForm(
+        step: RunStep,
+        nextKey: () -> Long,
+    ): StepForm {
+        val base = StepForm(nextKey(), step.kind)
+        val withEnd =
+            when (val end = step.end) {
+                is StepEnd.Time -> base.copy(endType = EndType.TIME, duration = formatDuration(end.seconds))
+                is StepEnd.Distance -> base.copy(endType = EndType.DISTANCE, distanceKm = formatKm(end.km))
+                StepEnd.LapButton -> base.copy(endType = EndType.LAP)
+            }
+        return when (val target = step.target) {
+            null -> withEnd
+            is StepTarget.Pace ->
+                withEnd.copy(targetType = TargetType.PACE, paceFrom = Pace.format(target.fromSecPerKm), paceTo = Pace.format(target.toSecPerKm))
+            is StepTarget.HrZone -> withEnd.copy(targetType = TargetType.HR_ZONE, hrZone = target.zone)
+            is StepTarget.HrRange ->
+                withEnd.copy(targetType = TargetType.HR_RANGE, hrFrom = target.fromBpm.toString(), hrTo = target.toBpm.toString())
+        }
+    }
+
+    /** 330 → `5:30`, jak wpisuje użytkownik (minuty:sekundy). */
+    fun formatDuration(seconds: Int): String = String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60)
+
+    /** 0.4 → `0,4`, 15.0 → `15`. */
+    fun formatKm(km: Double): String =
+        if (km % 1.0 == 0.0) km.toLong().toString() else km.toString().trimEnd('0').replace('.', ',')
 
     fun parseDuration(text: String): Int? {
         val match = DURATION.matchEntire(text.trim()) ?: return null

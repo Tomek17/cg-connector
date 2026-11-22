@@ -1,14 +1,19 @@
 package pl.cgconnector.app.ui.workout
 
+import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
+import pl.cgconnector.app.domain.workout.BuiltInTemplates
 import pl.cgconnector.app.domain.workout.RepeatBlock
 import pl.cgconnector.app.domain.workout.RunStepKind
 import pl.cgconnector.app.domain.workout.RunningWorkout
 import pl.cgconnector.app.domain.workout.WorkoutProblem
+import pl.cgconnector.app.domain.workout.WorkoutValidator
 import pl.cgconnector.app.testing.FakeWorkoutQueueRepository
+import pl.cgconnector.app.testing.FakeWorkoutTemplateRepository
 import pl.cgconnector.app.testing.MainDispatcherRule
 import java.time.Clock
 import java.time.Instant
@@ -23,7 +28,8 @@ class RunningWizardViewModelTest {
     // 23:30 UTC = 00:30 następnego dnia w Warszawie: „dziś” liczymy w strefie Europe/Warsaw.
     private val clock = Clock.fixed(Instant.parse("2030-01-09T23:30:00Z"), ZoneOffset.UTC)
     private val repository = FakeWorkoutQueueRepository()
-    private val viewModel = RunningWizardViewModel(repository, clock)
+    private val templates = FakeWorkoutTemplateRepository()
+    private val viewModel = RunningWizardViewModel(repository, templates, SavedStateHandle(), clock)
 
     @Test
     fun `defaults to tomorrow and saves template to queue`() {
@@ -86,5 +92,40 @@ class RunningWizardViewModelTest {
         viewModel.addStep(RunStepKind.COOLDOWN)
 
         assertThat(viewModel.hasUnsavedChanges()).isTrue()
+    }
+
+    @Test
+    fun `built-in templates map to valid forms`() {
+        BuiltInTemplates.RUNNING.forEach { template ->
+            viewModel.applyTemplate(template)
+
+            val definition = RunningForm.toDefinition(viewModel.state.value.name, viewModel.state.value.blocks)
+            assertThat(definition).isEqualTo(template)
+            assertThat(WorkoutValidator.validate(definition)).isEmpty()
+        }
+    }
+
+    @Test
+    fun `copy from plan prefills steps`() =
+        runTest {
+            val id = repository.enqueue(BuiltInTemplates.RUNNING[1], LocalDate.of(2030, 1, 5))
+
+            val copy = RunningWizardViewModel(repository, templates, SavedStateHandle(mapOf("copyFromId" to id)), clock)
+
+            assertThat(copy.state.value.name).isEqualTo("Interwały 10×400 m")
+            assertThat(copy.state.value.blocks[1].repeatTimes).isEqualTo("10")
+            assertThat(copy.state.value.blocks[1].steps[0].distanceKm).isEqualTo("0,4")
+            assertThat(copy.hasUnsavedChanges()).isFalse()
+        }
+
+    @Test
+    fun `own template is saved and can be deleted`() {
+        viewModel.saveAsTemplate()
+        val saved = viewModel.state.value.userTemplates.single()
+        assertThat(saved.definition.name).isEqualTo("Interwały")
+
+        viewModel.deleteTemplate(saved.id)
+
+        assertThat(viewModel.state.value.userTemplates).isEmpty()
     }
 }

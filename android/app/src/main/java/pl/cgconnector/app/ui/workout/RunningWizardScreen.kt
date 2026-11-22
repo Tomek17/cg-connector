@@ -20,14 +20,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -36,8 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
-import pl.cgconnector.app.ui.components.CloseIconButton
+import pl.cgconnector.app.domain.workout.BuiltInTemplates
 import pl.cgconnector.app.domain.workout.RunStepKind
+import pl.cgconnector.app.domain.workout.RunningWorkout
+import pl.cgconnector.app.ui.components.CloseIconButton
 
 @Composable
 fun RunningWizardRoute(
@@ -47,7 +56,38 @@ fun RunningWizardRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.isSaved) { if (state.isSaved) onDone() }
     val onCancel = rememberLeaveGuard(hasChanges = viewModel::hasUnsavedChanges, onLeave = onDone)
-    RunningWizardScreen(state = state, viewModel = viewModel, onCancel = onCancel)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val resources = LocalResources.current
+    LaunchedEffect(state.templateSaved) {
+        if (state.templateSaved) {
+            viewModel.onTemplateSavedShown()
+            snackbarHostState.showSnackbar(resources.getString(R.string.wizard_template_saved, state.name))
+        }
+    }
+    var showTemplates by rememberSaveable { mutableStateOf(false) }
+    RunningWizardScreen(
+        state = state,
+        viewModel = viewModel,
+        onCancel = onCancel,
+        snackbarHostState = snackbarHostState,
+        onShowTemplates = { showTemplates = true },
+    )
+    if (showTemplates) {
+        TemplateSheet(
+            builtIn = BuiltInTemplates.RUNNING,
+            mine = state.userTemplates,
+            onPick = { template ->
+                (template as? RunningWorkout)?.let(viewModel::applyTemplate)
+                showTemplates = false
+            },
+            onDelete = viewModel::deleteTemplate,
+            onSaveCurrent = {
+                viewModel.saveAsTemplate()
+                showTemplates = false
+            },
+            onDismiss = { showTemplates = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +96,8 @@ private fun RunningWizardScreen(
     state: RunningWizardState,
     viewModel: RunningWizardViewModel,
     onCancel: () -> Unit,
+    snackbarHostState: SnackbarHostState,
+    onShowTemplates: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -63,12 +105,14 @@ private fun RunningWizardScreen(
                 title = { Text(stringResource(R.string.wizard_running_title)) },
                 navigationIcon = { CloseIconButton(onClick = onCancel) },
                 actions = {
+                    TextButton(onClick = onShowTemplates) { Text(stringResource(R.string.wizard_templates)) }
                     TextButton(onClick = viewModel::save, enabled = !state.isSaving) {
                         Text(stringResource(R.string.wizard_save))
                     }
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding).imePadding(),
