@@ -200,6 +200,8 @@ class Activity(Base):
     aerobic_training_effect: Mapped[float | None] = mapped_column(Float)
     anaerobic_training_effect: Mapped[float | None] = mapped_column(Float)
     training_load: Mapped[float | None] = mapped_column(Float)
+    # One tag (cg_server.tags), set by Claude or in the app; sync never changes it.
+    tag: Mapped[str | None] = mapped_column(String(16))
     # Scalar fields of the Garmin summary without GPS/owner/device data.
     summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

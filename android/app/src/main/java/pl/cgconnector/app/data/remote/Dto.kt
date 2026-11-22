@@ -69,6 +69,8 @@ data class ActivityDto(
     @SerialName("aerobic_training_effect") val aerobicTrainingEffect: Double? = null,
     @SerialName("anaerobic_training_effect") val anaerobicTrainingEffect: Double? = null,
     @SerialName("training_load") val trainingLoad: Double? = null,
+    /** Klucz tagu (`intervals`, `legs`…) albo null; ustawia go Claude albo aplikacja. */
+    val tag: String? = null,
 )
 
 /** `GET /api/v1/activities/{id}` (schemat `ActivityDetail`): pola podsumowania + szczegóły. */
@@ -92,6 +94,7 @@ data class ActivityDetailDto(
     @SerialName("aerobic_training_effect") val aerobicTrainingEffect: Double? = null,
     @SerialName("anaerobic_training_effect") val anaerobicTrainingEffect: Double? = null,
     @SerialName("training_load") val trainingLoad: Double? = null,
+    val tag: String? = null,
     /** false = szczegółów nie udało się pobrać z Garmina; listy są wtedy puste. */
     @SerialName("details_available") val detailsAvailable: Boolean = false,
     val laps: List<LapDto> = emptyList(),
@@ -189,6 +192,7 @@ fun ActivityDto.toEntity() =
         aerobicTrainingEffect = aerobicTrainingEffect,
         anaerobicTrainingEffect = anaerobicTrainingEffect,
         trainingLoad = trainingLoad,
+        tag = tag,
     )
 
 /** Szczegóły zawierają też pola podsumowania, więc odświeżają przy okazji wiersz w `activities`. */
@@ -213,6 +217,7 @@ fun ActivityDetailDto.toBundle(fetchedAt: Instant) =
                 aerobicTrainingEffect = aerobicTrainingEffect,
                 anaerobicTrainingEffect = anaerobicTrainingEffect,
                 trainingLoad = trainingLoad,
+                tag = tag,
             ),
         details = ActivityDetailsEntity(activityId = id, detailsAvailable = detailsAvailable, fetchedAt = fetchedAt),
         // distinctBy: klucz główny tabel to (activity_id, numer); duplikat z serwera nie może wywrócić zapisu.

@@ -4,6 +4,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -71,6 +72,23 @@ interface CgApi {
     suspend fun deleteScheduled(
         @Path("id") scheduledId: Long,
     ): ScheduledOutDto
+
+    /** Ustawia albo (`tag = null`) usuwa tag aktywności. 404 = brak aktywności, 422 = tag nie pasuje do rodzaju. */
+    @PUT("api/v1/activities/{id}/tag")
+    suspend fun setActivityTag(
+        @Path("id") id: Long,
+        @Body body: TagUpdateDto,
+    ): ActivityDto
+
+    /** Tagi w użyciu (liczba aktywności, ostatni dzień). */
+    @GET("api/v1/progress")
+    suspend fun progressTags(): ProgressTagsDto
+
+    /** Dane do wykresów aktywności z tagiem (od najstarszej). 404 = nieznany tag. */
+    @GET("api/v1/progress/{tag}")
+    suspend fun tagProgress(
+        @Path("tag") tag: String,
+    ): TagProgressDto
 
     companion object {
         const val MAX_SCHEDULED_DAYS = 366L

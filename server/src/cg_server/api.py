@@ -15,9 +15,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
-from cg_server import queries
+from cg_server import progress, queries
 from cg_server.models import Activity, ActivityKind, User, utcnow
 from cg_server.queries import Period
+from cg_server.tags import TAGS, TagError, set_tag
 from cg_server.user_secrets import SecretKind, user_for_secret
 
 bearer = HTTPBearer(auto_error=False)
@@ -131,6 +132,9 @@ class ActivitySummary(BaseModel):
     aerobic_training_effect: float | None
     anaerobic_training_effect: float | None
     training_load: float | None
+    tag: str | None = Field(
+        default=None, description="Tag (jeden): " + ", ".join(TAGS) + "; null = brak"
+    )
 
 
 class ActivityList(BaseModel):
@@ -171,6 +175,55 @@ class ActivityDetail(ActivitySummary):
     laps: list[Lap]
     hr_zones: list[HrZone]
     exercise_sets: list[ExerciseSet]
+
+
+class TagUpdate(BaseModel):
+    tag: str | None = Field(default=None, description="Klucz tagu; null albo brak pola usuwa tag")
+
+
+class TagCountOut(BaseModel):
+    tag: str
+    type: ActivityKind = Field(description="Rodzaj aktywności, do którego należy tag")
+    count: int
+    last_date: date
+
+
+class ProgressTags(BaseModel):
+    tags: list[TagCountOut] = Field(description="Tagi w użyciu, w stałej kolejności")
+    available: dict[str, ActivityKind] = Field(description="Wszystkie tagi i ich rodzaj")
+
+
+class RunPointOut(BaseModel):
+    activity_id: int
+    date: date
+    name: str | None
+    distance_m: float | None
+    pace_min_per_km: float | None = Field(description="Z odcinków roboczych, bez rozgrzewki")
+    avg_hr: int | None
+    avg_cadence_spm: int | None
+    work_laps: int = Field(description="Użyte okrążenia robocze; 0 = cała aktywność")
+
+
+class SetPointOut(BaseModel):
+    activity_id: int
+    date: date
+    set_number: int
+    weight_kg: float | None
+    reps: int | None
+
+
+class ExerciseProgressOut(BaseModel):
+    category: str | None
+    exercise: str = Field(description="Nazwa ćwiczenia z Garmina (klucz)")
+    sessions: int
+    sets: list[SetPointOut]
+
+
+class TagProgress(BaseModel):
+    tag: str
+    type: ActivityKind
+    running: list[RunPointOut] = Field(description="Bieg: punkt na aktywność, od najstarszej")
+    strength: list[ExerciseProgressOut] = Field(description="Siłownia: ćwiczenia z seriami")
 
 
 class Vo2MaxPoint(BaseModel):
@@ -221,6 +274,7 @@ def activity_summary(activity: Activity, tz: ZoneInfo) -> dict[str, object]:
         "aerobic_training_effect": activity.aerobic_training_effect,
         "anaerobic_training_effect": activity.anaerobic_training_effect,
         "training_load": activity.training_load,
+        "tag": activity.tag,
     }
 
 
@@ -315,6 +369,96 @@ def get_activity(
                 for s in details.exercise_sets
             ],
         }
+    )
+
+
+@router.put(
+    "/activities/{activity_id}/tag",
+    responses={404: {"description": "Brak aktywności"}, 422: {"description": "Zły tag"}},
+)
+def put_activity_tag(
+    body: TagUpdate,
+    user: CurrentUser,
+    session: DbSession,
+    tz: LocalTz,
+    activity_id: Annotated[int, Path(description="ID aktywności w Garmin Connect")],
+) -> ActivitySummary:
+    """Ustawia (albo z `null` usuwa) tag aktywności. Tag musi pasować do jej rodzaju."""
+    if queries.get_activity(session, user_id=user.id, activity_id=activity_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Nie znaleziono aktywności")
+    try:
+        activity = set_tag(session, user_id=user.id, activity_id=activity_id, tag=body.tag)
+    except TagError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)) from None
+    return ActivitySummary.model_validate(activity_summary(activity, tz))
+
+
+@router.get("/progress")
+def progress_tags(user: CurrentUser, session: DbSession) -> ProgressTags:
+    """Tagi w użyciu (liczba aktywności, ostatni dzień) i lista wszystkich tagów."""
+    return ProgressTags(
+        tags=[
+            TagCountOut(tag=t.tag, type=t.kind, count=t.count, last_date=t.last_day)
+            for t in progress.tag_counts(session, user_id=user.id)
+        ],
+        available=dict(TAGS),
+    )
+
+
+@router.get("/progress/{tag}", responses={404: {"description": "Nieznany tag"}})
+def progress_tag(
+    user: CurrentUser,
+    session: DbSession,
+    tag: Annotated[str, Path(description="Klucz tagu, np. intervals")],
+) -> TagProgress:
+    """Dane do wykresów dla aktywności z tym tagiem (od najstarszej)."""
+    kind = TAGS.get(tag)
+    if kind is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Nieznany tag")
+    running = (
+        progress.running_progress(session, user_id=user.id, tag=tag)
+        if kind == ActivityKind.RUNNING
+        else []
+    )
+    strength = (
+        progress.strength_progress(session, user_id=user.id, tag=tag)
+        if kind == ActivityKind.STRENGTH
+        else []
+    )
+    return TagProgress(
+        tag=tag,
+        type=kind,
+        running=[
+            RunPointOut(
+                activity_id=p.activity_id,
+                date=p.day,
+                name=p.name,
+                distance_m=p.distance_m,
+                pace_min_per_km=_pace_min(p.pace_s_per_km),
+                avg_hr=_int(p.avg_hr),
+                avg_cadence_spm=_int(p.avg_cadence_spm),
+                work_laps=p.work_laps,
+            )
+            for p in running
+        ],
+        strength=[
+            ExerciseProgressOut(
+                category=e.category,
+                exercise=e.exercise,
+                sessions=e.sessions,
+                sets=[
+                    SetPointOut(
+                        activity_id=p.activity_id,
+                        date=p.day,
+                        set_number=p.set_number,
+                        weight_kg=p.weight_kg,
+                        reps=p.reps,
+                    )
+                    for p in e.points
+                ],
+            )
+            for e in strength
+        ],
     )
 
 

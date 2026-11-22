@@ -8,17 +8,22 @@ import dagger.hilt.components.SingletonComponent
 import pl.cgconnector.app.BuildConfig
 import pl.cgconnector.app.data.remote.ActivityRemoteDataSource
 import pl.cgconnector.app.data.remote.ApiActivityRemoteDataSource
+import pl.cgconnector.app.data.remote.ApiProgressRemoteDataSource
 import pl.cgconnector.app.data.remote.ApiWorkoutRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeActivityRemoteDataSource
+import pl.cgconnector.app.data.remote.FakeProgressRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeWorkoutRemoteDataSource
+import pl.cgconnector.app.data.remote.ProgressRemoteDataSource
 import pl.cgconnector.app.data.remote.WorkoutRemoteDataSource
 import pl.cgconnector.app.data.repository.ActivityRepository
 import pl.cgconnector.app.data.repository.DataStoreQueuePauseStore
 import pl.cgconnector.app.data.repository.DataStoreWorkoutTemplateRepository
 import pl.cgconnector.app.data.repository.OfflineFirstActivityRepository
 import pl.cgconnector.app.data.repository.OfflineFirstWorkoutQueueRepository
+import pl.cgconnector.app.data.repository.ProgressRepository
 import pl.cgconnector.app.data.repository.QueuePauseStore
 import pl.cgconnector.app.data.repository.RoomStatsRepository
+import pl.cgconnector.app.data.repository.ServerProgressRepository
 import pl.cgconnector.app.data.repository.StatsRepository
 import pl.cgconnector.app.data.repository.WorkoutQueueRepository
 import pl.cgconnector.app.data.repository.WorkoutQueueTrigger
@@ -41,6 +46,9 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindActivityRepository(impl: OfflineFirstActivityRepository): ActivityRepository
+
+    @Binds
+    abstract fun bindProgressRepository(impl: ServerProgressRepository): ProgressRepository
 
     @Binds
     abstract fun bindStatsRepository(impl: RoomStatsRepository): StatsRepository
@@ -69,5 +77,11 @@ abstract class DataModule {
             fake: Provider<FakeWorkoutRemoteDataSource>,
             api: Provider<ApiWorkoutRemoteDataSource>,
         ): WorkoutRemoteDataSource = if (BuildConfig.USE_FAKE_API) fake.get() else api.get()
+
+        @Provides
+        fun provideProgressRemoteDataSource(
+            fake: Provider<FakeProgressRemoteDataSource>,
+            api: Provider<ApiProgressRemoteDataSource>,
+        ): ProgressRemoteDataSource = if (BuildConfig.USE_FAKE_API) fake.get() else api.get()
     }
 }

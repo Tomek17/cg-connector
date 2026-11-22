@@ -17,11 +17,16 @@ import androidx.room.TypeConverters
         SyncStatusEntity::class,
         QueuedWorkoutEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
     // 1→2: nowe tabele i kolumny NULL w activities; Room generuje SQL na podstawie schemas/1.json i 2.json.
     // 2→3: nowa tabela workout_queue (kolejka treningów).
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    // 3→4: kolumna activities.tag (NULL); istniejące wiersze dostaną tagi przy następnym odświeżeniu.
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),
+        AutoMigration(from = 2, to = 3),
+        AutoMigration(from = 3, to = 4),
+    ],
 )
 @TypeConverters(Converters::class)
 abstract class CgDatabase : RoomDatabase() {

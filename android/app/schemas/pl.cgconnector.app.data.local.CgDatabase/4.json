@@ -1,0 +1,582 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "476bc874f0b2b9650b1f5aa1bc4e2de7",
+    "entities": [
+      {
+        "tableName": "activities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `type` TEXT NOT NULL, `name` TEXT, `start_time` INTEGER NOT NULL, `duration_sec` INTEGER NOT NULL, `distance_m` REAL, `avg_hr` INTEGER, `max_hr` INTEGER, `elevation_gain_m` REAL, `avg_power_w` INTEGER, `avg_cadence_spm` INTEGER, `moving_duration_sec` INTEGER, `avg_speed_mps` REAL, `pace_min_per_km` REAL, `aerobic_training_effect` REAL, `anaerobic_training_effect` REAL, `training_load` REAL, `tag` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startTime",
+            "columnName": "start_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationSec",
+            "columnName": "duration_sec",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceM",
+            "columnName": "distance_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "avgHr",
+            "columnName": "avg_hr",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "maxHr",
+            "columnName": "max_hr",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "elevationGainM",
+            "columnName": "elevation_gain_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "avgPowerW",
+            "columnName": "avg_power_w",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "avgCadenceSpm",
+            "columnName": "avg_cadence_spm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "movingDurationSec",
+            "columnName": "moving_duration_sec",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "avgSpeedMps",
+            "columnName": "avg_speed_mps",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "paceMinPerKm",
+            "columnName": "pace_min_per_km",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "aerobicTrainingEffect",
+            "columnName": "aerobic_training_effect",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "anaerobicTrainingEffect",
+            "columnName": "anaerobic_training_effect",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "trainingLoad",
+            "columnName": "training_load",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_activities_start_time",
+            "unique": false,
+            "columnNames": [
+              "start_time"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activities_start_time` ON `${TABLE_NAME}` (`start_time`)"
+          },
+          {
+            "name": "index_activities_type",
+            "unique": false,
+            "columnNames": [
+              "type"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activities_type` ON `${TABLE_NAME}` (`type`)"
+          }
+        ]
+      },
+      {
+        "tableName": "activity_details",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`activity_id` INTEGER NOT NULL, `details_available` INTEGER NOT NULL, `fetched_at` INTEGER NOT NULL, PRIMARY KEY(`activity_id`))",
+        "fields": [
+          {
+            "fieldPath": "activityId",
+            "columnName": "activity_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "detailsAvailable",
+            "columnName": "details_available",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetched_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "activity_id"
+          ]
+        }
+      },
+      {
+        "tableName": "activity_laps",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`activity_id` INTEGER NOT NULL, `lap_index` INTEGER NOT NULL, `distance_m` REAL, `duration_sec` REAL, `avg_hr` INTEGER, `max_hr` INTEGER, `avg_speed_mps` REAL, `pace_min_per_km` REAL, `elevation_gain_m` REAL, `avg_power_w` INTEGER, `avg_cadence_spm` INTEGER, PRIMARY KEY(`activity_id`, `lap_index`))",
+        "fields": [
+          {
+            "fieldPath": "activityId",
+            "columnName": "activity_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "index",
+            "columnName": "lap_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceM",
+            "columnName": "distance_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "durationSec",
+            "columnName": "duration_sec",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "avgHr",
+            "columnName": "avg_hr",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "maxHr",
+            "columnName": "max_hr",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "avgSpeedMps",
+            "columnName": "avg_speed_mps",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "paceMinPerKm",
+            "columnName": "pace_min_per_km",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "elevationGainM",
+            "columnName": "elevation_gain_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "avgPowerW",
+            "columnName": "avg_power_w",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "avgCadenceSpm",
+            "columnName": "avg_cadence_spm",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "activity_id",
+            "lap_index"
+          ]
+        }
+      },
+      {
+        "tableName": "activity_hr_zones",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`activity_id` INTEGER NOT NULL, `zone` INTEGER NOT NULL, `seconds` REAL NOT NULL, `low_bpm` INTEGER, PRIMARY KEY(`activity_id`, `zone`))",
+        "fields": [
+          {
+            "fieldPath": "activityId",
+            "columnName": "activity_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "zone",
+            "columnName": "zone",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seconds",
+            "columnName": "seconds",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lowBpm",
+            "columnName": "low_bpm",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "activity_id",
+            "zone"
+          ]
+        }
+      },
+      {
+        "tableName": "activity_exercise_sets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`activity_id` INTEGER NOT NULL, `set_index` INTEGER NOT NULL, `set_type` TEXT, `category` TEXT, `exercise` TEXT, `reps` INTEGER, `weight_kg` REAL, `duration_sec` REAL, PRIMARY KEY(`activity_id`, `set_index`))",
+        "fields": [
+          {
+            "fieldPath": "activityId",
+            "columnName": "activity_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "index",
+            "columnName": "set_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "setType",
+            "columnName": "set_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "exercise",
+            "columnName": "exercise",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reps",
+            "columnName": "reps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "weightKg",
+            "columnName": "weight_kg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "durationSec",
+            "columnName": "duration_sec",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "activity_id",
+            "set_index"
+          ]
+        }
+      },
+      {
+        "tableName": "vo2max",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `sport` TEXT NOT NULL, `value` REAL NOT NULL, PRIMARY KEY(`date`, `sport`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sport",
+            "columnName": "sport",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date",
+            "sport"
+          ]
+        }
+      },
+      {
+        "tableName": "summaries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`period` TEXT NOT NULL, `period_start` TEXT NOT NULL, `period_end` TEXT NOT NULL, `type` TEXT NOT NULL, `count` INTEGER NOT NULL, `distance_m` REAL, `duration_sec` INTEGER NOT NULL, `elevation_gain_m` REAL, `avg_pace_min_per_km` REAL, PRIMARY KEY(`period`, `period_start`, `type`))",
+        "fields": [
+          {
+            "fieldPath": "period",
+            "columnName": "period",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodStart",
+            "columnName": "period_start",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodEnd",
+            "columnName": "period_end",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "count",
+            "columnName": "count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceM",
+            "columnName": "distance_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "durationSec",
+            "columnName": "duration_sec",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elevationGainM",
+            "columnName": "elevation_gain_m",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "avgPaceMinPerKm",
+            "columnName": "avg_pace_min_per_km",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "period",
+            "period_start",
+            "type"
+          ]
+        }
+      },
+      {
+        "tableName": "sync_status",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `server_last_sync_at` INTEGER, `server_last_sync_status` TEXT, `garmin_status` TEXT, `last_refresh_attempt_at` INTEGER, `last_refresh_outcome` TEXT, `last_refresh_success_at` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverLastSyncAt",
+            "columnName": "server_last_sync_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "serverLastSyncStatus",
+            "columnName": "server_last_sync_status",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "garminStatus",
+            "columnName": "garmin_status",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastRefreshAttemptAt",
+            "columnName": "last_refresh_attempt_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastRefreshOutcome",
+            "columnName": "last_refresh_outcome",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastRefreshSuccessAt",
+            "columnName": "last_refresh_success_at",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "workout_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `client_id` TEXT, `name` TEXT NOT NULL, `sport` TEXT NOT NULL, `definition_json` TEXT, `date` TEXT NOT NULL, `status` TEXT NOT NULL, `delete_requested` INTEGER NOT NULL, `remote_workout_id` INTEGER, `remote_scheduled_id` INTEGER, `last_error` TEXT, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clientId",
+            "columnName": "client_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sport",
+            "columnName": "sport",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "definitionJson",
+            "columnName": "definition_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deleteRequested",
+            "columnName": "delete_requested",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteWorkoutId",
+            "columnName": "remote_workout_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "remoteScheduledId",
+            "columnName": "remote_scheduled_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "last_error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_workout_queue_client_id",
+            "unique": true,
+            "columnNames": [
+              "client_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_queue_client_id` ON `${TABLE_NAME}` (`client_id`)"
+          },
+          {
+            "name": "index_workout_queue_remote_scheduled_id",
+            "unique": true,
+            "columnNames": [
+              "remote_scheduled_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_workout_queue_remote_scheduled_id` ON `${TABLE_NAME}` (`remote_scheduled_id`)"
+          },
+          {
+            "name": "index_workout_queue_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_queue_date` ON `${TABLE_NAME}` (`date`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '476bc874f0b2b9650b1f5aa1bc4e2de7')"
+    ]
+  }
+}

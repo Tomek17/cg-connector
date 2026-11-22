@@ -196,3 +196,41 @@ def test_backup_is_made_before_a_schema_change(settings: Settings) -> None:
     assert (folder / "cg.sqlite").stat().st_size > 0
     upgrade_db(engine)  # already current: no new copy
     assert len(list(backups.iterdir())) == 1
+
+
+def test_migration_0007_keeps_activity_details(settings: Settings) -> None:
+    """Adding/dropping activities.tag must not rebuild the table (details would cascade)."""
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import text
+
+    engine = create_db_engine(settings)
+    config = Config()
+    config.set_main_option("script_location", "cg_server:migrations")
+
+    def migrate(rev: str, *, down: bool = False) -> None:
+        with engine.begin() as conn:
+            config.attributes["connection"] = conn
+            (command.downgrade if down else command.upgrade)(config, rev)
+
+    migrate("0006")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO users(id, name, created_at) VALUES (1, 't', '2030-01-01')"))
+        conn.execute(
+            text(
+                "INSERT INTO activities(id, user_id, garmin_activity_id, kind, type_key,"
+                " start_time_utc, start_time_local, summary_json, created_at, updated_at)"
+                " VALUES (1, 1, 11, 'running', 'running', '2030-01-01', '2030-01-01', '{}',"
+                " '2030-01-01', '2030-01-01')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO activity_details(activity_id, user_id, fetch_failed, fetched_at)"
+                " VALUES (1, 1, 0, '2030-01-01')"
+            )
+        )
+    migrate("0007")
+    migrate("0006", down=True)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM activity_details")).scalar() == 1

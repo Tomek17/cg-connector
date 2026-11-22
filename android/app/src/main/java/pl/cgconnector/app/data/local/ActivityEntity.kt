@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import pl.cgconnector.app.domain.Activity
+import pl.cgconnector.app.domain.ActivityTag
 import pl.cgconnector.app.domain.ActivityType
 import java.time.Instant
 
@@ -36,6 +37,8 @@ data class ActivityEntity(
     @ColumnInfo(name = "aerobic_training_effect") val aerobicTrainingEffect: Double? = null,
     @ColumnInfo(name = "anaerobic_training_effect") val anaerobicTrainingEffect: Double? = null,
     @ColumnInfo(name = "training_load") val trainingLoad: Double? = null,
+    // Od wersji 4 bazy: klucz tagu z serwera (`intervals`, `legs`…), null = bez tagu.
+    val tag: String? = null,
 )
 
 fun ActivityEntity.toDomain() =
@@ -57,4 +60,5 @@ fun ActivityEntity.toDomain() =
         aerobicTrainingEffect = aerobicTrainingEffect,
         anaerobicTrainingEffect = anaerobicTrainingEffect,
         trainingLoad = trainingLoad,
+        tag = ActivityTag.fromKey(tag),
     )

@@ -4,13 +4,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import pl.cgconnector.app.data.repository.ActivityRepository
+import pl.cgconnector.app.data.repository.Loaded
+import pl.cgconnector.app.data.repository.ProgressRepository
 import pl.cgconnector.app.data.repository.RefreshResult
 import pl.cgconnector.app.data.repository.StatsRepository
 import pl.cgconnector.app.domain.Activity
 import pl.cgconnector.app.domain.ActivityDetail
+import pl.cgconnector.app.domain.ActivityTag
 import pl.cgconnector.app.domain.ActivityType
 import pl.cgconnector.app.domain.PeriodSummary
 import pl.cgconnector.app.domain.SyncStatus
+import pl.cgconnector.app.domain.TagCount
+import pl.cgconnector.app.domain.TagProgress
 import pl.cgconnector.app.domain.Vo2MaxPoint
 import java.time.Instant
 
@@ -77,3 +82,27 @@ fun testActivity(
     avgPowerW = null,
     avgCadenceSpm = null,
 )
+
+class FakeProgressRepository(
+    var tagsResult: Loaded<List<TagCount>> = Loaded.Ok(emptyList()),
+    var progressResult: (ActivityTag) -> Loaded<TagProgress> = { Loaded.Ok(TagProgress(it, emptyList(), emptyList())) },
+    var setTagResult: Loaded<Unit> = Loaded.Ok(Unit),
+) : ProgressRepository {
+    val savedTags = mutableListOf<Pair<Long, ActivityTag?>>()
+    var tagsCalls = 0
+
+    override suspend fun tags(): Loaded<List<TagCount>> {
+        tagsCalls++
+        return tagsResult
+    }
+
+    override suspend fun tagProgress(tag: ActivityTag): Loaded<TagProgress> = progressResult(tag)
+
+    override suspend fun setTag(
+        activityId: Long,
+        tag: ActivityTag?,
+    ): Loaded<Unit> {
+        if (setTagResult is Loaded.Ok) savedTags += activityId to tag
+        return setTagResult
+    }
+}

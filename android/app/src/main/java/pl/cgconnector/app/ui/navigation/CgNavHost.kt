@@ -22,10 +22,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import kotlinx.serialization.Serializable
 import pl.cgconnector.app.R
 import pl.cgconnector.app.ui.activities.ActivitiesRoute
 import pl.cgconnector.app.ui.detail.ActivityDetailRoute
+import pl.cgconnector.app.ui.progress.ProgressCategoryRoute
+import pl.cgconnector.app.ui.progress.ProgressRoute
+import pl.cgconnector.app.ui.progress.TagProgressRoute
 import pl.cgconnector.app.ui.queue.QueueRoute
 import pl.cgconnector.app.ui.settings.SettingsRoute
 import pl.cgconnector.app.ui.today.TodayRoute
@@ -59,6 +63,20 @@ data object TodayDestination
 @Serializable
 data object QueueDestination
 
+@Serializable
+data object ProgressDestination
+
+/** [type]: `running` | `strength` | `climbing`; nazwa pola = `ProgressTagsViewModel.ARG_TYPE`. */
+@Serializable
+data class ProgressCategoryDestination(val type: String)
+
+/** [exercise]: nazwa ćwiczenia z Garmina albo null (ekran tagu); nazwy pól = `TagProgressViewModel.ARG_*`. */
+@Serializable
+data class TagProgressDestination(
+    val tag: String,
+    val exercise: String? = null,
+)
+
 /** [copyFromId]: id wpisu Planu do skopiowania; nazwa pola = `RunningWizardViewModel.ARG_COPY_FROM_ID`. */
 @Serializable
 data class RunningWizardDestination(
@@ -88,6 +106,7 @@ private enum class TopLevel(
     TODAY(TodayDestination, TodayDestination::class, R.string.nav_today, R.drawable.ic_nav_today),
     ACTIVITIES(ActivitiesDestination, ActivitiesDestination::class, R.string.nav_activities, R.drawable.ic_nav_activities),
     QUEUE(QueueDestination, QueueDestination::class, R.string.nav_queue, R.drawable.ic_nav_queue),
+    PROGRESS(ProgressDestination, ProgressDestination::class, R.string.nav_progress, R.drawable.ic_nav_progress),
     SETTINGS(SettingsDestination, SettingsDestination::class, R.string.nav_settings, R.drawable.ic_nav_settings),
 }
 
@@ -166,6 +185,22 @@ fun CgNavHost(isConfigured: Boolean) {
                             onNewFreeform = { sport -> navController.navigate(FreeformWizardDestination(sport.apiValue)) },
                         )
                     },
+                )
+            }
+            composable<ProgressDestination> {
+                ProgressRoute(onOpenCategory = { type -> navController.navigate(ProgressCategoryDestination(type.apiValue)) })
+            }
+            composable<ProgressCategoryDestination> {
+                ProgressCategoryRoute(
+                    onBack = { navController.popBackStack() },
+                    onOpenTag = { tag -> navController.navigate(TagProgressDestination(tag.key)) },
+                )
+            }
+            composable<TagProgressDestination> { entry ->
+                val tag = entry.toRoute<TagProgressDestination>().tag
+                TagProgressRoute(
+                    onBack = { navController.popBackStack() },
+                    onOpenExercise = { exercise -> navController.navigate(TagProgressDestination(tag, exercise)) },
                 )
             }
             composable<RunningWizardDestination> { RunningWizardRoute(onDone = { navController.popBackStack() }) }

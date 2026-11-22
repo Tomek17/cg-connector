@@ -13,21 +13,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -35,6 +42,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.Activity
 import pl.cgconnector.app.domain.ActivityDetail
+import pl.cgconnector.app.domain.ActivityTag
+import pl.cgconnector.app.domain.LoadError
 import pl.cgconnector.app.domain.ExerciseSet
 import pl.cgconnector.app.domain.HrZone
 import pl.cgconnector.app.domain.Lap
@@ -44,6 +53,8 @@ import pl.cgconnector.app.ui.components.BackIconButton
 import pl.cgconnector.app.ui.components.LabelValue
 import pl.cgconnector.app.ui.components.RefreshIconButton
 import pl.cgconnector.app.ui.format.Formatters
+import pl.cgconnector.app.ui.progress.labelRes
+import pl.cgconnector.app.ui.progress.messageRes
 import kotlin.math.roundToInt
 
 @Composable
@@ -52,7 +63,7 @@ fun ActivityDetailRoute(
     viewModel: ActivityDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    ActivityDetailScreen(state = state, onBack = onBack, onRefresh = viewModel::refresh)
+    ActivityDetailScreen(state = state, onBack = onBack, onRefresh = viewModel::refresh, onSetTag = viewModel::setTag)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +72,7 @@ fun ActivityDetailScreen(
     state: ActivityDetailUiState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onSetTag: (ActivityTag?) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -87,6 +99,9 @@ fun ActivityDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item { Header(detail.activity) }
+                    if (ActivityTag.forType(detail.activity.type).isNotEmpty()) {
+                        item { TagCard(detail.activity, state.isSavingTag, state.tagError, onSetTag) }
+                    }
                     item { SummaryCard(detail.activity) }
                     item { FetchStatus(state, onRefresh) }
                     if (detail.laps.isNotEmpty()) laps(detail.laps)
@@ -103,6 +118,71 @@ private fun Header(activity: Activity) {
         text = "${stringResource(activity.type.labelRes())} · ${Formatters.dateTime(activity.startTime)}",
         style = MaterialTheme.typography.bodyMedium,
     )
+}
+
+@Composable
+private fun TagCard(
+    activity: Activity,
+    isSaving: Boolean,
+    error: LoadError?,
+    onSetTag: (ActivityTag?) -> Unit,
+) {
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.tag_label), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    when {
+                        isSaving -> stringResource(R.string.tag_saving)
+                        activity.tag != null -> stringResource(activity.tag.labelRes())
+                        else -> stringResource(R.string.tag_none)
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                error?.let {
+                    Text(
+                        stringResource(R.string.tag_save_failed, stringResource(it.messageRes())),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            TextButton(onClick = { choosing = true }, enabled = !isSaving) { Text(stringResource(R.string.tag_change)) }
+        }
+    }
+    if (choosing) {
+        val options = listOf<ActivityTag?>(null) + ActivityTag.forType(activity.type)
+        AlertDialog(
+            onDismissRequest = { choosing = false },
+            title = { Text(stringResource(R.string.tag_dialog_title)) },
+            text = {
+                Column {
+                    options.forEach { option ->
+                        val select = {
+                            choosing = false
+                            if (option != activity.tag) onSetTag(option)
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().selectable(selected = option == activity.tag, onClick = select, role = Role.RadioButton),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = option == activity.tag, onClick = null)
+                            Text(
+                                stringResource(option?.labelRes() ?: R.string.tag_none),
+                                modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosing = false }) { Text(stringResource(R.string.tag_cancel)) } },
+        )
+    }
 }
 
 @Composable

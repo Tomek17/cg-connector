@@ -22,6 +22,12 @@ interface ActivityDao {
     @Query("SELECT * FROM activities WHERE id = :id")
     suspend fun getById(id: Long): ActivityEntity?
 
+    @Query("UPDATE activities SET tag = :tag WHERE id = :id")
+    suspend fun updateTag(
+        id: Long,
+        tag: String?,
+    )
+
     @Query("SELECT MAX(start_time) FROM activities")
     suspend fun latestStartTime(): Instant?
 

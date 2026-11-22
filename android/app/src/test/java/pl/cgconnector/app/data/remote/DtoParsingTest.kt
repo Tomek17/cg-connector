@@ -3,6 +3,7 @@ package pl.cgconnector.app.data.remote
 import com.google.common.truth.Truth.assertThat
 import kotlinx.serialization.json.Json
 import org.junit.Test
+import pl.cgconnector.app.domain.ActivityTag
 import pl.cgconnector.app.domain.ActivityType
 import java.time.Instant
 
@@ -173,5 +174,38 @@ class DtoParsingTest {
         assertThat(summary.items).hasSize(2)
         assertThat(summary.items[0].avgPaceMinPerKm).isEqualTo(6.0)
         assertThat(summary.items[1].distanceM).isNull()
+    }
+
+    @Test
+    fun `parses progress and skips unknown tags`() {
+        val tags =
+            json.decodeFromString<ProgressTagsDto>(
+                """
+                {"tags": [{"tag": "intervals", "type": "running", "count": 3, "last_date": "2026-11-20"},
+                          {"tag": "future", "type": "running", "count": 1, "last_date": "2026-11-20"}],
+                 "available": {"intervals": "running"}}
+                """,
+            ).toDomain()
+        assertThat(tags.map { it.tag }).containsExactly(ActivityTag.INTERVALS)
+        assertThat(tags.single().count).isEqualTo(3)
+
+        val progress =
+            json.decodeFromString<TagProgressDto>(
+                """
+                {"tag": "legs", "type": "strength", "running": [],
+                 "strength": [{"category": "SQUAT", "exercise": "BARBELL_BACK_SQUAT", "sessions": 1,
+                   "sets": [{"activity_id": 5, "date": "2026-11-19", "set_number": 1, "weight_kg": 82.5, "reps": 5}]}]}
+                """,
+            ).toDomain()!!
+        assertThat(progress.tag).isEqualTo(ActivityTag.LEGS)
+        val set = progress.strength.single().sets.single()
+        assertThat(set.weightKg).isEqualTo(82.5)
+        assertThat(set.date).isEqualTo(java.time.LocalDate.of(2026, 11, 19))
+    }
+
+    @Test
+    fun `null tag is left out of the request body`() {
+        assertThat(json.encodeToString(TagUpdateDto.serializer(), TagUpdateDto(null))).isEqualTo("{}")
+        assertThat(json.encodeToString(TagUpdateDto.serializer(), TagUpdateDto("legs"))).isEqualTo("""{"tag":"legs"}""")
     }
 }

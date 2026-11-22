@@ -14,6 +14,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.runner.RunWith
+import pl.cgconnector.app.domain.ActivityTag
 import pl.cgconnector.app.domain.workout.QueueStatus
 import java.io.File
 import java.time.Instant
@@ -89,6 +90,31 @@ class MigrationTest {
                         ),
                     )
                 assertThat(dao.getById(id)?.name).isEqualTo("Bieg testowy")
+            } finally {
+                db.close()
+            }
+        }
+
+    @Test
+    fun migrate3To4_keepsActivitiesAndAddsEmptyTag() =
+        runTest {
+            createDatabaseFromSchema(version = 3)
+            context.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null).use { db ->
+                db.execSQL(
+                    "INSERT INTO activities (id, type, name, start_time, duration_sec) " +
+                        "VALUES (7, 'running', 'Bieg', 1763361000000, 1800)",
+                )
+            }
+
+            val db =
+                Room
+                    .databaseBuilder(context, CgDatabase::class.java, dbName)
+                    .allowMainThreadQueries()
+                    .build()
+            try {
+                assertThat(db.activityDao().getById(7)?.tag).isNull()
+                db.activityDao().updateTag(7, "intervals")
+                assertThat(db.activityDao().getById(7)?.toDomain()?.tag).isEqualTo(ActivityTag.INTERVALS)
             } finally {
                 db.close()
             }

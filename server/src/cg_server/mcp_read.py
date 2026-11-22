@@ -122,6 +122,7 @@ def activity_item(activity: Activity, tz: ZoneInfo, name_chars: int = NAME_CHARS
             "pace": fmt_pace(activity.avg_pace_s_per_km),
             "hr": whole(activity.avg_hr),
             "elev_m": whole(activity.elevation_gain_m) or None,
+            "tag": activity.tag,
         }
     )
 
