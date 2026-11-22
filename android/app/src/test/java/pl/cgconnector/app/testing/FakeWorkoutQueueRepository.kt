@@ -15,6 +15,7 @@ class FakeWorkoutQueueRepository(
     val items = MutableStateFlow(items)
     val enqueued = mutableListOf<Pair<WorkoutDefinition, LocalDate>>()
     val deleteRequests = mutableListOf<Long>()
+    val definitions = mutableMapOf<Long, WorkoutDefinition>()
     var refreshCalls = 0
 
     override fun observeQueue(): Flow<List<QueuedWorkout>> = items
@@ -25,7 +26,8 @@ class FakeWorkoutQueueRepository(
     ): Long {
         enqueued += definition to date
         val id = (items.value.maxOfOrNull { it.id } ?: 0) + 1
-        items.value += queued(id, definition.name, date)
+        items.value += queued(id, definition.name, date).copy(canCopy = true)
+        definitions[id] = definition
         return id
     }
 
@@ -45,6 +47,8 @@ class FakeWorkoutQueueRepository(
     }
 
     override suspend fun sync(): RefreshResult = RefreshResult.Success(0)
+
+    override suspend fun definition(id: Long): WorkoutDefinition? = definitions[id]
 
     companion object {
         fun queued(

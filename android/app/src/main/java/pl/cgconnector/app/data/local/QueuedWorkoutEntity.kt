@@ -53,4 +53,5 @@ fun QueuedWorkoutEntity.toDomain() =
         lastError = lastError,
         createdInApp = clientId != null,
         deleteRequested = deleteRequested,
+        canCopy = definitionJson != null,
     )

@@ -56,6 +56,9 @@ interface WorkoutQueueRepository {
     /** Ręczne „Odśwież”: wysyłka i statusy w tle. */
     fun refresh()
 
+    /** Definicja wpisu do skopiowania w kreatorze; `null`, gdy telefon jej nie ma ([QueuedWorkout.canCopy]). */
+    suspend fun definition(id: Long): WorkoutDefinition?
+
     /** Wywołuje worker: wysyłka, usuwanie i statusy z serwera. */
     suspend fun sync(): RefreshResult
 }
@@ -71,6 +74,13 @@ class OfflineFirstWorkoutQueueRepository
         private val clock: Clock,
     ) : WorkoutQueueRepository {
         override fun observeQueue(): Flow<List<QueuedWorkout>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
+
+        override suspend fun definition(id: Long): WorkoutDefinition? =
+            dao
+                .getById(id)
+                ?.definitionJson
+                ?.let { text -> runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() }
+                ?.let(WorkoutJson::decode)
 
         override suspend fun enqueue(
             definition: WorkoutDefinition,

@@ -38,6 +38,7 @@ import pl.cgconnector.app.domain.ActivityDetail
 import pl.cgconnector.app.domain.ExerciseSet
 import pl.cgconnector.app.domain.HrZone
 import pl.cgconnector.app.domain.Lap
+import pl.cgconnector.app.domain.workout.ExerciseCatalog
 import pl.cgconnector.app.ui.activities.labelRes
 import pl.cgconnector.app.ui.components.BackIconButton
 import pl.cgconnector.app.ui.components.LabelValue
@@ -255,7 +256,9 @@ private fun SetRow(set: ExerciseSet) {
         )
         return
     }
-    val name = (set.exercise ?: set.category)?.let { Formatters.exerciseName(it) }
+    val name =
+        ExerciseCatalog.polishNameForKeys(set.category, set.exercise)
+            ?: (set.exercise ?: set.category)?.let { Formatters.exerciseName(it) }
     val details =
         buildList {
             val reps = set.reps

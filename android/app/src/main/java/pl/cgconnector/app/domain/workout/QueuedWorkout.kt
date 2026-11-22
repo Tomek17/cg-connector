@@ -34,6 +34,8 @@ data class QueuedWorkout(
     val createdInApp: Boolean,
     /** Usunięcie zlecone w aplikacji, jeszcze niepotwierdzone przez serwer. */
     val deleteRequested: Boolean,
+    /** Telefon ma definicję treningu (szkic z tej aplikacji), więc można go skopiować do kreatora. */
+    val canCopy: Boolean = false,
 ) {
     /**
      * Kolejka zawiera wyłącznie wpisy outboxu CG-connector (serwer nie pokazuje innych pozycji kalendarza

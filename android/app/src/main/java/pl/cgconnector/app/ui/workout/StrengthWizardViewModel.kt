@@ -1,5 +1,6 @@
 package pl.cgconnector.app.ui.workout
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -8,8 +9,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import pl.cgconnector.app.data.repository.UserTemplate
 import pl.cgconnector.app.data.repository.WorkoutQueueRepository
+import pl.cgconnector.app.data.repository.WorkoutTemplateRepository
 import pl.cgconnector.app.domain.AppZone
+import pl.cgconnector.app.domain.workout.StrengthWorkout
 import pl.cgconnector.app.domain.workout.WorkoutProblem
 import pl.cgconnector.app.domain.workout.WorkoutValidator
 import java.time.Clock
@@ -24,6 +28,10 @@ data class StrengthWizardState(
     val problems: List<WorkoutProblem> = emptyList(),
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
+    /** Szablony siłowe zapisane przez użytkownika. */
+    val userTemplates: List<UserTemplate> = emptyList(),
+    /** Jednorazowy komunikat „Zapisano szablon” (pokazany i skasowany przez ekran). */
+    val templateSaved: Boolean = false,
 )
 
 @HiltViewModel
@@ -31,9 +39,12 @@ class StrengthWizardViewModel
     @Inject
     constructor(
         private val repository: WorkoutQueueRepository,
+        private val templates: WorkoutTemplateRepository,
+        savedStateHandle: SavedStateHandle,
         clock: Clock,
     ) : ViewModel() {
         private var lastKey = 0L
+        private val nextKey = { ++lastKey }
         private val today = clock.instant().atZone(AppZone.WARSAW).toLocalDate()
 
         private val _state =
@@ -42,11 +53,30 @@ class StrengthWizardViewModel
                     name = DEFAULT_NAME,
                     date = today.plusDays(1),
                     today = today,
-                    exercises = listOf(ExerciseForm(++lastKey)),
+                    exercises = emptyList(),
                 ),
             )
         val state: StateFlow<StrengthWizardState> = _state.asStateFlow()
-        private val initial = _state.value
+
+        /** Stan, od którego liczymy „niezapisane zmiany” (po skopiowaniu treningu z Planu: kopia). */
+        private var initial = _state.value
+
+        init {
+            viewModelScope.launch {
+                templates.observeTemplates().collect { all ->
+                    _state.update { s -> s.copy(userTemplates = all.filter { it.definition is StrengthWorkout }) }
+                }
+            }
+            val copyFrom = savedStateHandle.get<Long>(ARG_COPY_FROM_ID) ?: NO_COPY
+            if (copyFrom != NO_COPY) {
+                viewModelScope.launch {
+                    (repository.definition(copyFrom) as? StrengthWorkout)?.let { copy ->
+                        applyTemplate(copy)
+                        initial = _state.value
+                    }
+                }
+            }
+        }
 
         /** Czy użytkownik coś zmienił od otwarcia kreatora (wtedy wyjście pyta o odrzucenie zmian). */
         fun hasUnsavedChanges(): Boolean =
@@ -56,12 +86,59 @@ class StrengthWizardViewModel
 
         fun onDateChange(date: LocalDate) = _state.update { it.copy(date = date) }
 
-        fun addExercise() = _state.update { it.copy(exercises = it.exercises + ExerciseForm(++lastKey)) }
+        /** Ćwiczenia wybrane w wyszukiwarce (nazwy z katalogu Garmina), dopisane na końcu w kolejności wyboru. */
+        fun addExercises(garminNames: List<String>) =
+            _state.update { s -> s.copy(exercises = s.exercises + garminNames.map { StrengthForm.newExercise(nextKey(), it) }) }
+
+        /** Zmiana ćwiczenia na inne z zachowaniem serii, powtórzeń i ciężaru. */
+        fun replaceExercise(
+            key: Long,
+            garminName: String,
+        ) = _state.update { s -> s.copy(exercises = s.exercises.map { if (it.key == key) it.copy(name = garminName) else it }) }
 
         fun removeExercise(key: Long) = _state.update { s -> s.copy(exercises = s.exercises.filterNot { it.key == key }) }
 
+        /** Przesuwa ćwiczenie o jedno miejsce w górę ([up]) albo w dół. */
+        fun moveExercise(
+            key: Long,
+            up: Boolean,
+        ) = _state.update { s ->
+            val index = s.exercises.indexOfFirst { it.key == key }
+            val target = if (up) index - 1 else index + 1
+            if (index < 0 || target !in s.exercises.indices) {
+                s
+            } else {
+                s.copy(exercises = s.exercises.toMutableList().apply { add(target, removeAt(index)) })
+            }
+        }
+
         fun updateExercise(exercise: ExerciseForm) =
             _state.update { s -> s.copy(exercises = s.exercises.map { if (it.key == exercise.key) exercise else it }) }
+
+        /** Szablon (wbudowany, własny albo kopia z Planu) zastępuje nazwę i ćwiczenia; data zostaje. */
+        fun applyTemplate(template: StrengthWorkout) =
+            _state.update { it.copy(name = template.name, exercises = StrengthForm.fromDefinition(template, nextKey), problems = emptyList()) }
+
+        /** Zapisuje bieżący trening jako własny szablon; z błędami w ćwiczeniach pokazuje problemy i nie zapisuje. */
+        fun saveAsTemplate() {
+            val current = _state.value
+            val definition = StrengthForm.toDefinition(current.name, current.exercises)
+            val problems = WorkoutValidator.validate(definition)
+            if (problems.isNotEmpty()) {
+                _state.update { it.copy(problems = problems) }
+                return
+            }
+            viewModelScope.launch {
+                templates.save(definition)
+                _state.update { it.copy(problems = emptyList(), templateSaved = true) }
+            }
+        }
+
+        fun deleteTemplate(id: String) {
+            viewModelScope.launch { templates.delete(id) }
+        }
+
+        fun onTemplateSavedShown() = _state.update { it.copy(templateSaved = false) }
 
         fun save() {
             val current = _state.value
@@ -80,7 +157,10 @@ class StrengthWizardViewModel
             }
         }
 
-        private companion object {
-            const val DEFAULT_NAME = "Siła"
+        companion object {
+            /** Nazwa pola musi zgadzać się z `StrengthWizardDestination.copyFromId`. */
+            const val ARG_COPY_FROM_ID = "copyFromId"
+            const val NO_COPY = -1L
+            private const val DEFAULT_NAME = "Siła"
         }
     }
