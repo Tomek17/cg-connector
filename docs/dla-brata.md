@@ -31,7 +31,7 @@ To robicie razem, przy laptopie Tomka. Zajmuje ok. 15 minut.
    - **token aplikacji**, zaczyna się od `cga_` (do telefonu),
    - **kod CG**, zaczyna się od `cgc_` (do Claude).
 
-Tomek poda Ci też **adres serwera**, np. `https://cg-server.twoj-tailnet.ts.net`.
+Tomek poda Ci też **adres serwera**, np. `https://cg-server.twoj-tailnet.ts.net` albo `https://<nazwa>.ngrok-free.dev`.
 
 > **Nigdy nie wysyłaj hasła do Garmina** SMS-em, mailem, na Messengerze ani w czacie z Claude. Nikt z projektu o nie nie poprosi. Hasło wpisujesz tylko sam, przy laptopie Tomka.
 
@@ -67,9 +67,9 @@ Token jest zapisany w telefonie w zaszyfrowanej formie. Po zapisaniu pole tokenu
 ## Krok 4. Podłączenie Claude (darmowe konto)
 
 1. Na komputerze albo w przeglądarce telefonu otwórz <https://claude.ai> i zaloguj się na swoje konto.
-2. Wejdź w **Ustawienia → Konektory → Dodaj własny konektor**.
+2. Wejdź na <https://claude.ai/customize/connectors> (**Customize → Connectors**, nie Ustawienia), kliknij **+ Add → Add custom connector**.
 3. Nazwa: `CG-connector`. Adres: adres serwera z dopiskiem **`/mcp`**, np. `https://cg-server.twoj-tailnet.ts.net/mcp`.
-4. Pola „Client ID” i „Client Secret” zostaw puste (jeśli w ogóle są).
+4. Jeśli pojawią się opcje: **Authentication** → **Sign in now**, **OAuth client** → **Register automatically**. Pola „Client ID” i „Client Secret” zostaw puste. Gdy pojawi się strona ostrzeżenia ngrok, kliknij **Visit Site**.
 5. Kliknij **Dodaj**, potem **Połącz**.
 6. Otworzy się strona CG-connector. Wklej **kod CG** (`cgc_…`) i kliknij **Połącz z Claude**.
 7. W nowej rozmowie włącz konektor: **„+”** → **Konektory** → **CG-connector**.
