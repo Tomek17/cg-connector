@@ -124,15 +124,16 @@ def register_workout_tools(
 
     @mcp.tool(annotations=CREATE)
     def create_workout(definition: Definition) -> CallToolResult:
-        """Save a workout draft, return id + preview (nothing sent yet). Run: {"sport":
+        """Save a draft (not sent); returns id + preview. Run: {"sport":
         "running","name":"5x1km","steps":[{"type":"warmup","seconds":600},{"type":
         "repeat","times":5,"steps":[{"type":"interval","distance_km":1,"target":{"type":
         "pace","from":"4:30","to":"4:15"}},{"type":"recovery","seconds":90}]},{"type":
-        "cooldown","lap_button":true}]}. Step types warmup|interval|recovery|cooldown|rest;
-        end: one of seconds|distance_km|lap_button; target: pace (min/km), {"type":"hr_zone",
+        "cooldown","lap_button":true}]}. Types warmup|interval|recovery|cooldown|rest;
+        end: seconds|distance_km|lap_button; target: pace min/km, {"type":"hr_zone",
         "zone":2} or {"type":"hr_range","from":140,"to":155}. Strength: {"sport":"strength",
         "name":"A","exercises":[{"exercise":"Barbell Back Squat","sets":3,"reps":5,
-        "weight_kg":80,"rest_seconds":120}]}, reps or seconds, Garmin catalog names."""
+        "weight_kg":80,"rest_seconds":120}]}, reps|seconds, Garmin catalog names.
+        Text only: {"sport":"other"|"bouldering","name":"X","description":"..","minutes":60}."""
         with sessions() as session:
             try:
                 workout, _ = workouts.create_workout(

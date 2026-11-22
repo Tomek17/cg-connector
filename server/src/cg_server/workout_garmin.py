@@ -170,10 +170,39 @@ def _exercise_block(exercise: wd.Exercise, order: int) -> tuple[RepeatGroup, int
     return create_repeat_group(exercise.sets, [step], order), order + 2
 
 
-def to_garmin_workout(
-    definition: wd.RunningDefinition | wd.StrengthDefinition,
-) -> BaseWorkout:
+# Garmin has no climbing workout type: "other" and "bouldering" both go as Garmin "other".
+OTHER_SPORT = {"sportTypeId": SportType.OTHER, "sportTypeKey": "other"}
+
+
+def _other_workout(definition: wd.OtherDefinition, name: str) -> BaseWorkout:
+    """One open step (until lap button, or for `minutes`); the description shows on it."""
+    if definition.minutes:
+        end, value = END_TIME, float(definition.minutes * 60)
+    else:
+        end, value = END_LAP_BUTTON, None
+    step = ExecutableStep(
+        stepOrder=1,
+        stepType={"stepTypeId": StepType.INTERVAL, "stepTypeKey": "interval", "displayOrder": 3},
+        endCondition=dict(end),
+        endConditionValue=value,
+        description=definition.description,
+        **_target(None),
+    )
+    return BaseWorkout(
+        workoutName=name,
+        sportType={**OTHER_SPORT, "displayOrder": 3},
+        estimatedDurationInSecs=(definition.minutes or 0) * 60,
+        description=definition.description,
+        workoutSegments=[
+            WorkoutSegment(segmentOrder=1, sportType=dict(OTHER_SPORT), workoutSteps=[step])
+        ],
+    )
+
+
+def to_garmin_workout(definition: wd.AnyDefinition) -> BaseWorkout:
     name = f"{GARMIN_NAME_PREFIX}{definition.name}"
+    if isinstance(definition, wd.OtherDefinition):
+        return _other_workout(definition, name)
     if isinstance(definition, wd.StrengthDefinition):
         blocks: list[ExecutableStep | RepeatGroup] = []
         order = 1
@@ -210,6 +239,6 @@ def to_garmin_workout(
     )
 
 
-def garmin_json(definition: wd.RunningDefinition | wd.StrengthDefinition) -> dict[str, Any]:
+def garmin_json(definition: wd.AnyDefinition) -> dict[str, Any]:
     """The body of `POST /workout-service/workout`."""
     return to_garmin_workout(definition).to_dict()

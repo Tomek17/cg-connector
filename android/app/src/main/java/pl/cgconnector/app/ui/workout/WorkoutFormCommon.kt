@@ -138,6 +138,9 @@ private fun Code.textRes(): Int =
         Code.SECONDS_OUT_OF_RANGE -> R.string.problem_seconds
         Code.WEIGHT_OUT_OF_RANGE -> R.string.problem_weight
         Code.REST_OUT_OF_RANGE -> R.string.problem_rest
+        Code.DESCRIPTION_EMPTY -> R.string.problem_description_empty
+        Code.DESCRIPTION_TOO_LONG -> R.string.problem_description_too_long
+        Code.MINUTES_OUT_OF_RANGE -> R.string.problem_minutes
         Code.DATE_IN_PAST -> R.string.problem_date_past
         Code.DATE_TOO_FAR -> R.string.problem_date_far
     }

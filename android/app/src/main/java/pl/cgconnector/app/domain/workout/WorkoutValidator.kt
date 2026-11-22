@@ -28,6 +28,9 @@ data class WorkoutProblem(
         SECONDS_OUT_OF_RANGE,
         WEIGHT_OUT_OF_RANGE,
         REST_OUT_OF_RANGE,
+        DESCRIPTION_EMPTY,
+        DESCRIPTION_TOO_LONG,
+        MINUTES_OUT_OF_RANGE,
         DATE_IN_PAST,
         DATE_TOO_FAR,
     }
@@ -43,6 +46,8 @@ object WorkoutValidator {
     const val MAX_STEPS = 50
     const val MAX_EXERCISES = 30
     const val MAX_DAYS_AHEAD = 365L
+    const val MAX_DESCRIPTION = 500
+    val MINUTES = 1..600
     private const val MAX_STEP_SECONDS = 6 * 3600
     private const val MAX_DISTANCE_KM = 100.0
     private val PACE_RANGE = 2 * 60..20 * 60
@@ -64,8 +69,23 @@ object WorkoutValidator {
         when (definition) {
             is RunningWorkout -> validateRunning(definition, problems)
             is StrengthWorkout -> validateStrength(definition, problems)
+            is FreeformWorkout -> validateFreeform(definition, problems)
         }
         return problems
+    }
+
+    private fun validateFreeform(
+        workout: FreeformWorkout,
+        problems: MutableList<WorkoutProblem>,
+    ) {
+        val description = workout.description.trim()
+        if (workout.sport == WorkoutSport.OTHER && description.isEmpty()) {
+            problems += WorkoutProblem(WorkoutProblem.Code.DESCRIPTION_EMPTY)
+        }
+        if (description.length > MAX_DESCRIPTION) problems += WorkoutProblem(WorkoutProblem.Code.DESCRIPTION_TOO_LONG)
+        if (workout.minutes != null && workout.minutes !in MINUTES) {
+            problems += WorkoutProblem(WorkoutProblem.Code.MINUTES_OUT_OF_RANGE)
+        }
     }
 
     /** Serwer przyjmuje daty od dziś do [MAX_DAYS_AHEAD] dni naprzód. */

@@ -12,12 +12,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import pl.cgconnector.app.R
+import pl.cgconnector.app.domain.workout.WorkoutSport
 
 /** „Nowy trening” na ekranie kolejki: wybór rodzaju otwiera kreator. */
 @Composable
 fun NewWorkoutButton(
     onNewRunning: () -> Unit,
     onNewStrength: () -> Unit,
+    onNewFreeform: (WorkoutSport) -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box {
@@ -35,6 +37,20 @@ fun NewWorkoutButton(
                 onClick = {
                     expanded = false
                     onNewStrength()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.wizard_new_bouldering)) },
+                onClick = {
+                    expanded = false
+                    onNewFreeform(WorkoutSport.BOULDERING)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.wizard_new_other)) },
+                onClick = {
+                    expanded = false
+                    onNewFreeform(WorkoutSport.OTHER)
                 },
             )
         }

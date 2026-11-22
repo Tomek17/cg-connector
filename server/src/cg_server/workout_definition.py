@@ -20,6 +20,11 @@ Strength (exercise names from Garmin's catalog, `garminconnect.exercises`):
         {"exercise": "Barbell Back Squat", "sets": 3, "reps": 5, "weight_kg": 80,
          "rest_seconds": 120},
         {"exercise": "Plank", "sets": 3, "seconds": 45}]}
+
+Other / bouldering (Garmin has no climbing workout type; both go as Garmin "other"):
+    {"sport": "bouldering", "name": "Bouldering", "description": "Warm-up on easy problems",
+     "minutes": 90}
+    `description` is the content of the workout (required for "other"); `minutes` optional.
 """
 
 import re
@@ -46,6 +51,8 @@ MIN_PACE_S, MAX_PACE_S = 2 * 60, 20 * 60
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+MAX_NOTES = 500
+Notes = Annotated[str, StringConstraints(strip_whitespace=True, max_length=MAX_NOTES)]
 
 
 class DefinitionError(ValueError):
@@ -222,10 +229,36 @@ class StrengthDefinition(_Model):
     exercises: list[Exercise] = Field(min_length=1, max_length=MAX_EXERCISES)
 
 
-WorkoutDefinition = Annotated[RunningDefinition | StrengthDefinition, Field(discriminator="sport")]
-_ADAPTER: TypeAdapter[RunningDefinition | StrengthDefinition] = TypeAdapter(WorkoutDefinition)
+class OtherDefinition(_Model):
+    """A workout described only in words: "other" or "bouldering" (no steps on the watch)."""
+
+    version: Literal[1] = VERSION
+    sport: Literal["other", "bouldering"]
+    name: Name
+    description: Notes | None = None
+    minutes: int | None = Field(default=None, ge=1, le=600)
+
+    @model_validator(mode="after")
+    def _described(self) -> Self:
+        if self.sport == "other" and not self.description:
+            raise ValueError("An 'other' workout needs a description")
+        return self
+
+
+AnyDefinition = RunningDefinition | StrengthDefinition | OtherDefinition
+WorkoutDefinition = Annotated[AnyDefinition, Field(discriminator="sport")]
+_ADAPTER: TypeAdapter[AnyDefinition] = TypeAdapter(WorkoutDefinition)
 # Discriminator values that pydantic puts into error locations; not useful for the reader.
-_TAGS = {"running", "strength", "pace", "hr_zone", "hr_range", "repeat"} | set(
+_TAGS = {
+    "running",
+    "strength",
+    "other",
+    "bouldering",
+    "pace",
+    "hr_zone",
+    "hr_range",
+    "repeat",
+} | set(
     RunStep.model_fields["type"].annotation.__args__  # type: ignore[union-attr]
 )
 
@@ -238,9 +271,9 @@ def _format_error(error: Any) -> str:
     return f"{loc}: {message}" if loc else message
 
 
-def parse_definition(data: Any) -> RunningDefinition | StrengthDefinition:
+def parse_definition(data: Any) -> AnyDefinition:
     """Validate a definition (dict from JSON); raise DefinitionError with readable lines."""
-    if isinstance(data, RunningDefinition | StrengthDefinition):
+    if isinstance(data, RunningDefinition | StrengthDefinition | OtherDefinition):
         return data
     try:
         return _ADAPTER.validate_python(data)
@@ -249,7 +282,7 @@ def parse_definition(data: Any) -> RunningDefinition | StrengthDefinition:
         raise DefinitionError("Invalid workout definition:\n" + "\n".join(lines)) from None
 
 
-def to_json(definition: RunningDefinition | StrengthDefinition) -> dict[str, Any]:
+def to_json(definition: AnyDefinition) -> dict[str, Any]:
     """The form stored in the database and returned by the API."""
     return definition.model_dump(mode="json", by_alias=True, exclude_none=True)
 
@@ -301,8 +334,16 @@ def _letter(index: int) -> str:
     return chr(ord("a") + index) if index < 26 else str(index + 1)
 
 
-def preview(definition: RunningDefinition | StrengthDefinition) -> str:
+def preview(definition: AnyDefinition) -> str:
     """Short text form of a workout, for Claude and the app."""
+    if isinstance(definition, OtherDefinition):
+        label = "Bouldering" if definition.sport == "bouldering" else "Other"
+        lines = [f"{label}: {definition.name}"]
+        if definition.minutes:
+            lines.append(f"Duration: {format_duration(definition.minutes * 60)}")
+        if definition.description:
+            lines.append(definition.description)
+        return "\n".join(lines)
     if isinstance(definition, StrengthDefinition):
         lines = [f"Strength: {definition.name}"]
         lines += [f"{i}. {_exercise_text(e)}" for i, e in enumerate(definition.exercises, 1)]

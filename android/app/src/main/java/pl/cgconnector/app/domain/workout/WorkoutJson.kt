@@ -28,6 +28,10 @@ object WorkoutJson {
             when (definition) {
                 is RunningWorkout -> put("steps", JsonArray(definition.items.map(::item)))
                 is StrengthWorkout -> put("exercises", JsonArray(definition.exercises.map(::exercise)))
+                is FreeformWorkout -> {
+                    definition.description.trim().takeIf { it.isNotEmpty() }?.let { put("description", it) }
+                    definition.minutes?.let { put("minutes", it) }
+                }
             }
         }
 
@@ -90,9 +94,11 @@ object WorkoutJson {
     fun decode(json: JsonObject): WorkoutDefinition? =
         runCatching {
             val name = json.string("name") ?: return null
-            when (json.string("sport")?.let(WorkoutSport::fromApi)) {
+            when (val sport = json.string("sport")?.let(WorkoutSport::fromApi)) {
                 WorkoutSport.RUNNING -> RunningWorkout(name, json.array("steps").map { decodeItem(it.jsonObject) })
                 WorkoutSport.STRENGTH -> StrengthWorkout(name, json.array("exercises").map { decodeExercise(it.jsonObject) })
+                WorkoutSport.OTHER, WorkoutSport.BOULDERING ->
+                    FreeformWorkout(name, sport, json.string("description").orEmpty(), json.int("minutes"))
                 null -> null
             }
         }.getOrNull()

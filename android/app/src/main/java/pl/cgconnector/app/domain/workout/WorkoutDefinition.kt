@@ -17,6 +17,8 @@ enum class WorkoutSport(
 ) {
     RUNNING("running"),
     STRENGTH("strength"),
+    OTHER("other"),
+    BOULDERING("bouldering"),
     ;
 
     companion object {
@@ -36,6 +38,22 @@ data class StrengthWorkout(
     val exercises: List<StrengthExercise>,
 ) : WorkoutDefinition {
     override val sport = WorkoutSport.STRENGTH
+}
+
+/**
+ * Trening opisany tylko słowami: „Inne” albo bouldering. Garmin nie ma typu treningu dla wspinaczki,
+ * więc oba trafiają do kalendarza jako trening „Inne” z jednym krokiem (do przycisku okrążenia albo na
+ * [minutes]); [description] widać w treningu na zegarku.
+ */
+data class FreeformWorkout(
+    override val name: String,
+    override val sport: WorkoutSport,
+    val description: String,
+    val minutes: Int? = null,
+) : WorkoutDefinition {
+    init {
+        require(sport == WorkoutSport.OTHER || sport == WorkoutSport.BOULDERING)
+    }
 }
 
 /** Element treningu biegowego: pojedynczy krok albo blok powtórzeń (bez zagnieżdżania). */
