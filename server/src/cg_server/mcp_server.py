@@ -14,7 +14,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -25,6 +25,14 @@ from cg_server.models import ActivityKind, User, utcnow
 from cg_server.oauth import SCOPE, CgOAuthProvider
 from cg_server.outbox import OutboxRunner
 from cg_server.queries import Period
+from cg_server.tags import TAGS, TagError, set_tag
+
+# Only changes our own database (no Garmin call), same result when repeated.
+TAG = ToolAnnotations(destructive_hint=False, idempotent_hint=True, open_world_hint=False)
+TAG_LIST = "; ".join(
+    f"{kind.value}: {', '.join(t for t, k in TAGS.items() if k == kind)}"
+    for kind in dict.fromkeys(TAGS.values())
+)
 
 INSTRUCTIONS = (
     "CG-connector: the user's Garmin Connect training data (activities, VO2max) "
@@ -147,6 +155,23 @@ def build_mcp(
                 session, user_id=user_id, activity_id=activity_id, now=utcnow(), tz=tz
             )
         )
+
+    @mcp.tool(
+        annotations=TAG,
+        description=f"Set one tag on an activity ({TAG_LIST}); "
+        "null clears it. Tag what the session was; the app charts progress per tag.",
+    )
+    def set_activity_tag(
+        activity_id: Annotated[int, Field(description="Activity id from list_activities.")],
+        tag: Annotated[str | None, Field(description="Tag key or null.")],
+    ) -> CallToolResult:
+        with sessions() as session:
+            user = current_user(session)
+            try:
+                activity = set_tag(session, user_id=user.id, activity_id=activity_id, tag=tag)
+            except TagError as e:
+                raise ToolError(str(e)) from None
+            return _result({"id": activity.garmin_activity_id, "tag": activity.tag})
 
     @mcp.tool(annotations=READ_ONLY)
     def get_vo2max_trend(from_date: FromDate = None, to_date: ToDate = None) -> CallToolResult:

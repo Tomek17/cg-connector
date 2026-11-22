@@ -380,3 +380,21 @@ async def test_summer_time_and_new_year_week_in_tools(
     )
     assert weeks["range"] == "2026-12-28..2027-01-03"
     assert [(p["start"], p["running"]["n"]) for p in weeks["periods"]] == [("2026-12-28", 2)]
+
+
+async def test_set_activity_tag(http: httpx2.AsyncClient, codes: dict[str, str]) -> None:
+    is_error, _, data = await call(
+        http, codes["a"], "set_activity_tag", {"activity_id": 102, "tag": "legs"}
+    )
+    assert not is_error
+    assert data == {"id": 102, "tag": "legs"}
+    _, _, listed = await call(http, codes["a"], "list_activities", {"type": "strength"})
+    assert listed["activities"][0]["tag"] == "legs"
+    is_error, text, _ = await call(
+        http, codes["a"], "set_activity_tag", {"activity_id": 101, "tag": "legs"}
+    )
+    assert is_error and "intervals" in text
+    is_error, text, _ = await call(
+        http, codes["b"], "set_activity_tag", {"activity_id": 102, "tag": "legs"}
+    )
+    assert is_error and "No activity" in text

@@ -202,6 +202,133 @@
         }
       }
     },
+    "/api/v1/activities/{activity_id}/tag": {
+      "put": {
+        "summary": "Put Activity Tag",
+        "description": "Ustawia (albo z `null` usuwa) tag aktywności. Tag musi pasować do jej rodzaju.",
+        "operationId": "put_activity_tag_api_v1_activities__activity_id__tag_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "ID aktywności w Garmin Connect",
+              "title": "Activity Id"
+            },
+            "description": "ID aktywności w Garmin Connect"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivitySummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Brak aktywności"
+          },
+          "422": {
+            "description": "Zły tag"
+          }
+        }
+      }
+    },
+    "/api/v1/progress": {
+      "get": {
+        "summary": "Progress Tags",
+        "description": "Tagi w użyciu (liczba aktywności, ostatni dzień) i lista wszystkich tagów.",
+        "operationId": "progress_tags_api_v1_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressTags"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/progress/{tag}": {
+      "get": {
+        "summary": "Progress Tag",
+        "description": "Dane do wykresów dla aktywności z tym tagiem (od najstarszej).",
+        "operationId": "progress_tag_api_v1_progress__tag__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Klucz tagu, np. intervals",
+              "title": "Tag"
+            },
+            "description": "Klucz tagu, np. intervals"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagProgress"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nieznany tag"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/vo2max": {
       "get": {
         "summary": "Vo2Max",
@@ -744,6 +871,18 @@
             ],
             "title": "Training Load"
           },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag",
+            "description": "Tag (jeden): intervals, tempo, long, base, strides, upper, fbw, push, pull, legs, wall; null = brak"
+          },
           "details_available": {
             "type": "boolean",
             "title": "Details Available",
@@ -998,6 +1137,18 @@
               }
             ],
             "title": "Training Load"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag",
+            "description": "Tag (jeden): intervals, tempo, long, base, strides, upper, fbw, push, pull, legs, wall; null = brak"
           }
         },
         "type": "object",
@@ -1090,6 +1241,45 @@
           "sets"
         ],
         "title": "Exercise"
+      },
+      "ExerciseProgressOut": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "exercise": {
+            "type": "string",
+            "title": "Exercise",
+            "description": "Nazwa ćwiczenia z Garmina (klucz)"
+          },
+          "sessions": {
+            "type": "integer",
+            "title": "Sessions"
+          },
+          "sets": {
+            "items": {
+              "$ref": "#/components/schemas/SetPointOut"
+            },
+            "type": "array",
+            "title": "Sets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "exercise",
+          "sessions",
+          "sets"
+        ],
+        "title": "ExerciseProgressOut"
       },
       "ExerciseSet": {
         "properties": {
@@ -1605,6 +1795,32 @@
         ],
         "title": "Period"
       },
+      "ProgressTags": {
+        "properties": {
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagCountOut"
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "Tagi w użyciu, w stałej kolejności"
+          },
+          "available": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ActivityKind"
+            },
+            "type": "object",
+            "title": "Available",
+            "description": "Wszystkie tagi i ich rodzaj"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tags",
+          "available"
+        ],
+        "title": "ProgressTags"
+      },
       "RepeatStep": {
         "properties": {
           "type": {
@@ -1635,6 +1851,92 @@
           "steps"
         ],
         "title": "RepeatStep"
+      },
+      "RunPointOut": {
+        "properties": {
+          "activity_id": {
+            "type": "integer",
+            "title": "Activity Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "pace_min_per_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace Min Per Km",
+            "description": "Z odcinków roboczych, bez rozgrzewki"
+          },
+          "avg_hr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Hr"
+          },
+          "avg_cadence_spm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Cadence Spm"
+          },
+          "work_laps": {
+            "type": "integer",
+            "title": "Work Laps",
+            "description": "Użyte okrążenia robocze; 0 = cała aktywność"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_id",
+          "date",
+          "name",
+          "distance_m",
+          "pace_min_per_km",
+          "avg_hr",
+          "avg_cadence_spm",
+          "work_laps"
+        ],
+        "title": "RunPointOut"
       },
       "RunStep": {
         "properties": {
@@ -1870,6 +2172,54 @@
         ],
         "title": "ScheduledOut"
       },
+      "SetPointOut": {
+        "properties": {
+          "activity_id": {
+            "type": "integer",
+            "title": "Activity Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "set_number": {
+            "type": "integer",
+            "title": "Set Number"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "reps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_id",
+          "date",
+          "set_number",
+          "weight_kg",
+          "reps"
+        ],
+        "title": "SetPointOut"
+      },
       "StrengthDefinition": {
         "properties": {
           "version": {
@@ -2022,6 +2372,91 @@
           "avg_pace_min_per_km"
         ],
         "title": "SummaryItem"
+      },
+      "TagCountOut": {
+        "properties": {
+          "tag": {
+            "type": "string",
+            "title": "Tag"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ActivityKind",
+            "description": "Rodzaj aktywności, do którego należy tag"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "last_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Last Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tag",
+          "type",
+          "count",
+          "last_date"
+        ],
+        "title": "TagCountOut"
+      },
+      "TagProgress": {
+        "properties": {
+          "tag": {
+            "type": "string",
+            "title": "Tag"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ActivityKind"
+          },
+          "running": {
+            "items": {
+              "$ref": "#/components/schemas/RunPointOut"
+            },
+            "type": "array",
+            "title": "Running",
+            "description": "Bieg: punkt na aktywność, od najstarszej"
+          },
+          "strength": {
+            "items": {
+              "$ref": "#/components/schemas/ExerciseProgressOut"
+            },
+            "type": "array",
+            "title": "Strength",
+            "description": "Siłownia: ćwiczenia z seriami"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tag",
+          "type",
+          "running",
+          "strength"
+        ],
+        "title": "TagProgress"
+      },
+      "TagUpdate": {
+        "properties": {
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag",
+            "description": "Klucz tagu albo null, żeby usunąć"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tag"
+        ],
+        "title": "TagUpdate"
       },
       "ValidationError": {
         "properties": {

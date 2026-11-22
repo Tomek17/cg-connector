@@ -83,6 +83,11 @@ def _check_user_id(user_id: int) -> int:
     return user_id
 
 
+def check_user_id(user_id: int) -> int:
+    """Public form of the user id check, for other query modules (progress)."""
+    return _check_user_id(user_id)
+
+
 def as_utc(value: datetime) -> datetime:
     """SQLite returns naive datetimes; every stored time is UTC."""
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
@@ -151,6 +156,8 @@ class Lap:
     elevation_gain_m: float | None
     avg_power_w: float | None
     avg_cadence_spm: float | None
+    # Garmin lap intensity (WARMUP, ACTIVE, INTERVAL, RECOVERY, REST, COOLDOWN), if any.
+    intensity: str | None = None
 
     @property
     def pace_s_per_km(self) -> float | None:
@@ -219,6 +226,7 @@ def _laps(raw: Any) -> list[Lap]:
                 avg_cadence_spm=_num(
                     lap, "averageRunCadence", "averageRunningCadenceInStepsPerMinute"
                 ),
+                intensity=_str(lap, "intensityType"),
             )
         )
     return laps

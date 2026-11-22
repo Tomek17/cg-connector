@@ -117,6 +117,7 @@ def test_activities_list_matches_contract(client: TestClient, tokens: dict[str, 
         "aerobic_training_effect": 3.2,
         "anaerobic_training_effect": 1.1,
         "training_load": 120.5,
+        "tag": None,
     }
     strength = items[2]
     assert strength["type"] == "strength"
