@@ -274,6 +274,15 @@ read -rp "Katalog kopii: " K && sudo rm -f ~/cg-data/cg.sqlite-wal ~/cg-data/cg.
 
 Oczekiwany wynik: `Container cg-connector-cg-server-1 Started`, a po chwili `curl http://127.0.0.1:8000/health` odpowiada. Kopię z dysku Windows (np. po reinstalacji WSL) przywracasz tak samo, zamieniając `~/cg-data/backups/"$K"` na `/mnt/c/Users/<nazwa>/CG-kopie/"$K"`.
 
+**Przywrócenie samych zaplanowanych treningów** (bez cofania reszty bazy, np. po błędzie migracji 0006 z 2026-11-22). Serwer może działać; najpierw próba, potem przywrócenie:
+
+```bash
+cd ~/cg-connector/server && sudo ls ~/cg-data/backups && read -rp "Katalog kopii: " K && docker compose exec cg-server cg-server restore-scheduled /data/backups/"$K"/cg.sqlite --dry-run
+docker compose exec cg-server cg-server restore-scheduled /data/backups/"$K"/cg.sqlite && unset K
+```
+
+Oczekiwany wynik: lista dat i nazw treningów, a na końcu `Przywrócono zaplanowanych treningów: N.` Wraca tylko to, czego w bazie brakuje; ponowne uruchomienie niczego nie zdubluje. Aplikacja pokaże je po odświeżeniu Planu.
+
 > Tokeny Garmina w bazie są zaszyfrowane kluczem z `server/.env` (`CG_ENCRYPTION_KEY`), którego kopia **nie zawiera** (to sekret). Przy przywracaniu na tym samym serwerze nic nie trzeba robić. Na nowej instalacji bez starego `.env` treningi i ustawienia wrócą, ale każdy użytkownik musi ponownie połączyć konto Garmin.
 
 ---

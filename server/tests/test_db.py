@@ -135,3 +135,43 @@ def test_workout_migration_downgrades(settings: Settings) -> None:
         tables = set(inspect(conn).get_table_names())
     assert "workouts" not in tables and "scheduled_workouts" not in tables
     upgrade_db(engine)
+
+
+def test_migration_0006_keeps_scheduled_workouts(settings: Settings) -> None:
+    """Rebuilding `workouts` must not cascade-delete scheduled workouts (bug in 0006 v1)."""
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import text
+
+    engine = create_db_engine(settings)
+    config = Config()
+    config.set_main_option("script_location", "cg_server:migrations")
+
+    def migrate(rev: str, *, down: bool = False) -> None:
+        with engine.begin() as conn:
+            config.attributes["connection"] = conn
+            (command.downgrade if down else command.upgrade)(config, rev)
+
+    migrate("0005")
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO users(id, name, created_at) VALUES (1, 't', '2030-01-01')"))
+        conn.execute(
+            text(
+                "INSERT INTO workouts(id, user_id, client_id, name, sport, definition_json,"
+                " created_by, created_at) VALUES (1, 1, 'c', 'W', 'running', '{}', 'app',"
+                " '2030-01-01')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO scheduled_workouts(id, user_id, workout_id, date, status, attempts,"
+                " created_at, updated_at) VALUES (1, 1, 1, '2030-01-07', 'sent', 1,"
+                " '2030-01-01', '2030-01-01')"
+            )
+        )
+    migrate("0006")
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM scheduled_workouts")).scalar() == 1
+    migrate("0005", down=True)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM scheduled_workouts")).scalar() == 1
