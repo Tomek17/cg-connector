@@ -3,10 +3,10 @@
     <string name="app_name">CG-connector</string>
 
     <!-- Konfiguracja -->
-    <string name="settings_title">Konfiguracja</string>
+    <string name="settings_title">Ustawienia</string>
     <string name="settings_intro">Podaj adres swojego serwera CG i osobisty token aplikacji. Token jest przechowywany zaszyfrowany kluczem z Android Keystore.</string>
     <string name="settings_server_url_label">Adres serwera</string>
-    <string name="settings_server_url_hint">https://cg-server.twoj-tailnet.ts.net</string>
+    <string name="settings_server_url_hint">https://twoja-nazwa.ngrok-free.dev</string>
     <string name="settings_token_label">Token aplikacji</string>
     <string name="settings_token_lost">Zaloguj się ponownie: wklej token. Zapisany token nie dał się odczytać (np. po zmianie blokady ekranu), więc został usunięty. Adres serwera został zachowany.</string>
     <string name="settings_token_saved_hint">Token zapisany. Zostaw puste, aby go nie zmieniać.</string>
@@ -25,7 +25,6 @@
 
     <!-- Lista treningów -->
     <string name="activities_title">Treningi</string>
-    <string name="activities_refresh">Odśwież</string>
     <string name="activities_settings">Konfiguracja</string>
     <string name="activities_empty">Brak treningów. Dane pojawią się po synchronizacji z serwerem.</string>
     <string name="activities_empty_filtered">Brak treningów tego typu.</string>
@@ -46,15 +45,16 @@
 
     <!-- Nawigacja -->
     <string name="nav_activities">Treningi</string>
-    <string name="nav_vo2max">VO2max</string>
     <string name="nav_queue">Plan</string>
-    <string name="nav_status">Status</string>
     <string name="nav_settings">Ustawienia</string>
     <string name="back">Wstecz</string>
+    <string name="cancel">Anuluj</string>
+    <string name="refresh">Odśwież</string>
+    <string name="nav_today">Dziś</string>
+    <string name="app_loading">Wczytywanie…</string>
 
     <!-- Szczegóły treningu -->
     <string name="detail_title">Szczegóły treningu</string>
-    <string name="detail_refresh">Odśwież</string>
     <string name="detail_not_found">Nie ma tego treningu w telefonie. Odśwież listę treningów.</string>
     <string name="detail_summary">Podsumowanie</string>
     <string name="detail_duration">Czas</string>
@@ -115,8 +115,38 @@
     <string name="vo2_sport_running">Bieg</string>
     <string name="vo2_sport_cycling">Rower</string>
 
-    <!-- Status -->
-    <string name="status_title">Status</string>
+    <!-- Dziś -->
+    <string name="today_title">Dziś</string>
+    <string name="today_next_workout">Następny trening</string>
+    <string name="today_no_workout">Brak zaplanowanych treningów. Dodaj trening w zakładce Plan albo poproś Claude.</string>
+    <string name="today_day_today">dziś</string>
+    <string name="today_day_tomorrow">jutro</string>
+    <string name="today_this_week">Ten tydzień</string>
+    <string name="today_week_empty">Jeszcze bez treningów w tym tygodniu.</string>
+    <string name="today_week_total">Razem: %1$s · %2$s</string>
+    <string name="today_vo2_title">VO2max (bieg)</string>
+    <string name="today_vo2_empty">Brak pomiarów VO2max.</string>
+    <string name="today_vo2_change">%1$s w %2$d dni</string>
+    <string name="today_server_online">Serwer online · dane z %1$s</string>
+    <string name="today_server_offline">Serwer offline · dane z %1$s</string>
+    <string name="today_server_unknown">Serwer nie był jeszcze sprawdzony</string>
+    <string name="today_never_fetched">Dane nie były jeszcze pobrane</string>
+    <string name="today_stale">Dane mogą być nieaktualne · szczegóły w Ustawieniach</string>
+    <plurals name="workouts_count">
+        <item quantity="one">%d trening</item>
+        <item quantity="few">%d treningi</item>
+        <item quantity="many">%d treningów</item>
+        <item quantity="other">%d treningu</item>
+    </plurals>
+
+    <!-- Nagłówki tygodni na liście treningów -->
+    <string name="week_current">Ten tydzień</string>
+    <string name="week_previous">Poprzedni tydzień</string>
+    <string name="week_range">%1$s – %2$s</string>
+    <string name="week_running_km">bieg %1$s km</string>
+
+    <!-- Status (sekcja w Ustawieniach) -->
+    <string name="status_section_title">Połączenie i synchronizacja</string>
     <string name="status_check_now">Sprawdź teraz</string>
     <string name="status_stale_warning">Dane mogą być nieaktualne: serwer nie zsynchronizował się z Garminem od ponad 26 godzin albo aplikacja nie odświeżyła danych od ponad 30 godzin.</string>
     <string name="status_never_fetched">Dane nie były jeszcze pobrane. Pojawią się po pierwszym połączeniu z serwerem.</string>
@@ -139,13 +169,9 @@
     <string name="status_result_unauthorized">Token odrzucony</string>
     <string name="status_result_invalid">Nieprawidłowa odpowiedź serwera</string>
     <string name="status_result_not_configured">Brak konfiguracji</string>
-    <string name="status_this_week">Ten tydzień</string>
-    <string name="status_week_empty">Brak treningów w tym tygodniu.</string>
-    <string name="status_week_row">%1$s: %2$d× · %3$s</string>
 
     <!-- Kolejka treningów -->
     <string name="queue_title">Zaplanowane treningi</string>
-    <string name="queue_refresh">Odśwież</string>
     <string name="queue_empty">Brak zaplanowanych treningów. Dodaj trening przyciskiem „Nowy trening”.</string>
     <string name="queue_watch_hint">Trening trafia do kalendarza Garmin Connect, a na zegarek po jego synchronizacji z aplikacją Garmin Connect na telefonie.</string>
     <string name="queue_status_pending">Oczekuje na wysłanie</string>
@@ -167,6 +193,10 @@
     <string name="workout_sport_strength">Siłownia</string>
 
     <!-- Kreator treningu -->
+    <string name="wizard_discard_title">Odrzucić zmiany?</string>
+    <string name="wizard_discard_text">Trening nie został zapisany. Jeśli wyjdziesz, zmiany przepadną.</string>
+    <string name="wizard_discard_confirm">Odrzuć</string>
+    <string name="wizard_discard_keep">Edytuj dalej</string>
     <string name="wizard_new">Nowy trening</string>
     <string name="wizard_new_running">Trening biegowy</string>
     <string name="wizard_running_title">Nowy trening biegowy</string>

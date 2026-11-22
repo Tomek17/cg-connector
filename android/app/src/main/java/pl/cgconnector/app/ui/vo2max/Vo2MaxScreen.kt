@@ -33,14 +33,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
+import pl.cgconnector.app.ui.components.BackIconButton
 import pl.cgconnector.app.ui.format.Formatters
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun Vo2MaxRoute(viewModel: Vo2MaxViewModel = hiltViewModel()) {
+fun Vo2MaxRoute(
+    onBack: () -> Unit,
+    viewModel: Vo2MaxViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    Vo2MaxScreen(state = state, onSportSelected = viewModel::onSportSelected)
+    Vo2MaxScreen(state = state, onSportSelected = viewModel::onSportSelected, onBack = onBack)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,8 +52,16 @@ fun Vo2MaxRoute(viewModel: Vo2MaxViewModel = hiltViewModel()) {
 fun Vo2MaxScreen(
     state: Vo2MaxUiState,
     onSportSelected: (String) -> Unit,
+    onBack: () -> Unit,
 ) {
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.vo2_title)) }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.vo2_title)) },
+                navigationIcon = { BackIconButton(onClick = onBack) },
+            )
+        },
+    ) { padding ->
         val latest = state.latest
         if (state.isLoading) return@Scaffold
         if (latest == null) {

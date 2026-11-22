@@ -30,3 +30,30 @@ fun CgTheme(
         }
     MaterialTheme(colorScheme = colorScheme, content = content)
 }
+
+/** Ton plakietki/kropki stanu. Zielony jest stały, bo dynamiczne kolory Androida nie mają „sukcesu”. */
+enum class StatusTone { SUCCESS, NEUTRAL, ERROR }
+
+private val SuccessLight = Color(0xFF2E7D32)
+private val SuccessContainerLight = Color(0xFFC8E6C9)
+private val OnSuccessContainerLight = Color(0xFF1B5E20)
+private val SuccessDark = Color(0xFF81C784)
+private val SuccessContainerDark = Color(0xFF1B5E20)
+private val OnSuccessContainerDark = Color(0xFFC8E6C9)
+
+@Composable
+fun successColor(): Color = if (isSystemInDarkTheme()) SuccessDark else SuccessLight
+
+/** Para (tło, tekst) dla tonu. */
+@Composable
+fun toneColors(tone: StatusTone): Pair<Color, Color> =
+    when (tone) {
+        StatusTone.SUCCESS ->
+            if (isSystemInDarkTheme()) {
+                SuccessContainerDark to OnSuccessContainerDark
+            } else {
+                SuccessContainerLight to OnSuccessContainerLight
+            }
+        StatusTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        StatusTone.ERROR -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    }

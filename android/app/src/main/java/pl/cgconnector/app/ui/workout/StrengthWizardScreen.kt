@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
+import pl.cgconnector.app.ui.components.CloseIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,11 +42,12 @@ fun StrengthWizardRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.isSaved) { if (state.isSaved) onDone() }
+    val onCancel = rememberLeaveGuard(hasChanges = viewModel::hasUnsavedChanges, onLeave = onDone)
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.wizard_strength_title)) },
-                navigationIcon = { TextButton(onClick = onDone) { Text(stringResource(R.string.queue_delete_cancel)) } },
+                navigationIcon = { CloseIconButton(onClick = onCancel) },
                 actions = {
                     TextButton(onClick = viewModel::save, enabled = !state.isSaving) {
                         Text(stringResource(R.string.wizard_save))

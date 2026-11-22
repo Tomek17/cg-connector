@@ -46,6 +46,11 @@ class StrengthWizardViewModel
                 ),
             )
         val state: StateFlow<StrengthWizardState> = _state.asStateFlow()
+        private val initial = _state.value
+
+        /** Czy użytkownik coś zmienił od otwarcia kreatora (wtedy wyjście pyta o odrzucenie zmian). */
+        fun hasUnsavedChanges(): Boolean =
+            _state.value.let { !it.isSaved && (it.name != initial.name || it.date != initial.date || it.exercises != initial.exercises) }
 
         fun onNameChange(name: String) = _state.update { it.copy(name = name) }
 

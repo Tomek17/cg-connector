@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -41,6 +42,7 @@ import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.ConfigValidator
 import pl.cgconnector.app.domain.TokenError
 import pl.cgconnector.app.domain.UrlError
+import pl.cgconnector.app.ui.status.StatusSectionRoute
 
 @Composable
 fun SettingsRoute(
@@ -67,6 +69,7 @@ fun SettingsRoute(
         onServerUrlChange = viewModel::onServerUrlChange,
         onTokenChange = viewModel::onTokenChange,
         onSave = viewModel::save,
+        statusSection = { StatusSectionRoute() },
     )
 }
 
@@ -78,6 +81,7 @@ fun SettingsScreen(
     onServerUrlChange: (String) -> Unit,
     onTokenChange: (String) -> Unit,
     onSave: () -> Unit,
+    statusSection: @Composable () -> Unit = {},
 ) {
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
@@ -166,6 +170,12 @@ fun SettingsScreen(
 
             Button(onClick = onSave, enabled = !state.isSaving, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.settings_save))
+            }
+
+            // Stan połączenia ma sens dopiero po pierwszej konfiguracji.
+            if (state.hasSavedToken) {
+                HorizontalDivider()
+                statusSection()
             }
         }
     }

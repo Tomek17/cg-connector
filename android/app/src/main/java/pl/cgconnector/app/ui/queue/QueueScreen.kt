@@ -1,5 +1,6 @@
 package pl.cgconnector.app.ui.queue
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +34,10 @@ import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.workout.QueueStatus
 import pl.cgconnector.app.domain.workout.QueuedWorkout
 import pl.cgconnector.app.domain.workout.WorkoutSport
+import pl.cgconnector.app.ui.components.RefreshIconButton
+import pl.cgconnector.app.ui.components.StatusBadge
 import pl.cgconnector.app.ui.format.Formatters
+import pl.cgconnector.app.ui.theme.StatusTone
 import java.time.format.DateTimeFormatter
 
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Formatters.POLISH)
@@ -72,7 +76,7 @@ fun QueueScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.queue_title)) },
-                actions = { TextButton(onClick = onRefresh) { Text(stringResource(R.string.queue_refresh)) } },
+                actions = { RefreshIconButton(onClick = onRefresh) },
             )
         },
         floatingActionButton = floatingActionButton,
@@ -115,28 +119,12 @@ private fun QueueRow(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(item.name, style = MaterialTheme.typography.titleMedium)
-            val sport =
-                when (item.sport) {
-                    WorkoutSport.RUNNING -> stringResource(R.string.workout_sport_running)
-                    WorkoutSport.STRENGTH -> stringResource(R.string.workout_sport_strength)
-                    null -> null
-                }
             Text(
-                text = listOfNotNull(sport, DATE_FORMAT.format(item.date)).joinToString(" · "),
+                text = listOfNotNull(sportLabel(item.sport), DATE_FORMAT.format(item.date)).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(item.statusLabel()),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color =
-                        if (item.status == QueueStatus.FAILED) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                    modifier = Modifier.weight(1f),
-                )
+                Box(Modifier.weight(1f)) { StatusBadge(stringResource(item.statusLabel()), item.statusTone()) }
                 if (item.canRetry) {
                     val description = stringResource(R.string.queue_retry_description, item.name)
                     TextButton(onClick = onRetry, modifier = Modifier.semantics { contentDescription = description }) {
@@ -165,7 +153,24 @@ private fun QueueRow(
     }
 }
 
-private fun QueuedWorkout.statusLabel(): Int =
+@Composable
+internal fun sportLabel(sport: WorkoutSport?): String? =
+    when (sport) {
+        WorkoutSport.RUNNING -> stringResource(R.string.workout_sport_running)
+        WorkoutSport.STRENGTH -> stringResource(R.string.workout_sport_strength)
+        null -> null
+    }
+
+internal fun QueuedWorkout.statusTone(): StatusTone =
+    when {
+        deleteRequested -> StatusTone.NEUTRAL
+        status == QueueStatus.SENT -> StatusTone.SUCCESS
+        status == QueueStatus.FAILED -> StatusTone.ERROR
+        else -> StatusTone.NEUTRAL
+    }
+
+@StringRes
+internal fun QueuedWorkout.statusLabel(): Int =
     if (deleteRequested) {
         R.string.queue_status_deleting
     } else {

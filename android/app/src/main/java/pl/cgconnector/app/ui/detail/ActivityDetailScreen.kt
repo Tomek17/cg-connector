@@ -39,7 +39,9 @@ import pl.cgconnector.app.domain.ExerciseSet
 import pl.cgconnector.app.domain.HrZone
 import pl.cgconnector.app.domain.Lap
 import pl.cgconnector.app.ui.activities.labelRes
+import pl.cgconnector.app.ui.components.BackIconButton
 import pl.cgconnector.app.ui.components.LabelValue
+import pl.cgconnector.app.ui.components.RefreshIconButton
 import pl.cgconnector.app.ui.format.Formatters
 import kotlin.math.roundToInt
 
@@ -63,15 +65,9 @@ fun ActivityDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(state.detail?.activity?.name ?: stringResource(R.string.detail_title)) },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.back))
-                    }
-                },
+                navigationIcon = { BackIconButton(onClick = onBack) },
                 actions = {
-                    TextButton(onClick = onRefresh, enabled = !state.isFetching && state.detail != null) {
-                        Text(stringResource(R.string.detail_refresh))
-                    }
+                    if (state.detail != null) RefreshIconButton(onClick = onRefresh, isRefreshing = state.isFetching)
                 },
             )
         },

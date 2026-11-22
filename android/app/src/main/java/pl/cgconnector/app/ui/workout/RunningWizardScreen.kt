@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
+import pl.cgconnector.app.ui.components.CloseIconButton
 import pl.cgconnector.app.domain.workout.RunStepKind
 
 @Composable
@@ -45,7 +46,8 @@ fun RunningWizardRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.isSaved) { if (state.isSaved) onDone() }
-    RunningWizardScreen(state = state, viewModel = viewModel, onCancel = onDone)
+    val onCancel = rememberLeaveGuard(hasChanges = viewModel::hasUnsavedChanges, onLeave = onDone)
+    RunningWizardScreen(state = state, viewModel = viewModel, onCancel = onCancel)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +61,7 @@ private fun RunningWizardScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.wizard_running_title)) },
-                navigationIcon = { TextButton(onClick = onCancel) { Text(stringResource(R.string.queue_delete_cancel)) } },
+                navigationIcon = { CloseIconButton(onClick = onCancel) },
                 actions = {
                     TextButton(onClick = viewModel::save, enabled = !state.isSaving) {
                         Text(stringResource(R.string.wizard_save))

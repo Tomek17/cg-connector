@@ -1,8 +1,10 @@
 package pl.cgconnector.app.ui.workout
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,7 +83,7 @@ fun NameAndDateFields(
                 }) { Text(stringResource(R.string.wizard_date_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { pickerOpen = false }) { Text(stringResource(R.string.queue_delete_cancel)) }
+                TextButton(onClick = { pickerOpen = false }) { Text(stringResource(R.string.cancel)) }
             },
         ) { DatePicker(state = state) }
     }
@@ -139,3 +141,34 @@ private fun Code.textRes(): Int =
         Code.DATE_IN_PAST -> R.string.problem_date_past
         Code.DATE_TOO_FAR -> R.string.problem_date_far
     }
+
+/**
+ * Wyjście z kreatora (gest „wstecz” albo krzyżyk): bez zmian od razu wraca, ze zmianami pyta,
+ * czy je odrzucić. Zwraca akcję dla przycisku „Anuluj” na górnym pasku.
+ */
+@Composable
+fun rememberLeaveGuard(
+    hasChanges: () -> Boolean,
+    onLeave: () -> Unit,
+): () -> Unit {
+    var confirm by rememberSaveable { mutableStateOf(false) }
+    val request = { if (hasChanges()) confirm = true else onLeave() }
+    BackHandler(onBack = request)
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text(stringResource(R.string.wizard_discard_title)) },
+            text = { Text(stringResource(R.string.wizard_discard_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirm = false
+                    onLeave()
+                }) { Text(stringResource(R.string.wizard_discard_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.wizard_discard_keep)) }
+            },
+        )
+    }
+    return request
+}

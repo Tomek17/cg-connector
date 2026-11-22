@@ -59,8 +59,8 @@ Tomek opisuje wydania w [release.md](release.md).
 3. W polu **Adres serwera** wpisz adres od Tomka, np. `https://cg-server.twoj-tailnet.ts.net`. Musi zaczynać się od `https://`.
 4. W polu **Token aplikacji** wklej token `cga_…`.
 5. Stuknij **Zapisz**.
-6. Wejdź w zakładkę **Status** i stuknij **Sprawdź teraz**. Powinno być: Serwer **Online**, Konto Garmin **Połączone**.
-7. W zakładce **Treningi** pojawią się Twoje aktywności.
+6. Aplikacja przejdzie na zakładkę **Dziś**. Wróć do **Ustawień**, przewiń w dół do sekcji **Połączenie i synchronizacja** i stuknij **Sprawdź teraz**. Powinno być: Serwer **Online**, Konto Garmin **Połączone**.
+7. W zakładce **Treningi** pojawią się Twoje aktywności, a na **Dziś** podsumowanie tygodnia i VO2max.
 
 Token jest zapisany w telefonie w zaszyfrowanej formie. Po zapisaniu pole tokenu zostaje puste. To normalne.
 
@@ -95,7 +95,7 @@ Przykładowe pytania:
 
 ## Co zrobić, gdy dane są stare
 
-W zakładce **Status** widzisz, kiedy serwer ostatnio pobrał dane z Garmina. Jeśli pojawi się ostrzeżenie „Dane mogą być nieaktualne”:
+Na dole zakładki **Dziś** widzisz, z kiedy są dane; szczegóły są w **Ustawieniach**, w sekcji **Połączenie i synchronizacja**. Jeśli pojawi się ostrzeżenie „Dane mogą być nieaktualne”:
 
 1. Stuknij **Sprawdź teraz**.
 2. Jeśli Serwer jest **Offline**: laptop Tomka jest wyłączony albo śpi. Napisz do Tomka, żeby go włączył. Dane pobiorą się same po włączeniu.

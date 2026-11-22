@@ -28,7 +28,7 @@ import pl.cgconnector.app.ui.activities.ActivitiesRoute
 import pl.cgconnector.app.ui.detail.ActivityDetailRoute
 import pl.cgconnector.app.ui.queue.QueueRoute
 import pl.cgconnector.app.ui.settings.SettingsRoute
-import pl.cgconnector.app.ui.status.StatusRoute
+import pl.cgconnector.app.ui.today.TodayRoute
 import pl.cgconnector.app.ui.vo2max.Vo2MaxRoute
 import pl.cgconnector.app.ui.workout.NewWorkoutButton
 import pl.cgconnector.app.ui.workout.RunningWizardRoute
@@ -49,7 +49,7 @@ data class ActivityDetailDestination(val activityId: Long)
 data object Vo2MaxDestination
 
 @Serializable
-data object StatusDestination
+data object TodayDestination
 
 @Serializable
 data object QueueDestination
@@ -67,10 +67,9 @@ private enum class TopLevel(
     @param:StringRes val label: Int,
     @param:DrawableRes val icon: Int,
 ) {
+    TODAY(TodayDestination, TodayDestination::class, R.string.nav_today, R.drawable.ic_nav_today),
     ACTIVITIES(ActivitiesDestination, ActivitiesDestination::class, R.string.nav_activities, R.drawable.ic_nav_activities),
     QUEUE(QueueDestination, QueueDestination::class, R.string.nav_queue, R.drawable.ic_nav_queue),
-    VO2MAX(Vo2MaxDestination, Vo2MaxDestination::class, R.string.nav_vo2max, R.drawable.ic_nav_vo2max),
-    STATUS(StatusDestination, StatusDestination::class, R.string.nav_status, R.drawable.ic_nav_status),
     SETTINGS(SettingsDestination, SettingsDestination::class, R.string.nav_settings, R.drawable.ic_nav_settings),
 }
 
@@ -100,14 +99,14 @@ fun CgNavHost(isConfigured: Boolean) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = if (isConfigured) ActivitiesDestination else SettingsDestination,
+            startDestination = if (isConfigured) TodayDestination else SettingsDestination,
             // Ekrany mają własne Scaffoldy; wcięcia zużyte tutaj nie mogą być dodane drugi raz.
             modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
         ) {
             composable<SettingsDestination> {
                 SettingsRoute(
                     onSaved = {
-                        navController.navigate(ActivitiesDestination) {
+                        navController.navigate(TodayDestination) {
                             popUpTo(navController.graph.id) { inclusive = true }
                             launchSingleTop = true
                         }
@@ -123,8 +122,14 @@ fun CgNavHost(isConfigured: Boolean) {
             composable<ActivityDetailDestination> {
                 ActivityDetailRoute(onBack = { navController.popBackStack() })
             }
-            composable<Vo2MaxDestination> { Vo2MaxRoute() }
-            composable<StatusDestination> { StatusRoute() }
+            composable<TodayDestination> {
+                TodayRoute(
+                    onOpenPlan = { navController.navigateToTab(QueueDestination) },
+                    onOpenVo2Max = { navController.navigate(Vo2MaxDestination) },
+                    onOpenSettings = { navController.navigateToTab(SettingsDestination) },
+                )
+            }
+            composable<Vo2MaxDestination> { Vo2MaxRoute(onBack = { navController.popBackStack() }) }
             composable<QueueDestination> {
                 QueueRoute(
                     floatingActionButton = {
@@ -142,12 +147,12 @@ fun CgNavHost(isConfigured: Boolean) {
 }
 
 /**
- * Standardowe przełączanie zakładek: jedna kopia ekranu, zachowany stan, „wstecz” wraca do Treningów.
- * Po pierwszej konfiguracji korzeniem stosu są Treningi, a nie startowy ekran grafu (Konfiguracja).
+ * Standardowe przełączanie zakładek: jedna kopia ekranu, zachowany stan, „wstecz” wraca do zakładki Dziś.
+ * Po pierwszej konfiguracji korzeniem stosu jest Dziś, a nie startowy ekran grafu (Ustawienia).
  */
 private fun NavHostController.navigateToTab(destination: Any) {
     val rootId =
-        runCatching { getBackStackEntry(ActivitiesDestination).destination.id }.getOrNull()
+        runCatching { getBackStackEntry(TodayDestination).destination.id }.getOrNull()
             ?: graph.findStartDestination().id
     navigate(destination) {
         popUpTo(rootId) { saveState = true }
