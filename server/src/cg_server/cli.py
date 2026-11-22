@@ -3,6 +3,7 @@
 import argparse
 import getpass
 import json
+import sqlite3
 import sys
 import tempfile
 from collections.abc import Callable
@@ -22,7 +23,7 @@ from cg_server import workouts
 from cg_server.app import create_app
 from cg_server.config import ConfigError, Settings, get_settings
 from cg_server.crypto import CryptoError, generate_key, validate_key
-from cg_server.db import open_db
+from cg_server.db import db_path, open_db
 from cg_server.garmin import accounts
 from cg_server.garmin.gateway import (
     GarminAuthError,
@@ -392,6 +393,49 @@ def cmd_export_openapi(settings: Settings, out: Path) -> None:
     print(f"Zapisano kontrakt API: {out}")
 
 
+def cmd_restore_scheduled(settings: Settings, backup: Path, *, dry_run: bool) -> int:
+    """Put back scheduled workouts that exist in a backup but not in the database.
+
+    Only rows whose id is missing now and whose workout and user still exist are added;
+    nothing that is in the database is changed. Made after migration 0006 (first version)
+    lost `scheduled_workouts`; safe to run more than once."""
+    if not backup.is_file():
+        raise CliError(f"Nie ma pliku kopii: {backup}")
+    open_db(settings)  # current schema first
+    # URI names on the main connection enable them for ATTACH too (read-only backup),
+    # whatever the SQLite build's default.
+    con = sqlite3.connect(db_path(settings).resolve().as_uri(), uri=True)
+    try:
+        con.execute("PRAGMA foreign_keys=ON")
+        con.execute("ATTACH DATABASE ? AS backup", (backup.resolve().as_uri() + "?mode=ro",))
+        columns = [row[1] for row in con.execute("PRAGMA main.table_info(scheduled_workouts)")]
+        old = [row[1] for row in con.execute("PRAGMA backup.table_info(scheduled_workouts)")]
+        if old != columns:
+            raise CliError("Kopia ma inny układ tabeli scheduled_workouts; nie przywracam.")
+        names = ", ".join(columns)
+        missing = (
+            f"SELECT {names} FROM backup.scheduled_workouts"  # noqa: S608 - column names from PRAGMA
+            " WHERE id NOT IN (SELECT id FROM main.scheduled_workouts)"
+            " AND workout_id IN (SELECT id FROM main.workouts)"
+            " AND user_id IN (SELECT id FROM main.users)"
+        )
+        rows = con.execute(
+            f"SELECT s.date, w.name, s.status FROM ({missing}) s"  # noqa: S608
+            " JOIN main.workouts w ON w.id = s.workout_id ORDER BY s.date, s.id"
+        ).fetchall()
+        for day, name, status in rows:
+            print(f"  {day}  {name}  ({status})")
+        if dry_run:
+            print(f"Do przywrócenia: {len(rows)} (próba, nic nie zmieniono).")
+            return len(rows)
+        with con:
+            con.execute(f"INSERT INTO main.scheduled_workouts ({names}) {missing}")  # noqa: S608
+        print(f"Przywrócono zaplanowanych treningów: {len(rows)}.")
+        return len(rows)
+    finally:
+        con.close()
+
+
 def main(
     argv: list[str] | None = None, *, gateway_factory: GatewayFactory = RealGarminGateway
 ) -> int:
@@ -428,6 +472,12 @@ def main(
     workout_test.add_argument("--user", required=True)
     workout_test.add_argument("--date", required=True, help="RRRR-MM-DD")
     workout_test.add_argument("--kind", choices=sorted(TEST_WORKOUTS), default="run")
+    restore = sub.add_parser(
+        "restore-scheduled",
+        help="przywróć z kopii zaplanowane treningi, których brakuje w bazie",
+    )
+    restore.add_argument("backup", type=Path, help="plik kopii, np. /data/backups/<data>/cg.sqlite")
+    restore.add_argument("--dry-run", action="store_true", help="tylko pokaż, co by przywrócił")
     sub.add_parser(
         "export-openapi", help="zapisz kontrakt REST API (OpenAPI JSON); wymaga CG_ENV=test"
     ).add_argument("path", type=Path)
@@ -461,6 +511,8 @@ def main(
             cmd_sync_status(get_settings())
         elif args.command == "workout-test":
             cmd_workout_test(get_settings(), args.user, args.date, args.kind, gateway_factory())
+        elif args.command == "restore-scheduled":
+            cmd_restore_scheduled(get_settings(), args.backup, dry_run=args.dry_run)
         elif args.command == "export-openapi":
             cmd_export_openapi(get_settings(), args.path)
     except (CliError, UserError, CryptoError, ConfigError) as e:
