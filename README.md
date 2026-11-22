@@ -4,7 +4,7 @@ Most między zegarkami **Garmin** a **Claude**. Pozwala:
 
 1. pobierać dane treningowe z Garmin Connect (aktywności + VO2max) raz dziennie i trzymać je w telefonie (offline),
 2. rozmawiać o nich z Claude w zwykłym oknie czatu claude.ai (także na darmowym planie) przez własny konektor MCP,
-3. wysyłać treningi (biegowe i siłowe) na zegarek przez kalendarz Garmin Connect.
+3. wysyłać treningi (biegowe, siłowe, bouldering i „inne” z samym opisem) na zegarek przez kalendarz Garmin Connect.
 
 > ⚠️ Projekt korzysta z **nieoficjalnego** API Garmin Connect (`python-garminconnect`). Może przestać działać bez ostrzeżenia. Używasz na własne ryzyko.
 

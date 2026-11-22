@@ -89,6 +89,25 @@ def test_double_post_with_same_client_id_creates_one_workout(
         assert len(session.scalars(select(Workout)).all()) == 1
 
 
+def test_bouldering_is_saved_and_sent_as_other(
+    client: TestClient, tokens: dict[str, str], fake: FakeGarminGateway
+) -> None:
+    definition = {"sport": "bouldering", "name": "Ścianka", "description": "Łatwe na rozgrzewkę"}
+    body = {"client_id": str(uuid.uuid4()), "definition": definition}
+    response = client.post("/api/v1/workouts", json=body, headers=auth(tokens))
+    assert response.status_code == 201, response.text
+    assert response.json()["sport"] == "bouldering"
+    assert response.json()["preview"] == "Bouldering: Ścianka\nŁatwe na rozgrzewkę"
+    workout_id = response.json()["id"]
+    scheduled = client.post(
+        f"/api/v1/workouts/{workout_id}/schedule",
+        json={"date": DAY.isoformat()},
+        headers=auth(tokens),
+    )
+    assert scheduled.status_code == 201, scheduled.text
+    assert len(fake.calendar) == 1
+
+
 def test_invalid_definition_is_422(client: TestClient, tokens: dict[str, str]) -> None:
     body = {
         "client_id": str(uuid.uuid4()),

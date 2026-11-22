@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import pl.cgconnector.app.R
 import pl.cgconnector.app.data.repository.UserTemplate
+import pl.cgconnector.app.domain.workout.FreeformWorkout
 import pl.cgconnector.app.domain.workout.RepeatBlock
 import pl.cgconnector.app.domain.workout.RunStep
 import pl.cgconnector.app.domain.workout.RunningWorkout
@@ -124,6 +125,7 @@ object TemplateSummary {
                     }
                 }
             is StrengthWorkout -> definition.exercises.joinToString(", ") { StrengthForm.displayName(it.name) }
+            is FreeformWorkout -> definition.description
         }
 
     private fun end(step: RunStep): String =

@@ -102,7 +102,7 @@ Claude sam wybiera narzędzie na podstawie pytania. Nie musisz znać nazw. Daty 
 
 | Narzędzie | Co robi |
 |---|---|
-| `create_workout` | Zapisuje **szkic** treningu (bieg strukturalny albo siłowy) i zwraca podgląd. Jeszcze niczego nie wysyła. |
+| `create_workout` | Zapisuje **szkic** treningu (bieg strukturalny, siłowy albo „inne”/bouldering z samym opisem; Garmin nie ma typu treningu dla wspinaczki, więc bouldering trafia do kalendarza jako „Inne”) i zwraca podgląd. Jeszcze niczego nie wysyła. |
 | `schedule_workout` | Wysyła trening do **kalendarza Garmin Connect** na wybrany dzień (dziś lub później) i zwraca status. |
 | `list_scheduled_workouts` | Treningi zaplanowane przez CG-connector (domyślnie od dziś na 30 dni) ze statusem. |
 | `delete_scheduled_workout` | Usuwa zaplanowany trening z kalendarza Garmin. Działa **tylko** dla treningów utworzonych przez CG-connector i tylko na Twoje wyraźne polecenie. |

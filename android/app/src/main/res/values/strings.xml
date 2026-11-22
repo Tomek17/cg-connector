@@ -191,6 +191,8 @@
     <string name="queue_delete_cancel">Anuluj</string>
     <string name="workout_sport_running">Bieg</string>
     <string name="workout_sport_strength">Siłownia</string>
+    <string name="workout_sport_other">Inne</string>
+    <string name="workout_sport_bouldering">Bouldering</string>
 
     <!-- Kreator treningu -->
     <string name="wizard_templates">Szablony</string>
@@ -237,6 +239,15 @@
     <string name="wizard_running_title">Nowy trening biegowy</string>
     <string name="wizard_new_strength">Trening siłowy</string>
     <string name="wizard_strength_title">Nowy trening siłowy</string>
+    <string name="wizard_new_bouldering">Bouldering</string>
+    <string name="wizard_new_other">Inne (sam opis)</string>
+    <string name="wizard_freeform_title">Nowy trening: %1$s</string>
+    <string name="wizard_description">Opis</string>
+    <string name="wizard_description_hint_other">Co robisz, np. „Rower 1 h spokojnie” albo „Joga 30 min”</string>
+    <string name="wizard_description_hint_bouldering">Opcjonalnie, np. „Rozgrzewka na łatwych, potem 4×4”</string>
+    <string name="wizard_description_counter">%1$d/%2$d</string>
+    <string name="wizard_minutes">Czas (min, opcjonalnie)</string>
+    <string name="wizard_freeform_note">Garmin nie ma osobnego typu treningu dla wspinaczki, więc w kalendarzu będzie to trening „Inne” z tym opisem. Na zegarku trwa do naciśnięcia okrążenia albo podany czas.</string>
     <string name="wizard_problem_exercise">Ćwiczenie %1$d: %2$s</string>
     <string name="wizard_exercise_number">Ćwiczenie %1$d</string>
     <string name="wizard_remove_exercise_description">Usuń ćwiczenie %1$d</string>
@@ -291,6 +302,9 @@
     <string name="problem_seconds">czas ćwiczenia od 1 do 3600 s</string>
     <string name="problem_weight">ciężar od 0 do 500 kg</string>
     <string name="problem_rest">przerwa od 0 do 900 s</string>
+    <string name="problem_description_empty">Dodaj opis treningu</string>
+    <string name="problem_description_too_long">Opis może mieć najwyżej 500 znaków</string>
+    <string name="problem_minutes">czas od 1 do 600 minut</string>
     <string name="problem_date_past">Data nie może być w przeszłości</string>
     <string name="problem_date_far">Można planować najwyżej 365 dni naprzód</string>
 </resources>

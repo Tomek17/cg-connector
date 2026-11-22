@@ -1490,12 +1490,17 @@
               },
               {
                 "$ref": "#/components/schemas/StrengthDefinition"
+              },
+              {
+                "$ref": "#/components/schemas/OtherDefinition"
               }
             ],
             "title": "Definition",
             "discriminator": {
               "propertyName": "sport",
               "mapping": {
+                "bouldering": "#/components/schemas/OtherDefinition",
+                "other": "#/components/schemas/OtherDefinition",
                 "running": "#/components/schemas/RunningDefinition",
                 "strength": "#/components/schemas/StrengthDefinition"
               }
@@ -1508,6 +1513,63 @@
           "definition"
         ],
         "title": "NewWorkout"
+      },
+      "OtherDefinition": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Version",
+            "default": 1
+          },
+          "sport": {
+            "type": "string",
+            "enum": [
+              "other",
+              "bouldering"
+            ],
+            "title": "Sport"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 600.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sport",
+          "name"
+        ],
+        "title": "OtherDefinition",
+        "description": "A workout described only in words: \"other\" or \"bouldering\" (no steps on the watch)."
       },
       "PaceTarget": {
         "properties": {

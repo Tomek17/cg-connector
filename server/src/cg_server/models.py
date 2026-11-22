@@ -268,6 +268,8 @@ class SyncRun(Base):
 class WorkoutSport(StrEnum):
     RUNNING = "running"
     STRENGTH = "strength"
+    OTHER = "other"
+    BOULDERING = "bouldering"
 
 
 class WorkoutOrigin(StrEnum):

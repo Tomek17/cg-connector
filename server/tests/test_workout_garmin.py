@@ -188,3 +188,29 @@ def test_garmin_name_has_prefix_and_description() -> None:
     )
     assert data["workoutName"] == f"{GARMIN_NAME_PREFIX}5x1km"
     assert data["description"] == "Tempo"
+
+
+def test_bouldering_goes_as_garmin_other_with_description_on_step() -> None:
+    definition = parse_definition(
+        {"sport": "bouldering", "name": "Ścianka", "description": "Rozgrzewka na łatwych"}
+    )
+    body = garmin_json(definition)
+    assert body["workoutName"] == f"{GARMIN_NAME_PREFIX}Ścianka"
+    assert body["sportType"]["sportTypeKey"] == "other"
+    assert body["description"] == "Rozgrzewka na łatwych"
+    (segment,) = body["workoutSegments"]
+    assert segment["sportType"] == {"sportTypeId": 3, "sportTypeKey": "other"}
+    (step,) = segment["workoutSteps"]
+    assert step["endCondition"]["conditionTypeKey"] == "lap.button"
+    assert step["description"] == "Rozgrzewka na łatwych"
+    assert body["estimatedDurationInSecs"] == 0
+
+
+def test_other_with_minutes_has_time_step() -> None:
+    body = garmin_json(
+        parse_definition({"sport": "other", "name": "Rower", "description": "Luz", "minutes": 60})
+    )
+    (step,) = body["workoutSegments"][0]["workoutSteps"]
+    assert step["endCondition"]["conditionTypeKey"] == "time"
+    assert step["endConditionValue"] == 3600.0
+    assert body["estimatedDurationInSecs"] == 3600

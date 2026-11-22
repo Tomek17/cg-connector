@@ -22,8 +22,7 @@ from cg_server.models import (
     WorkoutSport,
 )
 from cg_server.workout_definition import (
-    RunningDefinition,
-    StrengthDefinition,
+    AnyDefinition,
     parse_definition,
     to_json,
 )
@@ -78,9 +77,7 @@ def create_workout(
         return existing, False
     parsed = parse_definition(definition)
     _make_room(session, user)
-    sport = (
-        WorkoutSport.STRENGTH if isinstance(parsed, StrengthDefinition) else WorkoutSport.RUNNING
-    )
+    sport = WorkoutSport(parsed.sport)
     workout = Workout(
         user_id=user.id,
         client_id=client_id,
@@ -133,7 +130,7 @@ def _make_room(session: Session, user: User) -> None:
     session.commit()
 
 
-def definition_of(workout: Workout) -> RunningDefinition | StrengthDefinition:
+def definition_of(workout: Workout) -> AnyDefinition:
     return parse_definition(workout.definition_json)
 
 

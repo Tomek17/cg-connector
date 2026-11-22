@@ -168,6 +168,8 @@ internal fun sportLabel(sport: WorkoutSport?): String? =
     when (sport) {
         WorkoutSport.RUNNING -> stringResource(R.string.workout_sport_running)
         WorkoutSport.STRENGTH -> stringResource(R.string.workout_sport_strength)
+        WorkoutSport.OTHER -> stringResource(R.string.workout_sport_other)
+        WorkoutSport.BOULDERING -> stringResource(R.string.workout_sport_bouldering)
         null -> null
     }
 

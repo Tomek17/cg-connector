@@ -5,8 +5,10 @@ from typing import Any
 import pytest
 
 from cg_server.workout_definition import (
+    MAX_NOTES,
     MAX_STEPS,
     DefinitionError,
+    OtherDefinition,
     RunningDefinition,
     StrengthDefinition,
     parse_definition,
@@ -201,3 +203,25 @@ def test_hr_targets_in_preview() -> None:
         "1. Interval 20:00 @ HR zone 2",
         "2. Interval 0.4 km @ 150-165 bpm",
     ]
+
+
+def test_bouldering_without_description_and_preview() -> None:
+    definition = parse_definition({"sport": "bouldering", "name": "Bouldering", "minutes": 90})
+    assert isinstance(definition, OtherDefinition)
+    assert preview(definition) == "Bouldering: Bouldering\nDuration: 1:30:00"
+
+
+def test_other_needs_description() -> None:
+    assert "needs a description" in error_of({"sport": "other", "name": "Mobilność"})
+    definition = parse_definition(
+        {"sport": "other", "name": "Rower", "description": " Spokojnie 1 h "}
+    )
+    assert preview(definition) == "Other: Rower\nSpokojnie 1 h"
+
+
+def test_other_limits() -> None:
+    message = error_of(
+        {"sport": "other", "name": "X", "description": "a" * (MAX_NOTES + 1), "minutes": 0}
+    )
+    assert "description" in message
+    assert "minutes" in message

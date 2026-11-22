@@ -30,8 +30,10 @@ import pl.cgconnector.app.ui.queue.QueueRoute
 import pl.cgconnector.app.ui.settings.SettingsRoute
 import pl.cgconnector.app.ui.today.TodayRoute
 import pl.cgconnector.app.ui.vo2max.Vo2MaxRoute
-import pl.cgconnector.app.ui.workout.NewWorkoutButton
 import pl.cgconnector.app.domain.workout.WorkoutSport
+import pl.cgconnector.app.ui.workout.FreeformWizardRoute
+import pl.cgconnector.app.ui.workout.FreeformWizardViewModel
+import pl.cgconnector.app.ui.workout.NewWorkoutButton
 import pl.cgconnector.app.ui.workout.RunningWizardRoute
 import pl.cgconnector.app.ui.workout.RunningWizardViewModel
 import pl.cgconnector.app.ui.workout.StrengthWizardRoute
@@ -67,6 +69,13 @@ data class RunningWizardDestination(
 @Serializable
 data class StrengthWizardDestination(
     val copyFromId: Long = StrengthWizardViewModel.NO_COPY,
+)
+
+/** [sport]: `other` albo `bouldering`; nazwy pól = stałe `FreeformWizardViewModel.ARG_*`. */
+@Serializable
+data class FreeformWizardDestination(
+    val sport: String = "other",
+    val copyFromId: Long = FreeformWizardViewModel.NO_COPY,
 )
 
 /** Zakładki dolnego paska. */
@@ -145,6 +154,8 @@ fun CgNavHost(isConfigured: Boolean) {
                         when (item.sport) {
                             WorkoutSport.RUNNING -> navController.navigate(RunningWizardDestination(copyFromId = item.id))
                             WorkoutSport.STRENGTH -> navController.navigate(StrengthWizardDestination(copyFromId = item.id))
+                            WorkoutSport.OTHER, WorkoutSport.BOULDERING ->
+                                navController.navigate(FreeformWizardDestination(item.sport.apiValue, copyFromId = item.id))
                             null -> Unit
                         }
                     },
@@ -152,12 +163,14 @@ fun CgNavHost(isConfigured: Boolean) {
                         NewWorkoutButton(
                             onNewRunning = { navController.navigate(RunningWizardDestination()) },
                             onNewStrength = { navController.navigate(StrengthWizardDestination()) },
+                            onNewFreeform = { sport -> navController.navigate(FreeformWizardDestination(sport.apiValue)) },
                         )
                     },
                 )
             }
             composable<RunningWizardDestination> { RunningWizardRoute(onDone = { navController.popBackStack() }) }
             composable<StrengthWizardDestination> { StrengthWizardRoute(onDone = { navController.popBackStack() }) }
+            composable<FreeformWizardDestination> { FreeformWizardRoute(onDone = { navController.popBackStack() }) }
         }
     }
 }
