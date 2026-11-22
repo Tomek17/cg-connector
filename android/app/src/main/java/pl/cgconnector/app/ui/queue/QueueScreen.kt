@@ -31,10 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
+import pl.cgconnector.app.domain.ActivityType
 import pl.cgconnector.app.domain.workout.QueueStatus
 import pl.cgconnector.app.domain.workout.QueuedWorkout
 import pl.cgconnector.app.domain.workout.WorkoutSport
+import pl.cgconnector.app.ui.components.ActivityTypeIcon
 import pl.cgconnector.app.ui.components.RefreshIconButton
+import pl.cgconnector.app.ui.components.activityType
 import pl.cgconnector.app.ui.components.StatusBadge
 import pl.cgconnector.app.ui.format.Formatters
 import pl.cgconnector.app.ui.theme.StatusTone
@@ -122,11 +125,17 @@ private fun QueueRow(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(item.name, style = MaterialTheme.typography.titleMedium)
-            Text(
-                text = listOfNotNull(sportLabel(item.sport), DATE_FORMAT.format(item.date)).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActivityTypeIcon(item.sport?.activityType() ?: ActivityType.OTHER)
+                Column(Modifier.weight(1f)) {
+                    Text(item.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = listOfNotNull(sportLabel(item.sport), DATE_FORMAT.format(item.date)).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { StatusBadge(stringResource(item.statusLabel()), item.statusTone()) }
                 if (item.canRetry) {

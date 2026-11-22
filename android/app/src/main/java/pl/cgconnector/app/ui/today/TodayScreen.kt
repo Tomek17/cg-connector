@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -40,6 +41,7 @@ import pl.cgconnector.app.ui.components.ActivityTypeIcon
 import pl.cgconnector.app.ui.components.RefreshIconButton
 import pl.cgconnector.app.ui.components.StatusBadge
 import pl.cgconnector.app.ui.components.StatusDot
+import pl.cgconnector.app.ui.components.activityType
 import pl.cgconnector.app.ui.format.Formatters
 import pl.cgconnector.app.ui.queue.sportLabel
 import pl.cgconnector.app.ui.queue.statusLabel
@@ -112,17 +114,31 @@ private fun NextWorkoutCard(
     today: LocalDate,
     onClick: () -> Unit,
 ) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Główna karta ekranu: kolor główny aplikacji, żeby od razu było widać, co dalej.
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.today_next_workout), style = MaterialTheme.typography.labelLarge)
             if (workout == null) {
                 Text(stringResource(R.string.today_no_workout), style = MaterialTheme.typography.bodyMedium)
             } else {
-                Text(workout.name, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    text = listOfNotNull(dayLabel(workout.date, today), sportLabel(workout.sport)).joinToString(" · "),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    workout.sport?.let { ActivityTypeIcon(it.activityType(), Modifier.size(48.dp)) }
+                    Column(Modifier.weight(1f)) {
+                        Text(workout.name, style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            text = listOfNotNull(dayLabel(workout.date, today), sportLabel(workout.sport)).joinToString(" · "),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
                 StatusBadge(stringResource(workout.statusLabel()), workout.statusTone())
             }
         }
