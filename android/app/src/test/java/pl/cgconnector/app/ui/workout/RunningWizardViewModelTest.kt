@@ -68,4 +68,23 @@ class RunningWizardViewModelTest {
         assertThat(workout.items).hasSize(2)
         assertThat((workout.items[1] as RepeatBlock).times).isEqualTo(8)
     }
+
+    @Test
+    fun `unsaved changes are tracked until save`() {
+        assertThat(viewModel.hasUnsavedChanges()).isFalse()
+
+        viewModel.onNameChange("Tempo 20 min")
+        assertThat(viewModel.hasUnsavedChanges()).isTrue()
+
+        viewModel.save()
+        assertThat(viewModel.state.value.isSaved).isTrue()
+        assertThat(viewModel.hasUnsavedChanges()).isFalse()
+    }
+
+    @Test
+    fun `adding a step counts as a change`() {
+        viewModel.addStep(RunStepKind.COOLDOWN)
+
+        assertThat(viewModel.hasUnsavedChanges()).isTrue()
+    }
 }

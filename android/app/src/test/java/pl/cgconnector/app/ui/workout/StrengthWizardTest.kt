@@ -77,4 +77,13 @@ class StrengthWizardTest {
         assertThat((definition as StrengthWorkout).exercises.single().name).isEqualTo("Push-up")
         assertThat(date).isEqualTo(LocalDate.of(2030, 1, 11))
     }
+
+    @Test
+    fun `unsaved changes are tracked`() {
+        assertThat(viewModel.hasUnsavedChanges()).isFalse()
+
+        viewModel.addExercise()
+
+        assertThat(viewModel.hasUnsavedChanges()).isTrue()
+    }
 }

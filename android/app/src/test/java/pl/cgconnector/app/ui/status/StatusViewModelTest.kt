@@ -7,9 +7,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
-import pl.cgconnector.app.domain.ActivityType
 import pl.cgconnector.app.domain.Freshness
-import pl.cgconnector.app.domain.PeriodSummary
 import pl.cgconnector.app.domain.RefreshOutcome
 import pl.cgconnector.app.domain.ServerState
 import pl.cgconnector.app.domain.SyncStatus
@@ -18,7 +16,6 @@ import pl.cgconnector.app.testing.FakeStatsRepository
 import pl.cgconnector.app.testing.MainDispatcherRule
 import java.time.Clock
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 
@@ -31,7 +28,7 @@ class StatusViewModelTest {
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
 
     @Test
-    fun `fresh data, server online, current week only`() =
+    fun `fresh data, server online`() =
         runTest {
             val stats =
                 FakeStatsRepository(
@@ -42,12 +39,6 @@ class StatusViewModelTest {
                             lastRefreshOutcome = RefreshOutcome.SUCCESS,
                             lastRefreshSuccessAt = now.minusSeconds(600),
                         ),
-                    summaries =
-                        listOf(
-                            summary("2026-11-16", ActivityType.STRENGTH),
-                            summary("2026-11-16", ActivityType.RUNNING),
-                            summary("2026-11-09", ActivityType.RUNNING),
-                        ),
                 )
             val viewModel = StatusViewModel(stats, FakeActivityRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
@@ -56,9 +47,6 @@ class StatusViewModelTest {
             assertThat(state.isLoading).isFalse()
             assertThat(state.serverState).isEqualTo(ServerState.ONLINE)
             assertThat(state.freshness).isEqualTo(Freshness.FRESH)
-            assertThat(state.currentWeek.map { it.type })
-                .containsExactly(ActivityType.RUNNING, ActivityType.STRENGTH)
-                .inOrder()
         }
 
     @Test
@@ -136,19 +124,4 @@ class StatusViewModelTest {
             assertThat(activities.refreshCalls).isEqualTo(1)
             assertThat(viewModel.uiState.value.isRefreshing).isFalse()
         }
-
-    private fun summary(
-        start: String,
-        type: ActivityType,
-    ) = PeriodSummary(
-        period = "week",
-        periodStart = LocalDate.parse(start),
-        periodEnd = LocalDate.parse(start).plusDays(6),
-        type = type,
-        count = 1,
-        distanceM = null,
-        durationSec = 3_600,
-        elevationGainM = null,
-        avgPaceMinPerKm = null,
-    )
 }

@@ -50,6 +50,11 @@ class RunningWizardViewModel
                 ),
             )
         val state: StateFlow<RunningWizardState> = _state.asStateFlow()
+        private val initial = _state.value
+
+        /** Czy użytkownik coś zmienił od otwarcia kreatora (wtedy wyjście pyta o odrzucenie zmian). */
+        fun hasUnsavedChanges(): Boolean =
+            _state.value.let { !it.isSaved && (it.name != initial.name || it.date != initial.date || it.blocks != initial.blocks) }
 
         fun onNameChange(name: String) = _state.update { it.copy(name = name) }
 
