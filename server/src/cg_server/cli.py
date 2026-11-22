@@ -402,10 +402,12 @@ def cmd_restore_scheduled(settings: Settings, backup: Path, *, dry_run: bool) ->
     if not backup.is_file():
         raise CliError(f"Nie ma pliku kopii: {backup}")
     open_db(settings)  # current schema first
-    con = sqlite3.connect(db_path(settings))
+    # URI names on the main connection enable them for ATTACH too (read-only backup),
+    # whatever the SQLite build's default.
+    con = sqlite3.connect(db_path(settings).resolve().as_uri(), uri=True)
     try:
         con.execute("PRAGMA foreign_keys=ON")
-        con.execute("ATTACH DATABASE ? AS backup", (f"file:{backup}?mode=ro",))
+        con.execute("ATTACH DATABASE ? AS backup", (backup.resolve().as_uri() + "?mode=ro",))
         columns = [row[1] for row in con.execute("PRAGMA main.table_info(scheduled_workouts)")]
         old = [row[1] for row in con.execute("PRAGMA backup.table_info(scheduled_workouts)")]
         if old != columns:
