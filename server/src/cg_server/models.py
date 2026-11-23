@@ -227,6 +227,8 @@ class ActivityDetails(Base):
     laps_json: Mapped[Any] = mapped_column(JSON, nullable=True)
     hr_zones_json: Mapped[Any] = mapped_column(JSON, nullable=True)
     exercise_sets_json: Mapped[Any] = mapped_column(JSON, nullable=True)
+    # Climbing only: one split per boulder/route and rest; None = not fetched yet.
+    typed_splits_json: Mapped[Any] = mapped_column(JSON(none_as_null=True), nullable=True)
     # Garmin returned an error (e.g. 404) for this activity's details; not retried.
     fetch_failed: Mapped[bool] = mapped_column(default=False)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

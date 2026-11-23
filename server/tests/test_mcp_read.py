@@ -61,7 +61,16 @@ def codes(app_settings: Settings) -> dict[str, str]:
         add_activity(
             session, a, 102, at(t - timedelta(days=3), 18), ActivityKind.STRENGTH, details=True
         )
-        add_activity(session, a, 103, at(t - timedelta(days=40)), ActivityKind.CLIMBING)
+        climb = add_activity(
+            session, a, 103, at(t - timedelta(days=40)), ActivityKind.CLIMBING, details=True
+        )
+        assert climb.details is not None
+        climb.details.typed_splits_json = {
+            "splits": [
+                {"type": "CLIMB_ACTIVE", "duration": 95.0, "difficultyGrade": "V4", "x": None},
+                {"type": "CLIMB_REST", "duration": 180.0},
+            ]
+        }
         add_activity(session, b, 201, at(t - timedelta(days=1)))
         for i, value in enumerate([50.0, 50.0, 50.5, 51.0]):
             add_vo2max(session, a, t - timedelta(days=30 - i * 7), value)
@@ -436,3 +445,14 @@ async def test_sync_now_is_refused_without_garmin_tokens(
     http: httpx2.AsyncClient, codes: dict[str, str]
 ) -> None:
     assert await ok(http, codes["a"], "sync_now") == {"synced": False, "reason": "no_garmin"}
+
+
+async def test_climbing_activity_shows_climbs(
+    http: httpx2.AsyncClient, codes: dict[str, str]
+) -> None:
+    data = await ok(http, codes["a"], "get_activity", {"activity_id": 103})
+    assert data["climbs"] == [
+        {"type": "CLIMB_ACTIVE", "time": "1:35", "difficultyGrade": "V4"},
+        {"type": "CLIMB_REST", "time": "3:00"},
+    ]
+    assert data["climb_split_keys"] == ["difficultyGrade", "duration", "type"]

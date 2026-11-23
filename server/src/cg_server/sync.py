@@ -48,6 +48,8 @@ log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 GARMIN_DATETIME = "%Y-%m-%d %H:%M:%S"
+# Older climbing sessions whose typed splits are fetched per run (1 request each).
+CLIMBING_BACKFILL_PER_RUN = 20
 # Keys never stored, at any depth: GPS positions, owner and device identifiers.
 PRIVATE_KEY = re.compile(
     r"latitude|longitude|owner|location|device|userprofile|profileimage|polyline", re.I
@@ -266,13 +268,16 @@ class _UserSync:
     def details(self, garmin_id: int, kind: ActivityKind) -> ActivityDetails:
         """Details of one activity. An error here (404, 5xx, bad data) only marks these
         details as failed; 429, rejected tokens and the request limit stop the sync."""
-        self.paced.reserve(3 if kind == ActivityKind.STRENGTH else 2)
+        extra = kind in (ActivityKind.STRENGTH, ActivityKind.CLIMBING)
+        self.paced.reserve(3 if extra else 2)
         try:
             laps = self.paced(self.gateway.get_activity_splits, garmin_id)
             zones = self.paced(self.gateway.get_activity_hr_in_timezones, garmin_id)
-            sets = None
+            sets = typed = None
             if kind == ActivityKind.STRENGTH:
                 sets = self.paced(self.gateway.get_activity_exercise_sets, garmin_id)
+            if kind == ActivityKind.CLIMBING:
+                typed = self.paced(self.gateway.get_activity_typed_splits, garmin_id)
         except (GarminRateLimited, GarminAuthError, RequestLimitReached):
             raise
         except Exception as e:
@@ -283,8 +288,38 @@ class _UserSync:
             laps_json=scrub(laps),
             hr_zones_json=scrub(zones),
             exercise_sets_json=scrub(sets),
+            typed_splits_json=scrub(typed) if typed is not None else None,
             fetch_failed=False,
         )
+
+    def climbing_backfill(self) -> None:
+        """Typed splits for climbing sessions synced before they were fetched (a few per
+        run). A failed fetch stores {} so the same activity is not retried for ever."""
+        rows = self.session.scalars(
+            select(ActivityDetails)
+            .join(Activity)
+            .where(
+                Activity.user_id == self.user.id,
+                Activity.kind == ActivityKind.CLIMBING,
+                ActivityDetails.fetch_failed.is_(False),
+                ActivityDetails.typed_splits_json.is_(None),
+            )
+            .order_by(Activity.start_time_utc.desc())
+            .limit(CLIMBING_BACKFILL_PER_RUN)
+        ).all()
+        for details in rows:
+            self.paced.reserve(1)
+            try:
+                typed = self.paced(
+                    self.gateway.get_activity_typed_splits, details.activity.garmin_activity_id
+                )
+            except (GarminRateLimited, GarminAuthError, RequestLimitReached):
+                raise
+            except Exception as e:
+                log.warning("typed splits of one activity failed: %s", type(e).__name__)
+                typed = {}
+            details.typed_splits_json = scrub(typed) if typed is not None else {}
+            self.session.commit()
 
     def vo2max(self, start: date, end: date) -> None:
         data = self.paced(self.gateway.get_max_metrics_range, start.isoformat(), end.isoformat())
@@ -397,6 +432,7 @@ def _sync_user_locked(
         backfill = run.backfill_date or backfill
         if backfill is not None:
             job.history(backfill, history_target, options.chunk_days)
+        job.climbing_backfill()
     except RequestLimitReached:
         session.rollback()
         limit_reached = True

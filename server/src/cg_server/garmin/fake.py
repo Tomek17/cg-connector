@@ -219,6 +219,18 @@ class FakeGarminGateway:
             for z in range(1, 6)
         ]
 
+    def get_activity_typed_splits(self, activity_id: int) -> dict[str, Any]:
+        self._call("get_activity_typed_splits", activity_id)
+        self._require_session()
+        # Shape not verified live yet; only what the sync stores and get_activity shows.
+        return {
+            "activityId": activity_id,
+            "splits": [
+                {"type": "CLIMB_ACTIVE", "duration": 95.0, "messageIndex": 0},
+                {"type": "CLIMB_REST", "duration": 180.0, "messageIndex": 1},
+            ],
+        }
+
     def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
         self._call("get_activity_exercise_sets", activity_id)
         self._require_session()
