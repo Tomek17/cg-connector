@@ -2,47 +2,74 @@ package pl.cgconnector.app.ui.progress
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
+import pl.cgconnector.app.domain.SetPoint
+import java.time.LocalDate
 
 class ProgressChartMathTest {
     @Test
-    fun `sessions are evenly spaced and nulls skipped`() {
-        val data = ProgressChartMath.sessions(listOf(10.0, null, 20.0, 30.0))!!
+    fun `axis has round ticks covering every value`() {
+        val axis = ProgressChartMath.axis(listOf(60.0, 95.0), fromZero = true)!!
 
-        val xs = data.points.map { it.x }
-        assertThat(xs[0]).isWithin(1e-6f).of(1f / 6)
-        assertThat(xs[1]).isWithin(1e-6f).of(0.5f)
-        assertThat(xs[2]).isWithin(1e-6f).of(5f / 6)
-        assertThat(data.minValue).isEqualTo(10.0)
-        assertThat(data.maxValue).isEqualTo(30.0)
-        assertThat(data.points.first().y).isLessThan(data.points.last().y)
+        assertThat(axis.low).isEqualTo(0.0)
+        assertThat(axis.step).isEqualTo(20.0)
+        assertThat(axis.high).isAtLeast(95.0)
+        assertThat(axis.ticks.first()).isEqualTo(0.0)
+        assertThat(axis.ticks.last()).isEqualTo(axis.high)
     }
 
     @Test
-    fun `inverted axis puts the smallest value on top`() {
-        val data = ProgressChartMath.sessions(listOf(5.0, 4.5), invert = true)!!
+    fun `axis without zero hugs the data`() {
+        val axis = ProgressChartMath.axis(listOf(4.1, 4.6))!!
 
-        assertThat(data.points[1].y).isGreaterThan(data.points[0].y)
-        assertThat(data.minY).isGreaterThan(data.maxY)
+        assertThat(axis.low).isAtMost(4.1)
+        assertThat(axis.low).isGreaterThan(3.0)
+        assertThat(axis.high).isAtLeast(4.6)
+        assertThat(axis.fraction(axis.low, invert = true)).isEqualTo(1f)
     }
 
     @Test
-    fun `sets of one session sit side by side around the session`() {
-        val data = ProgressChartMath.sets(listOf(listOf(80.0, 80.0, 82.5), listOf(85.0)))!!
-
-        val first = data.points.take(3).map { it.x }
-        assertThat(first).isInOrder()
-        assertThat(first.distinct()).hasSize(3)
-        assertThat(data.points.last().x).isWithin(1e-6f).of(0.75f)
-        assertThat(first.last()).isLessThan(0.5f)
-        assertThat(data.points.all { it.x in 0f..1f && it.y in 0f..1f }).isTrue()
+    fun `flat series and integer steps`() {
+        val flat = ProgressChartMath.axis(listOf(170.0, 170.0))!!
+        assertThat(flat.low).isLessThan(170.0)
+        assertThat(flat.high).isGreaterThan(170.0)
+        val grades = ProgressChartMath.axis(listOf(3.0, 4.0), minStep = 1.0)!!
+        assertThat(grades.step).isEqualTo(1.0)
+        assertThat(ProgressChartMath.axis(emptyList())).isNull()
+        val pace = ProgressChartMath.axis(listOf(240.0, 360.0), steps = listOf(5.0, 10.0, 15.0, 30.0, 60.0))!!
+        assertThat(pace.step).isEqualTo(30.0)
     }
 
     @Test
-    fun `single value and no values`() {
-        val single = ProgressChartMath.sessions(listOf(170.0))!!
-        assertThat(single.points.single().x).isEqualTo(0.5f)
-        assertThat(single.points.single().y).isEqualTo(0.5f)
-        assertThat(ProgressChartMath.sessions(listOf(null, null))).isNull()
-        assertThat(ProgressChartMath.sets(emptyList())).isNull()
+    fun `tap picks the nearest session`() {
+        assertThat(ProgressChartMath.nearest(0.05f, 4)).isEqualTo(0)
+        assertThat(ProgressChartMath.nearest(0.6f, 4)).isEqualTo(2)
+        assertThat(ProgressChartMath.nearest(1.0f, 4)).isEqualTo(3)
+        assertThat(ProgressChartMath.nearest(0.5f, 0)).isNull()
+        assertThat(ProgressChartMath.x(0, 4)).isEqualTo(0.125f)
+    }
+
+    @Test
+    fun `date labels thin out and keep the last one`() {
+        assertThat(ProgressChartMath.labelledIndices(4, 6)).containsExactly(0, 1, 2, 3).inOrder()
+        val many = ProgressChartMath.labelledIndices(20, 5)
+        assertThat(many.first()).isEqualTo(0)
+        assertThat(many.last()).isEqualTo(19)
+        assertThat(many.size).isAtMost(6)
+    }
+
+    @Test
+    fun `top set is the heaviest set of each session`() {
+        val day = LocalDate.of(2026, 11, 3)
+        val sets =
+            listOf(
+                SetPoint(1, day, 1, 80.0, 5),
+                SetPoint(1, day, 2, 85.0, 3),
+                SetPoint(1, day, 3, 85.0, 4),
+                SetPoint(2, day.plusDays(7), 1, null, 12),
+            )
+
+        val top = ProgressChartMath.topSets(sets)
+
+        assertThat(top.map { it.weightKg to it.reps }).containsExactly(85.0 to 4, null to 12).inOrder()
     }
 }

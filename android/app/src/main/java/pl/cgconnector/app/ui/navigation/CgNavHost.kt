@@ -256,6 +256,7 @@ fun CgNavHost(start: StartScreen) {
                 TagProgressRoute(
                     onBack = { navController.popBackStack() },
                     onOpenExercise = { exercise -> navController.navigate(TagProgressDestination(tag, exercise)) },
+                    onOpenActivity = { id -> navController.navigate(ActivityDetailDestination(id)) },
                 )
             }
             composable<RunningWizardDestination> {
