@@ -1,6 +1,7 @@
 package pl.cgconnector.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -23,18 +24,24 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import pl.cgconnector.app.R
+import pl.cgconnector.app.data.onboarding.PendingInviteStore
+import pl.cgconnector.app.domain.InviteLink
 import pl.cgconnector.app.ui.navigation.CgNavHost
 import pl.cgconnector.app.ui.theme.CgTheme
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
+    @Inject lateinit var pendingInvite: PendingInviteStore
+
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) acceptInvite(intent)
         askForNotifications(savedInstanceState)
         setContent {
             CgTheme {
@@ -53,6 +60,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        acceptInvite(intent)
+    }
+
+    /** Link zaproszenia: adres i kod czekają na ekran Ustawień (aplikacja bez konfiguracji startuje od niego). */
+    private fun acceptInvite(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        InviteLink.parse(intent.dataString)?.let(pendingInvite::offer)
     }
 
     /** Raz, przy pierwszym uruchomieniu: zgoda na powiadomienia (trening nie dotarł, stare dane). Odmowa nic nie psuje. */

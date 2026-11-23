@@ -7,6 +7,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pl.cgconnector.app.data.onboarding.GarminLoginResult
@@ -14,6 +15,9 @@ import pl.cgconnector.app.data.onboarding.GarminStep
 import pl.cgconnector.app.data.onboarding.InvalidInviteException
 import pl.cgconnector.app.data.onboarding.LoginKeyMismatchException
 import pl.cgconnector.app.data.onboarding.OnboardingRepository
+import pl.cgconnector.app.data.onboarding.PendingInviteStore
+import pl.cgconnector.app.data.update.AppUpdate
+import pl.cgconnector.app.data.update.UpdateChecker
 import pl.cgconnector.app.domain.ConfigValidator
 import pl.cgconnector.app.domain.UrlError
 import pl.cgconnector.app.domain.UrlValidation
@@ -38,6 +42,8 @@ data class InviteUiState(
     val codeMissing: Boolean = false,
     val isWorking: Boolean = false,
     val message: AccountMessage? = null,
+    /** Pola wypełnił link zaproszenia. */
+    val fromLink: Boolean = false,
 )
 
 /** Wymiana kodu zaproszenia `cgi_…` na token aplikacji (pierwsze uruchomienie). */
@@ -46,9 +52,29 @@ class InviteViewModel
     @Inject
     constructor(
         private val repository: OnboardingRepository,
+        private val pendingInvite: PendingInviteStore,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(InviteUiState())
         val uiState: StateFlow<InviteUiState> = _uiState.asStateFlow()
+
+        init {
+            // Link zaproszenia (cgconnector://join) wypełnia pola; użytkownik tylko potwierdza.
+            viewModelScope.launch {
+                pendingInvite.invite.filterNotNull().collect {
+                    val invite = pendingInvite.consume() ?: return@collect
+                    _uiState.update {
+                        it.copy(
+                            serverUrl = invite.serverUrl,
+                            code = invite.code,
+                            urlError = null,
+                            codeMissing = false,
+                            message = null,
+                            fromLink = true,
+                        )
+                    }
+                }
+            }
+        }
 
         fun onServerUrlChange(value: String) = _uiState.update { it.copy(serverUrl = value, urlError = null) }
 
@@ -223,4 +249,28 @@ class AccountViewModel
         fun hideClaudeCode() = _uiState.update { it.copy(claudeCode = null) }
 
         private fun stageFor(status: String?): GarminStage = if (status == "ok") GarminStage.CONNECTED else GarminStage.LOGIN
+    }
+
+/** Sprawdzanie nowszej wersji aplikacji na GitHub Releases (raz przy otwarciu Ustawień). */
+@HiltViewModel
+class UpdateViewModel
+    @Inject
+    constructor(
+        private val checker: UpdateChecker,
+    ) : ViewModel() {
+        private val _update = MutableStateFlow<AppUpdate?>(null)
+        val update: StateFlow<AppUpdate?> = _update.asStateFlow()
+
+        init {
+            viewModelScope.launch {
+                _update.value =
+                    try {
+                        checker.check()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        null
+                    }
+            }
+        }
     }

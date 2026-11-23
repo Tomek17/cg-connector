@@ -20,29 +20,24 @@ Wszystko działa przez **serwer na laptopie Tomka**.
 - Gdy laptop jest wyłączony, aplikacja nadal pokazuje Twoje dane. Trening czeka w kolejce i wyśle się sam, gdy laptop się włączy.
 - Trening trafia najpierw do **kalendarza Garmin Connect**. Na zegarek trafia, gdy zegarek zsynchronizuje się z aplikacją Garmin Connect na telefonie.
 
-## Krok 1. Kod zaproszenia od Tomka
+## Krok 1. Link zaproszenia od Tomka
 
-Tomek wpisuje na swoim laptopie jedno polecenie (szczegóły niżej) i wysyła Ci:
+Tomek wysyła Ci (SMS-em albo w komunikatorze) **link zaproszenia**, np. `https://crisply-idly-precise.ngrok-free.dev/join?code=cgi_…`. Link jest **jednorazowy** i ważny **7 dni**. Wygasł albo zgubiony? Poproś Tomka o nowy. Nie przesyłaj go dalej.
 
-- **adres serwera**: teraz `https://crisply-idly-precise.ngrok-free.dev` (sam adres nie jest sekretem),
-- **kod zaproszenia**, zaczyna się od `cgi_`. Jest **jednorazowy** i ważny **7 dni**. Wygasł albo zgubiony? Poproś Tomka o nowy.
+## Krok 2. Instalacja aplikacji
 
-## Krok 2. Instalacja aplikacji na telefonie
+1. Otwórz link na telefonie. Jeśli pojawi się ostrzeżenie ngrok, stuknij **Visit Site**.
+2. Stuknij **Pobierz aplikację**. Na stronie wydania rozwiń **Assets** i stuknij plik kończący się na **`.apk`**.
+3. Gdy telefon zapyta, pozwól przeglądarce **instalować nieznane aplikacje** (na Samsungu nazwy mogą się trochę różnić). Otwórz pobrany plik i stuknij **Zainstaluj**. Ostrzeżenie Google Play Protect: *Zainstaluj mimo to* (to normalne dla aplikacji spoza sklepu).
 
-Aplikacji nie ma w Sklepie Google Play. Instalujesz ją z pliku APK.
+Kolejne wersje aplikacja pokaże sama: w **Ustawieniach** pojawi się „Dostępna nowa wersja” z przyciskiem **Pobierz aktualizację**. Instalujesz ją na obecną aplikację, dane zostają.
 
-1. Na telefonie otwórz stronę <https://github.com/Tomek17/cg-connector/releases>.
-2. Przy najnowszej wersji (0.9.0 albo nowszej) rozwiń **Assets** i stuknij plik kończący się na **`.apk`**.
-3. Gdy telefon zapyta, pozwól przeglądarce **instalować nieznane aplikacje** (Ustawienia → Aplikacje → Twoja przeglądarka → *Instaluj nieznane aplikacje* → zezwól). Na Samsungu nazwy mogą się trochę różnić.
-4. Otwórz pobrany plik i stuknij **Zainstaluj**.
-5. Jeśli pojawi się ostrzeżenie Google Play Protect, wybierz *Zainstaluj mimo to*. To normalne dla aplikacji spoza sklepu.
-6. Po instalacji możesz z powrotem wyłączyć „instaluj nieznane aplikacje” dla przeglądarki.
+## Krok 3. Połączenie z serwerem
 
-## Krok 3. Połączenie z serwerem (kod zaproszenia)
+1. Wróć do linku zaproszenia i stuknij **Otwórz w aplikacji**. Aplikacja otworzy się z wpisanym adresem i kodem.
+2. Stuknij **Połącz z serwerem**. Kod zaproszenia przestaje działać, a aplikacja zapisuje swój token (zaszyfrowany w telefonie).
 
-1. Otwórz aplikację **CG-connector** i wejdź w zakładkę **Ustawienia** (na dole ekranu).
-2. W sekcji **Mam kod zaproszenia** wpisz **adres serwera** i **kod zaproszenia** `cgi_…`.
-3. Stuknij **Połącz z serwerem**. Aplikacja sama zapisze swój token (zaszyfrowany w telefonie). Kod zaproszenia przestaje działać.
+Przycisk nie zadziałał? W aplikacji: **Ustawienia → Mam kod zaproszenia** i przepisz adres oraz kod pokazane na dole strony zaproszenia.
 
 ## Krok 4. Połączenie z Garminem (w aplikacji)
 
@@ -59,11 +54,11 @@ Hasło jest szyfrowane w telefonie kluczem serwera, więc po drodze (tunel ngrok
 
 Nie masz konta Claude? Załóż darmowe na <https://claude.ai>. Nie chcesz używać Claude? Pomiń ten krok.
 
-1. W aplikacji, w **Ustawieniach**, sekcja **Claude**: stuknij **Wygeneruj kod do Claude**. Pokaże się kod `cgc_…` (tylko ten jeden raz) i przyciski **Kopiuj kod** i **Kopiuj adres**.
-2. Na <https://claude.ai/customize/connectors> (**Customize → Connectors**, nie Ustawienia) kliknij **+ Add → Add custom connector**.
-3. Nazwa: `CG-connector`. Adres: skopiowany adres (adres serwera z **`/mcp`** na końcu).
-4. Jeśli pojawią się opcje: **Authentication** → **Sign in now**, **OAuth client** → **Register automatically**. Pola „Client ID” i „Client Secret” zostaw puste. Gdy pojawi się strona ostrzeżenia ngrok, kliknij **Visit Site**.
-5. Kliknij **Dodaj**, potem **Połącz**. Na stronie CG-connector wklej **kod** `cgc_…` i kliknij **Połącz z Claude**.
+1. W aplikacji, w **Ustawieniach**, sekcja **Claude**: stuknij **Wygeneruj kod do Claude**.
+2. Stuknij **Kopiuj adres i otwórz claude.ai**. Otworzy się strona konektorów w claude.ai: kliknij **+ Add → Add custom connector**, nazwa `CG-connector`, w polu adresu wklej skopiowany adres.
+3. Jeśli pojawią się opcje: **Authentication** → **Sign in now**, **OAuth client** → **Register automatically** (pola „Client ID” i „Client Secret” puste). Strona ostrzeżenia ngrok: **Visit Site**.
+4. Kliknij **Dodaj**, potem **Połącz**. Otworzy się strona CG-connector.
+5. Wróć do aplikacji, stuknij **Kopiuj kod**, wróć do przeglądarki, wklej kod `cgc_…` i kliknij **Połącz z Claude**.
 6. W nowej rozmowie włącz konektor: **„+”** → **Konektory** → **CG-connector** i zapytaj: „Jak wyglądał mój ostatni tydzień?”.
 
 Darmowe Claude pozwala mieć **tylko jeden** własny konektor. CG-connector go zajmuje. Nowy kod z aplikacji unieważnia poprzedni i rozłącza Claude, więc generuj go tylko przy łączeniu.
@@ -78,7 +73,7 @@ Na laptopie (serwer włączony), w Ubuntu, jedna osoba = jedno polecenie (nazwa 
 cd ~/cg-connector/server && docker compose exec cg-server cg-server invite --name brat
 ```
 
-Polecenie zakłada konto (jeśli go nie ma) i wypisuje kod `cgi_…`. Wyślij go tej osobie prywatnie razem z adresem serwera; resztę zrobi sama w aplikacji (Kroki 2–5). Zaproszenie wygasło albo zginęło? Uruchom polecenie jeszcze raz; poprzedni kod przestaje działać.
+Polecenie zakłada konto (jeśli go nie ma) i wypisuje **link zaproszenia** (`https://…/join?code=cgi_…`). Wyślij go tej osobie prywatnie; resztę zrobi sama (Kroki 2–5). Link wygasł albo zginął? Uruchom polecenie jeszcze raz; poprzedni przestaje działać.
 
 Stara droga (wszystko na laptopie, osoba wpisuje hasło przy Tobie) nadal działa: `~/cg-connector/ops/wsl/dodaj-osobe.sh brat`, szczegóły w [konfiguracja-claude.md](konfiguracja-claude.md#przygotowanie-użytkownika-na-serwerze-robi-tomek).
 
@@ -97,7 +92,7 @@ Na dole zakładki **Dziś** widzisz, z kiedy są dane; szczegóły są w **Ustaw
 2. Jeśli Serwer jest **Offline**: laptop Tomka jest wyłączony albo śpi. Napisz do Tomka, żeby go włączył. Dane pobiorą się same po włączeniu.
 3. Jeśli Konto Garmin to **„Wymaga ponownego logowania na serwerze”**: w **Ustawieniach**, w sekcji **Konto Garmin**, stuknij **Zaloguj ponownie** i powtórz Krok 4.
 4. Jeśli Konto Garmin to **„Garmin ogranicza zapytania”**: nic nie rób. Serwer spróbuje sam później, zwykle następnego dnia.
-5. Jeśli wynik odświeżenia to **„Token odrzucony”** albo aplikacja prosi o ponowne wklejenie tokenu (np. po zmianie blokady ekranu): poproś Tomka o nowy kod zaproszenia i powtórz Krok 3 (możesz też wkleić token `cga_…` od Tomka w polu „Token aplikacji”).
+5. Jeśli wynik odświeżenia to **„Token odrzucony”** albo aplikacja prosi o ponowne wklejenie tokenu (np. po zmianie blokady ekranu): poproś Tomka o nowy link zaproszenia i powtórz Krok 3 (możesz też wkleić token `cga_…` od Tomka w polu „Token aplikacji”).
 
 Gdy Claude nie działa:
 

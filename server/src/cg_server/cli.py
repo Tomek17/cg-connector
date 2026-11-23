@@ -32,6 +32,7 @@ from cg_server.garmin.gateway import (
     GarminRateLimited,
     RealGarminGateway,
 )
+from cg_server.join_page import invite_link
 from cg_server.logging_filter import uvicorn_log_config
 from cg_server.models import (
     Activity,
@@ -119,9 +120,8 @@ SECRET_INFO = {
     ),
     SecretKind.INVITE: (
         "Kod zaproszenia",
-        "Wyślij go tej osobie razem z adresem serwera. W aplikacji: Ustawienia → Mam kod "
-        "zaproszenia. Kod jest jednorazowy i ważny 7 dni; logowanie do Garmina i kod do "
-        "Claude osoba zrobi już sama w aplikacji.",
+        "Kod jest jednorazowy i ważny 7 dni. Logowanie do Garmina i kod do Claude osoba "
+        "zrobi już sama w aplikacji.",
     ),
 }
 
@@ -140,10 +140,14 @@ def cmd_invite(settings: Settings, name: str) -> None:
         if get_user(session, name) is None:
             add_user(session, name)
             print(f"Dodano użytkownika „{name}”.")
-    cmd_issue_secret(settings, name, SecretKind.INVITE)
+    code = cmd_issue_secret(settings, name, SecretKind.INVITE)
+    print()
+    print("Najprościej: wyślij tej osobie prywatnie (SMS, komunikator) ten link zaproszenia.")
+    print("Otwiera stronę z pobraniem aplikacji i przyciskiem, który wpisuje adres i kod sam:")
+    _show_secret_once(invite_link(settings, code))
 
 
-def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> None:
+def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> str:
     with open_db(settings)() as session:
         user = _require_user(session, name)
         secret = issue_secret(session, user, kind)
@@ -155,6 +159,7 @@ def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> None:
         print("Poprzedni kod/token (jeśli był) przestał działać.")
     if kind is SecretKind.CG_CODE:
         print("Wcześniejsze połączenia claude.ai zostały rozłączone; połącz konektor ponownie.")
+    return secret
 
 
 def _cooldown_message(until: datetime) -> str:

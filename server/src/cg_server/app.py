@@ -22,6 +22,7 @@ from cg_server.app_login import AppLogins
 from cg_server.config import Settings, get_settings
 from cg_server.db import open_db
 from cg_server.garmin.gateway import RealGarminGateway
+from cg_server.join_page import join_router
 from cg_server.login_page import login_router
 from cg_server.manual_sync import ManualSync
 from cg_server.mcp_server import build_mcp
@@ -124,6 +125,7 @@ def create_app(
     app.include_router(workouts_router)
     app.include_router(onboarding_router)
     app.include_router(login_router(provider))
+    app.include_router(join_router(settings))
 
     # Added innermost first: the allowlist runs before rate limiting and body reading.
     app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)

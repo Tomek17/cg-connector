@@ -7,6 +7,8 @@ import pl.cgconnector.app.data.onboarding.GarminLoginResult
 import pl.cgconnector.app.data.onboarding.GarminStep
 import pl.cgconnector.app.data.onboarding.InvalidInviteException
 import pl.cgconnector.app.data.onboarding.OnboardingRepository
+import pl.cgconnector.app.data.onboarding.PendingInviteStore
+import pl.cgconnector.app.domain.InviteLink
 import pl.cgconnector.app.testing.MainDispatcherRule
 
 private class FakeOnboarding(
@@ -131,7 +133,7 @@ class AccountViewModelTest {
     @Test
     fun `invite redeems with normalized url`() {
         val repo = FakeOnboarding()
-        val viewModel = InviteViewModel(repo)
+        val viewModel = InviteViewModel(repo, PendingInviteStore())
         viewModel.onServerUrlChange("https://cg.example.ngrok-free.dev/")
         viewModel.onCodeChange("cgi_abc")
         viewModel.redeem()
@@ -145,12 +147,25 @@ class AccountViewModelTest {
     @Test
     fun `invalid invite shows message and keeps code`() {
         val repo = FakeOnboarding(inviteValid = false)
-        val viewModel = InviteViewModel(repo)
+        val viewModel = InviteViewModel(repo, PendingInviteStore())
         viewModel.onServerUrlChange("https://cg.example.ngrok-free.dev")
         viewModel.onCodeChange("cgi_zly")
         viewModel.redeem()
 
         assertThat(viewModel.uiState.value.message).isEqualTo(AccountMessage.INVITE_INVALID)
         assertThat(viewModel.uiState.value.code).isEqualTo("cgi_zly")
+    }
+
+    @Test
+    fun `invite link prefills the form once`() {
+        val store = PendingInviteStore()
+        val viewModel = InviteViewModel(FakeOnboarding(), store)
+        store.offer(InviteLink("https://cg.example.ngrok-free.dev", "cgi_" + "a".repeat(43)))
+
+        val state = viewModel.uiState.value
+        assertThat(state.serverUrl).isEqualTo("https://cg.example.ngrok-free.dev")
+        assertThat(state.code).isEqualTo("cgi_" + "a".repeat(43))
+        assertThat(state.fromLink).isTrue()
+        assertThat(store.invite.value).isNull()
     }
 }
