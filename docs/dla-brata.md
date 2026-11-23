@@ -1,6 +1,8 @@
-# CG-connector: instrukcja dla brata
+# CG-connector: instrukcja dla brata (i każdej kolejnej osoby)
 
-Ta instrukcja jest dla Ciebie, jeśli masz zegarek Garmin (np. Fenix 8 Pro), własne konto Garmin Connect i darmowe konto Claude. Nie musisz znać się na programowaniu.
+Ta instrukcja jest dla Ciebie, jeśli masz zegarek Garmin (np. Fenix 8 Pro), własne konto Garmin Connect i telefon z Androidem (np. Samsung). Nie musisz znać się na programowaniu. Konto Claude (darmowe wystarczy) jest potrzebne tylko do rozmów z Claude; sama aplikacja działa bez niego.
+
+**Każda osoba przechodzi wszystkie kroki osobno**: ma własne konto na serwerze, sama loguje się do swojego Garmina i dostaje własny token aplikacji i własny kod CG. Nikt nie widzi danych drugiej osoby w aplikacji ani w Claude. Jeśli przychodzicie we dwoje (np. brat z dziewczyną), robicie Krok 1 po kolei, jedno po drugim.
 
 ## Co to robi
 
@@ -20,7 +22,13 @@ Wszystko działa przez **serwer na laptopie Tomka**.
 
 ## Krok 1. Spotkanie z Tomkiem (konto i logowanie do Garmina)
 
-To robicie razem, przy laptopie Tomka. Zajmuje ok. 15 minut.
+To robicie razem, przy laptopie Tomka. Zajmuje ok. 15 minut na osobę. Najlepiej mieć przy sobie telefon z już zainstalowaną aplikacją (Krok 2), żeby od razu wpisać token.
+
+Tomek uruchamia w Ubuntu jedno polecenie, które prowadzi przez wszystkie punkty poniżej (nazwa konta: małe litery, np. `brat`, `ola`):
+
+```bash
+~/cg-connector/ops/wsl/dodaj-osobe.sh brat
+```
 
 1. Tomek zakłada Ci konto na serwerze (polecenie `user-add`).
 2. Tomek uruchamia logowanie do Garmina (polecenie `garmin-login`).
@@ -31,7 +39,7 @@ To robicie razem, przy laptopie Tomka. Zajmuje ok. 15 minut.
    - **token aplikacji**, zaczyna się od `cga_` (do telefonu),
    - **kod CG**, zaczyna się od `cgc_` (do Claude).
 
-Tomek poda Ci też **adres serwera**, np. `https://cg-server.twoj-tailnet.ts.net` albo `https://<nazwa>.ngrok-free.dev`.
+Tomek poda Ci też **adres serwera**. Teraz to `https://crisply-idly-precise.ngrok-free.dev` (sam adres nie jest sekretem). Jeśli Tomek przejdzie kiedyś na Tailscale, adres zmieni się na `https://cg-server.<coś>.ts.net` i trzeba go będzie podmienić w aplikacji i w claude.ai.
 
 > **Nigdy nie wysyłaj hasła do Garmina** SMS-em, mailem, na Messengerze ani w czacie z Claude. Nikt z projektu o nie nie poprosi. Hasło wpisujesz tylko sam, przy laptopie Tomka.
 
@@ -65,6 +73,8 @@ Tomek opisuje wydania w [release.md](release.md).
 Token jest zapisany w telefonie w zaszyfrowanej formie. Po zapisaniu pole tokenu zostaje puste. To normalne.
 
 ## Krok 4. Podłączenie Claude (darmowe konto)
+
+Nie masz konta Claude? Załóż darmowe na <https://claude.ai>. Jeśli nie chcesz używać Claude, pomiń ten krok; aplikacja i wysyłanie treningów na zegarek działają bez niego.
 
 1. Na komputerze albo w przeglądarce telefonu otwórz <https://claude.ai> i zaloguj się na swoje konto.
 2. Wejdź na <https://claude.ai/customize/connectors> (**Customize → Connectors**, nie Ustawienia), kliknij **+ Add → Add custom connector**.
