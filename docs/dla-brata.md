@@ -1,6 +1,6 @@
 # CG-connector: instrukcja dla brata (i każdej kolejnej osoby)
 
-Ta instrukcja jest dla Ciebie, jeśli masz zegarek Garmin (np. Fenix 8 Pro), własne konto Garmin Connect i telefon z Androidem (np. Samsung). Nie musisz znać się na programowaniu ani spotykać z Tomkiem: wszystko robisz sam w aplikacji. Konto Claude (darmowe wystarczy) jest potrzebne tylko do rozmów z Claude; sama aplikacja działa bez niego.
+Ta instrukcja jest dla Ciebie, jeśli masz zegarek Garmin (np. Fenix 8 Pro), własne konto Garmin Connect i telefon z Androidem (np. Samsung). Nie musisz znać się na programowaniu ani spotykać z Tomkiem: wszystko robisz sam w aplikacji, która prowadzi Cię krok po kroku. Ta instrukcja to tylko ściąga. Konto Claude (darmowe wystarczy) jest potrzebne tylko do rozmów z Claude; sama aplikacja działa bez niego.
 
 Każda osoba ma własne konto na serwerze, sama loguje się do swojego Garmina i ma własny kod do Claude. Nikt nie widzi danych drugiej osoby w aplikacji ani w Claude.
 
@@ -32,34 +32,19 @@ Tomek wysyła Ci (SMS-em albo w komunikatorze) **link zaproszenia**, np. `https:
 
 Kolejne wersje aplikacja pokaże sama: w **Ustawieniach** pojawi się „Dostępna nowa wersja” z przyciskiem **Pobierz aktualizację**. Instalujesz ją na obecną aplikację, dane zostają.
 
-## Krok 3. Połączenie z serwerem
+## Krok 3. Resztę prowadzi aplikacja
 
-1. Wróć do linku zaproszenia i stuknij **Otwórz w aplikacji**. Aplikacja otworzy się z wpisanym adresem i kodem.
-2. Stuknij **Połącz z serwerem**. Kod zaproszenia przestaje działać, a aplikacja zapisuje swój token (zaszyfrowany w telefonie).
+Wróć do linku zaproszenia i stuknij **Otwórz w aplikacji**. Aplikacja otworzy się z kreatorem, który krok po kroku przeprowadzi Cię przez:
 
-Przycisk nie zadziałał? W aplikacji: **Ustawienia → Mam kod zaproszenia** i przepisz adres oraz kod pokazane na dole strony zaproszenia.
+1. **Połączenie z serwerem**: adres i kod są już wpisane z linku, wystarczy stuknąć **Połącz**.
+2. **Konto Garmin**: e-mail i hasło do Garmin Connect, a jeśli Garmin wyśle kod weryfikacyjny (e-mail albo SMS), wpisujesz go w ciągu 10 minut.
+3. **Claude** (opcjonalnie): aplikacja przygotuje kod, otworzy claude.ai w przeglądarce i powie, co gdzie wkleić. Możesz to pominąć i wrócić później w **Ustawieniach → Claude**.
 
-## Krok 4. Połączenie z Garminem (w aplikacji)
-
-1. W **Ustawieniach** przewiń do sekcji **Konto Garmin**.
-2. Wpisz e-mail i hasło do **Garmin Connect** i stuknij **Połącz z Garminem**.
-3. Jeśli Garmin wyśle kod weryfikacyjny (e-mail albo SMS), wpisz go w ciągu 10 minut i stuknij **Potwierdź**.
-4. Gotowe: „Połączono z Garminem”. Pierwsze pobranie danych trwa kilka minut. Potem w zakładce **Treningi** zobaczysz swoje aktywności, a na **Dziś** podsumowanie tygodnia i VO2max.
+Jeśli w trakcie wyjdziesz z aplikacji (np. do poczty po kod z Garmina), po powrocie kreator będzie w tym samym miejscu.
 
 > **Sprawdź hasło przed wysłaniem.** Po kilku błędnych próbach Garmin blokuje logowanie na około dobę. Aplikacja pozwala na 2 nieudane próby na godzinę, potem każe odczekać.
 
 Hasło jest szyfrowane w telefonie kluczem serwera, więc po drodze (tunel ngrok) nikt go nie odczyta. Serwer używa go jeden raz do zalogowania i **nigdzie go nie zapisuje**; trzyma tylko zaszyfrowany „klucz dostępu” do Garmina. **Nigdy nie wysyłaj hasła** SMS-em, mailem, na Messengerze ani w czacie z Claude.
-
-## Krok 5. Podłączenie Claude (darmowe konto, opcjonalnie)
-
-Nie masz konta Claude? Załóż darmowe na <https://claude.ai>. Nie chcesz używać Claude? Pomiń ten krok.
-
-1. W aplikacji, w **Ustawieniach**, sekcja **Claude**: stuknij **Wygeneruj kod do Claude**.
-2. Stuknij **Kopiuj adres i otwórz claude.ai**. Otworzy się strona konektorów w claude.ai: kliknij **+ Add → Add custom connector**, nazwa `CG-connector`, w polu adresu wklej skopiowany adres.
-3. Jeśli pojawią się opcje: **Authentication** → **Sign in now**, **OAuth client** → **Register automatically** (pola „Client ID” i „Client Secret” puste). Strona ostrzeżenia ngrok: **Visit Site**.
-4. Kliknij **Dodaj**, potem **Połącz**. Otworzy się strona CG-connector.
-5. Wróć do aplikacji, stuknij **Kopiuj kod**, wróć do przeglądarki, wklej kod `cgc_…` i kliknij **Połącz z Claude**.
-6. W nowej rozmowie włącz konektor: **„+”** → **Konektory** → **CG-connector** i zapytaj: „Jak wyglądał mój ostatni tydzień?”.
 
 Darmowe Claude pozwala mieć **tylko jeden** własny konektor. CG-connector go zajmuje. Nowy kod z aplikacji unieważnia poprzedni i rozłącza Claude, więc generuj go tylko przy łączeniu.
 
@@ -73,7 +58,7 @@ Na laptopie (serwer włączony), w Ubuntu, jedna osoba = jedno polecenie (nazwa 
 cd ~/cg-connector/server && docker compose exec cg-server cg-server invite --name brat
 ```
 
-Polecenie zakłada konto (jeśli go nie ma) i wypisuje **link zaproszenia** (`https://…/join?code=cgi_…`). Wyślij go tej osobie prywatnie; resztę zrobi sama (Kroki 2–5). Link wygasł albo zginął? Uruchom polecenie jeszcze raz; poprzedni przestaje działać.
+Polecenie zakłada konto (jeśli go nie ma) i wypisuje **link zaproszenia** (`https://…/join?code=cgi_…`). Wyślij go tej osobie prywatnie; resztę poprowadzi ją aplikacja (ta instrukcja nie jest potrzebna, to tylko ściąga). Link wygasł albo zginął? Uruchom polecenie jeszcze raz; poprzedni przestaje działać.
 
 Stara droga (wszystko na laptopie, osoba wpisuje hasło przy Tobie) nadal działa: `~/cg-connector/ops/wsl/dodaj-osobe.sh brat`, szczegóły w [konfiguracja-claude.md](konfiguracja-claude.md#przygotowanie-użytkownika-na-serwerze-robi-tomek).
 
@@ -90,7 +75,7 @@ Na dole zakładki **Dziś** widzisz, z kiedy są dane; szczegóły są w **Ustaw
 
 1. Stuknij **Sprawdź teraz**.
 2. Jeśli Serwer jest **Offline**: laptop Tomka jest wyłączony albo śpi. Napisz do Tomka, żeby go włączył. Dane pobiorą się same po włączeniu.
-3. Jeśli Konto Garmin to **„Wymaga ponownego logowania na serwerze”**: w **Ustawieniach**, w sekcji **Konto Garmin**, stuknij **Zaloguj ponownie** i powtórz Krok 4.
+3. Jeśli Konto Garmin to **„Wymaga ponownego logowania na serwerze”**: w **Ustawieniach**, w sekcji **Konto Garmin**, stuknij **Zaloguj ponownie** i zaloguj się jak w kreatorze.
 4. Jeśli Konto Garmin to **„Garmin ogranicza zapytania”**: nic nie rób. Serwer spróbuje sam później, zwykle następnego dnia.
 5. Jeśli wynik odświeżenia to **„Token odrzucony”** albo aplikacja prosi o ponowne wklejenie tokenu (np. po zmianie blokady ekranu): poproś Tomka o nowy link zaproszenia i powtórz Krok 3 (możesz też wkleić token `cga_…` od Tomka w polu „Token aplikacji”).
 

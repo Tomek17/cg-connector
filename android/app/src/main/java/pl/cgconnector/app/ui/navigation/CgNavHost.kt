@@ -25,6 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import kotlinx.serialization.Serializable
 import pl.cgconnector.app.R
+import pl.cgconnector.app.StartScreen
 import pl.cgconnector.app.ui.activities.ActivitiesRoute
 import pl.cgconnector.app.ui.detail.ActivityDetailRoute
 import pl.cgconnector.app.ui.goal.GoalEditorRoute
@@ -34,6 +35,7 @@ import pl.cgconnector.app.ui.progress.ProgressRoute
 import pl.cgconnector.app.ui.progress.TagProgressRoute
 import pl.cgconnector.app.ui.queue.QueueRoute
 import pl.cgconnector.app.ui.settings.SettingsRoute
+import pl.cgconnector.app.ui.setup.SetupRoute
 import pl.cgconnector.app.ui.today.TodayRoute
 import pl.cgconnector.app.ui.vo2max.Vo2MaxRoute
 import pl.cgconnector.app.domain.workout.WorkoutSport
@@ -48,6 +50,9 @@ import kotlin.reflect.KClass
 
 @Serializable
 data object SettingsDestination
+
+@Serializable
+data object SetupDestination
 
 @Serializable
 data object ActivitiesDestination
@@ -124,7 +129,7 @@ private enum class TopLevel(
 }
 
 @Composable
-fun CgNavHost(isConfigured: Boolean) {
+fun CgNavHost(start: StartScreen) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -149,10 +154,32 @@ fun CgNavHost(isConfigured: Boolean) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = if (isConfigured) TodayDestination else SettingsDestination,
+            startDestination =
+                when (start) {
+                    StartScreen.SETUP -> SetupDestination
+                    StartScreen.SETTINGS -> SettingsDestination
+                    StartScreen.HOME -> TodayDestination
+                },
             // Ekrany mają własne Scaffoldy; wcięcia zużyte tutaj nie mogą być dodane drugi raz.
             modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
         ) {
+            composable<SetupDestination> {
+                // Po kreatorze (albo przejściu do ręcznej konfiguracji) kreator znika ze stosu.
+                SetupRoute(
+                    onFinished = {
+                        navController.navigate(TodayDestination) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onManualSetup = {
+                        navController.navigate(SettingsDestination) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
             composable<SettingsDestination> {
                 SettingsRoute(
                     onSaved = {

@@ -39,8 +39,10 @@ import pl.cgconnector.app.data.repository.StatsRepository
 import pl.cgconnector.app.data.repository.WorkoutQueueRepository
 import pl.cgconnector.app.data.repository.WorkoutQueueTrigger
 import pl.cgconnector.app.data.repository.WorkoutTemplateRepository
+import pl.cgconnector.app.data.onboarding.DataStoreSetupProgressStore
 import pl.cgconnector.app.data.onboarding.OnboardingRepository
 import pl.cgconnector.app.data.onboarding.ServerOnboardingRepository
+import pl.cgconnector.app.data.onboarding.SetupProgressStore
 import pl.cgconnector.app.data.update.GitHubUpdateChecker
 import pl.cgconnector.app.data.update.UpdateChecker
 import pl.cgconnector.app.data.settings.DataStoreServerConfigRepository
@@ -60,6 +62,9 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindOnboardingRepository(impl: ServerOnboardingRepository): OnboardingRepository
+
+    @Binds
+    abstract fun bindSetupProgressStore(impl: DataStoreSetupProgressStore): SetupProgressStore
 
     @Binds
     abstract fun bindUpdateChecker(impl: GitHubUpdateChecker): UpdateChecker

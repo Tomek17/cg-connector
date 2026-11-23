@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.semantics { contentDescription = loading },
                                 )
                             }
-                        is StartState.Ready -> CgNavHost(isConfigured = state.isConfigured)
+                        is StartState.Ready -> CgNavHost(start = state.start)
                     }
                 }
             }
@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
         acceptInvite(intent)
     }
 
-    /** Link zaproszenia: adres i kod czekają na ekran Ustawień (aplikacja bez konfiguracji startuje od niego). */
+    /** Link zaproszenia: adres i kod czekają na kreator pierwszego uruchomienia (albo ekran Ustawień). */
     private fun acceptInvite(intent: Intent?) {
         if (intent?.action != Intent.ACTION_VIEW) return
         InviteLink.parse(intent.dataString)?.let(pendingInvite::offer)

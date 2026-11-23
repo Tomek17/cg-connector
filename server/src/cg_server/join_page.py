@@ -53,10 +53,10 @@ telefon zapyta, pozwól przeglądarce instalować aplikacje. Masz już aplikacj�
 Przejdź do kroku 2.</p>
 <a class="button" href="{releases}">Pobierz aplikację</a>
 <h2>2. Otwórz zaproszenie w aplikacji</h2>
-<p>Wróć na tę stronę i stuknij przycisk. Aplikacja otworzy się z wpisanym adresem i kodem;
-stuknij tam <strong>Połącz z serwerem</strong>, a potem zaloguj się do Garmina.</p>
+<p>Wróć na tę stronę i stuknij przycisk. Aplikacja otworzy się z wpisanym adresem i kodem
+i dalej poprowadzi Cię krok po kroku (Garmin, potem Claude).</p>
 <a class="button secondary" href="{deep_link}">Otwórz w aplikacji</a>
-<p><small>Przycisk nie działa? W aplikacji: Ustawienia → Mam kod zaproszenia. Adres serwera:
+<p><small>Przycisk nie działa? Otwórz aplikację i przepisz w niej adres serwera:
 <code>{server}</code>, kod: <code>{code}</code>. Kod jest jednorazowy i ważny 7 dni; nie
 przesyłaj go dalej.</small></p>
 """
