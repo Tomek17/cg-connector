@@ -19,6 +19,8 @@ Konektor dodaje się na claude.ai w przeglądarce. Potem działa też w aplikacj
 
 Polecenia wpisuje się w oknie **Ubuntu** na laptopie-serwerze, w folderze serwera. W przykładach użytkownik nazywa się `brat`. Nazwę wybierasz sam, ale potem używasz tej samej w każdym poleceniu.
 
+Najprościej: `~/cg-connector/ops/wsl/dodaj-osobe.sh brat` robi wszystkie poniższe kroki po kolei (konto, logowanie do Garmina, pierwszy sync, token aplikacji, kod CG) i zatrzymuje się, gdy logowanie do Garmina się nie uda. Dla kilku osób uruchom go osobno dla każdej.
+
 ```bash
 cd ~/cg-connector/server
 docker compose exec cg-server cg-server user-add --name brat
