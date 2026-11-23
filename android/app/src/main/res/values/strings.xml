@@ -132,6 +132,16 @@
     <string name="today_server_unknown">Serwer nie był jeszcze sprawdzony</string>
     <string name="today_never_fetched">Dane nie były jeszcze pobrane</string>
     <string name="today_stale">Dane mogą być nieaktualne · szczegóły w Ustawieniach</string>
+    <string name="widget_name">CG-connector: Dziś</string>
+    <string name="widget_description">Następny trening z Planu i dni do startu</string>
+    <string name="widget_no_workout">Brak zaplanowanych treningów</string>
+    <string name="alert_channel">Ważne sprawy treningowe</string>
+    <string name="alert_workout_failed_title">Trening nie dotarł na zegarek</string>
+    <string name="alert_workout_failed_text">„%1$s” (%2$s) nie trafił do kalendarza Garmin. Otwórz Plan, żeby zobaczyć szczegóły.</string>
+    <string name="alert_stale_title">Dane mogą być nieaktualne</string>
+    <string name="alert_stale_text">Serwer dawno nie pobierał danych z Garmina. Sprawdź, czy laptop jest włączony.</string>
+    <string name="alert_login_title">Garmin wymaga logowania</string>
+    <string name="alert_login_text">Serwer stracił dostęp do konta Garmin. Zaloguj go ponownie: cg-server garmin-login.</string>
     <string name="sync_now">Pobierz teraz z Garmina</string>
     <string name="sync_now_running">Pobieram z Garmina…</string>
     <string name="sync_now_done">Gotowe, dane są aktualne.</string>

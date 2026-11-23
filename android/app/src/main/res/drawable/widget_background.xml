@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Granat z palety aplikacji, zaokrąglone rogi jak w widżetach systemowych. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FF1B4FA0" />
+    <corners android:radius="24dp" />
+</shape>
