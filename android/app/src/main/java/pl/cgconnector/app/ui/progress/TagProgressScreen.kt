@@ -125,7 +125,6 @@ private fun LazyListScope.climbingCharts(sessions: List<ClimbSession>) {
     val dates = ProgressChartMath.dateRange(sessions.map { it.date }) ?: return
     // Oś „najtrudniejszy top” w kolejności trudności Garmina, podpisy stopniami (V2, V3…).
     val gradeNames = sessions.flatMap { s -> s.grades.map { it.sort to it.grade } }.toMap()
-    val color = sportColors(ActivityType.CLIMBING).content
     val gradeFormat = { v: Double -> gradeNames[v.roundToInt()] ?: "" }
     val countFormat = { v: Double -> v.roundToInt().toString() }
     val charts =
@@ -144,7 +143,7 @@ private fun LazyListScope.climbingCharts(sessions: List<ClimbSession>) {
                 dates = dates,
                 format = format,
                 connect = true,
-                color = color,
+                color = sportColors(ActivityType.CLIMBING).content,
             )
         }
     }
