@@ -23,7 +23,13 @@ from tests.seed import add_activity, add_sync, add_vo2max, set_garmin_status
 
 pytestmark = pytest.mark.anyio
 
-TOOLS = ["list_activities", "get_activity", "get_vo2max_trend", "get_training_summary"]
+TOOLS = [
+    "list_activities",
+    "get_activity",
+    "get_vo2max_trend",
+    "get_training_summary",
+    "set_goal",
+]
 
 
 @pytest.fixture
@@ -398,3 +404,28 @@ async def test_set_activity_tag(http: httpx2.AsyncClient, codes: dict[str, str])
         http, codes["b"], "set_activity_tag", {"activity_id": 102, "tag": "legs"}
     )
     assert is_error and "No activity" in text
+
+
+async def test_set_goal_and_profile(http: httpx2.AsyncClient, codes: dict[str, str]) -> None:
+    data = await ok(
+        http,
+        codes["a"],
+        "set_goal",
+        {
+            "name": "Półmaraton Warszawski",
+            "event_date": "2027-03-28",
+            "distance_km": 21.0975,
+            "target_time": "1:45:00",
+        },
+    )
+    assert data["goal"]["target"] == "1:45:00"
+    assert data["goal"]["pace"] == "4:59"
+    is_error, text, _ = await call(
+        http,
+        codes["a"],
+        "set_goal",
+        {"name": "X", "event_date": "2027-03-28", "distance_km": 5, "target_time": "fast"},
+    )
+    assert is_error and "h:mm:ss" in text
+    cleared = await ok(http, codes["a"], "set_goal", {"name": None})
+    assert cleared == {"goal": None}

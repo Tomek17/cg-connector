@@ -90,6 +90,19 @@ interface CgApi {
         @Path("tag") tag: String,
     ): TagProgressDto
 
+    /** Cel użytkownika albo `goal: null`. */
+    @GET("api/v1/goal")
+    suspend fun goal(): GoalStateDto
+
+    /** Ustawia (zastępuje) cel; 422 = zły cel. */
+    @PUT("api/v1/goal")
+    suspend fun setGoal(
+        @Body body: GoalDto,
+    ): GoalStateDto
+
+    @DELETE("api/v1/goal")
+    suspend fun deleteGoal(): GoalStateDto
+
     companion object {
         const val MAX_SCHEDULED_DAYS = 366L
         const val MAX_LIMIT = 2000

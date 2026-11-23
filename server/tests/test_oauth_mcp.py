@@ -621,4 +621,5 @@ async def test_get_profile_without_data(app: FastAPI, accounts: dict[str, Accoun
         "garmin_status": None,
         "last_sync_at": None,
         "latest_activity_date": None,
+        "goal": None,
     }

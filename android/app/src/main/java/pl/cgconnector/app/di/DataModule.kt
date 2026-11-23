@@ -8,17 +8,22 @@ import dagger.hilt.components.SingletonComponent
 import pl.cgconnector.app.BuildConfig
 import pl.cgconnector.app.data.remote.ActivityRemoteDataSource
 import pl.cgconnector.app.data.remote.ApiActivityRemoteDataSource
+import pl.cgconnector.app.data.remote.ApiGoalRemoteDataSource
 import pl.cgconnector.app.data.remote.ApiProgressRemoteDataSource
 import pl.cgconnector.app.data.remote.ApiWorkoutRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeActivityRemoteDataSource
+import pl.cgconnector.app.data.remote.FakeGoalRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeProgressRemoteDataSource
+import pl.cgconnector.app.data.remote.GoalRemoteDataSource
 import pl.cgconnector.app.data.remote.FakeWorkoutRemoteDataSource
 import pl.cgconnector.app.data.remote.ProgressRemoteDataSource
 import pl.cgconnector.app.data.remote.WorkoutRemoteDataSource
 import pl.cgconnector.app.data.repository.ActivityRepository
+import pl.cgconnector.app.data.repository.DataStoreGoalRepository
 import pl.cgconnector.app.data.repository.DataStoreQueuePauseStore
 import pl.cgconnector.app.data.repository.DataStoreWorkoutTemplateRepository
 import pl.cgconnector.app.data.repository.OfflineFirstActivityRepository
+import pl.cgconnector.app.data.repository.GoalRepository
 import pl.cgconnector.app.data.repository.OfflineFirstWorkoutQueueRepository
 import pl.cgconnector.app.data.repository.ProgressRepository
 import pl.cgconnector.app.data.repository.QueuePauseStore
@@ -46,6 +51,9 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindActivityRepository(impl: OfflineFirstActivityRepository): ActivityRepository
+
+    @Binds
+    abstract fun bindGoalRepository(impl: DataStoreGoalRepository): GoalRepository
 
     @Binds
     abstract fun bindProgressRepository(impl: ServerProgressRepository): ProgressRepository
@@ -83,5 +91,11 @@ abstract class DataModule {
             fake: Provider<FakeProgressRemoteDataSource>,
             api: Provider<ApiProgressRemoteDataSource>,
         ): ProgressRemoteDataSource = if (BuildConfig.USE_FAKE_API) fake.get() else api.get()
+
+        @Provides
+        fun provideGoalRemoteDataSource(
+            fake: Provider<FakeGoalRemoteDataSource>,
+            api: Provider<ApiGoalRemoteDataSource>,
+        ): GoalRemoteDataSource = if (BuildConfig.USE_FAKE_API) fake.get() else api.get()
     }
 }

@@ -334,3 +334,21 @@ class ScheduledWorkout(Base):
     )
 
     workout: Mapped[Workout] = relationship()
+
+
+class Goal(Base):
+    """The user's target event (e.g. a half marathon) and the finish time they aim for.
+
+    One goal per user; the app shows it on the home screen and Claude plans towards it."""
+
+    __tablename__ = "goals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    name: Mapped[str] = mapped_column(String(80))
+    event_date: Mapped[date] = mapped_column(Date)
+    distance_km: Mapped[float] = mapped_column(Float)
+    target_seconds: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )

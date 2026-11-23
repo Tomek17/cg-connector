@@ -9,12 +9,14 @@ import org.junit.Rule
 import org.junit.Test
 import pl.cgconnector.app.domain.ActivityType
 import pl.cgconnector.app.domain.Freshness
+import pl.cgconnector.app.domain.RaceGoal
 import pl.cgconnector.app.domain.RefreshOutcome
 import pl.cgconnector.app.domain.ServerState
 import pl.cgconnector.app.domain.SyncStatus
 import pl.cgconnector.app.domain.Vo2MaxPoint
 import pl.cgconnector.app.domain.workout.QueueStatus
 import pl.cgconnector.app.testing.FakeActivityRepository
+import pl.cgconnector.app.testing.FakeGoalRepository
 import pl.cgconnector.app.testing.FakeStatsRepository
 import pl.cgconnector.app.testing.FakeWorkoutQueueRepository
 import pl.cgconnector.app.testing.FakeWorkoutQueueRepository.Companion.queued
@@ -70,7 +72,7 @@ class TodayViewModelTest {
                             lastRefreshSuccessAt = now.minusSeconds(600),
                         ),
                 )
-            val viewModel = TodayViewModel(activities, stats, queue, clock)
+            val viewModel = TodayViewModel(activities, stats, queue, FakeGoalRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             val state = viewModel.uiState.value
@@ -90,7 +92,7 @@ class TodayViewModelTest {
     fun `empty install has no workout, empty week and never fetched data`() =
         runTest {
             val viewModel =
-                TodayViewModel(FakeActivityRepository(), FakeStatsRepository(), FakeWorkoutQueueRepository(), clock)
+                TodayViewModel(FakeActivityRepository(), FakeStatsRepository(), FakeWorkoutQueueRepository(), FakeGoalRepository(), clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             val state = viewModel.uiState.value
@@ -102,15 +104,31 @@ class TodayViewModelTest {
         }
 
     @Test
+    fun `shows goal and follows its changes`() =
+        runTest {
+            val goal = RaceGoal("Półmaraton Warszawski", LocalDate.of(2027, 3, 28), RaceGoal.HALF_MARATHON_KM, 6300)
+            val goals = FakeGoalRepository(goal)
+            val viewModel =
+                TodayViewModel(FakeActivityRepository(), FakeStatsRepository(), FakeWorkoutQueueRepository(), goals, clock)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertThat(viewModel.uiState.value.goal).isEqualTo(goal)
+            goals.goal.value = null
+            assertThat(viewModel.uiState.value.goal).isNull()
+        }
+
+    @Test
     fun `refresh triggers full refresh once`() =
         runTest {
             val activities = FakeActivityRepository()
-            val viewModel = TodayViewModel(activities, FakeStatsRepository(), FakeWorkoutQueueRepository(), clock)
+            val goals = FakeGoalRepository()
+            val viewModel = TodayViewModel(activities, FakeStatsRepository(), FakeWorkoutQueueRepository(), goals, clock)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             viewModel.refresh()
 
             assertThat(activities.refreshCalls).isEqualTo(1)
+            assertThat(goals.refreshCalls).isEqualTo(1)
             assertThat(viewModel.uiState.value.isRefreshing).isFalse()
         }
 

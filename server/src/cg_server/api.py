@@ -15,8 +15,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
-from cg_server import progress, queries
-from cg_server.models import Activity, ActivityKind, User, utcnow
+from cg_server import goals, progress, queries
+from cg_server.models import Activity, ActivityKind, Goal, User, utcnow
 from cg_server.queries import Period
 from cg_server.tags import TAGS, TagError, set_tag
 from cg_server.user_secrets import SecretKind, user_for_secret
@@ -224,6 +224,42 @@ class TagProgress(BaseModel):
     type: ActivityKind
     running: list[RunPointOut] = Field(description="Bieg: punkt na aktywność, od najstarszej")
     strength: list[ExerciseProgressOut] = Field(description="Siłownia: ćwiczenia z seriami")
+
+
+class GoalBody(BaseModel):
+    name: str = Field(description="Wydarzenie, np. Półmaraton Warszawski")
+    date: date
+    distance_km: float = Field(description="Dystans startu w km, np. 21.0975")
+    target_seconds: int | None = Field(default=None, description="Czas docelowy w sekundach")
+
+
+class GoalOut(BaseModel):
+    name: str
+    date: date
+    distance_km: float
+    target_seconds: int | None
+    target_pace_min_per_km: float | None = Field(description="Tempo docelowe, minuty dziesiętnie")
+    days_left: int = Field(description="Dni do startu (ujemne po starcie)")
+
+
+class GoalState(BaseModel):
+    goal: GoalOut | None
+
+
+def goal_state(goal: Goal | None, tz: ZoneInfo) -> GoalState:
+    if goal is None:
+        return GoalState(goal=None)
+    pace = goals.pace_s_per_km(goal)
+    return GoalState(
+        goal=GoalOut(
+            name=goal.name,
+            date=goal.event_date,
+            distance_km=goal.distance_km,
+            target_seconds=goal.target_seconds,
+            target_pace_min_per_km=_pace_min(pace),
+            days_left=(goal.event_date - utcnow().astimezone(tz).date()).days,
+        )
+    )
 
 
 class Vo2MaxPoint(BaseModel):
@@ -460,6 +496,33 @@ def progress_tag(
             for e in strength
         ],
     )
+
+
+@router.get("/goal")
+def get_goal(user: CurrentUser, session: DbSession, tz: LocalTz) -> GoalState:
+    """Cel użytkownika (start i czas docelowy) albo `goal: null`."""
+    return goal_state(goals.get_goal(session, user.id), tz)
+
+
+@router.put("/goal", responses={422: {"description": "Zły cel"}})
+def put_goal(body: GoalBody, user: CurrentUser, session: DbSession, tz: LocalTz) -> GoalState:
+    """Ustawia (zastępuje) cel. Ten sam cel widzi Claude."""
+    try:
+        goal = goals.set_goal(
+            session,
+            user.id,
+            goals.GoalIn(body.name, body.date, body.distance_km, body.target_seconds),
+        )
+    except goals.GoalError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)) from None
+    return goal_state(goal, tz)
+
+
+@router.delete("/goal")
+def delete_goal(user: CurrentUser, session: DbSession) -> GoalState:
+    """Usuwa cel."""
+    goals.clear_goal(session, user.id)
+    return GoalState(goal=None)
 
 
 @router.get("/vo2max")

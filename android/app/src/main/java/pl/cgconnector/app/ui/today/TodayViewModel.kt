@@ -10,12 +10,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import pl.cgconnector.app.data.repository.ActivityRepository
+import pl.cgconnector.app.data.repository.GoalRepository
 import pl.cgconnector.app.data.repository.StatsRepository
 import pl.cgconnector.app.data.repository.WorkoutQueueRepository
 import pl.cgconnector.app.domain.Activity
 import pl.cgconnector.app.domain.AppZone
 import pl.cgconnector.app.domain.DataFreshness
 import pl.cgconnector.app.domain.Freshness
+import pl.cgconnector.app.domain.RaceGoal
 import pl.cgconnector.app.domain.ServerState
 import pl.cgconnector.app.domain.SyncStatus
 import pl.cgconnector.app.domain.Vo2MaxPoint
@@ -33,6 +35,8 @@ import javax.inject.Inject
 data class TodayUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.MIN,
+    /** Cel (start i czas docelowy); `null` = nie ustawiony. */
+    val goal: RaceGoal? = null,
     /** Najbliższy aktywny trening z kolejki (dziś lub później). */
     val nextWorkout: QueuedWorkout? = null,
     val week: WeekSummary = WeekSummary(LocalDate.MIN, emptyList()),
@@ -54,6 +58,7 @@ class TodayViewModel
         private val activityRepository: ActivityRepository,
         statsRepository: StatsRepository,
         queueRepository: WorkoutQueueRepository,
+        private val goalRepository: GoalRepository,
         private val clock: Clock,
     ) : ViewModel() {
         private val isRefreshing = MutableStateFlow(false)
@@ -68,12 +73,13 @@ class TodayViewModel
             ) { activities, queue, vo2, status -> Data(activities, queue, vo2, status) }
 
         val uiState: StateFlow<TodayUiState> =
-            combine(data, isRefreshing, now) { data, refreshing, now ->
+            combine(data, goalRepository.observeGoal(), isRefreshing, now) { data, goal, refreshing, now ->
                 val today = now.atZone(AppZone.WARSAW).toLocalDate()
                 val vo2 = Vo2MaxViewModel.buildState(data.vo2, chosen = null)
                 TodayUiState(
                     isLoading = false,
                     today = today,
+                    goal = goal,
                     nextWorkout = nextWorkout(data.queue, today),
                     week = WeekGrouping.currentWeek(data.activities, today),
                     vo2Latest = vo2.latest,
@@ -95,6 +101,8 @@ class TodayViewModel
             isRefreshing.value = true
             viewModelScope.launch {
                 try {
+                    // Cel mógł zmienić Claude; błąd celu nie przeszkadza w odświeżeniu treningów.
+                    launch { goalRepository.refresh() }
                     activityRepository.refresh()
                 } finally {
                     isRefreshing.value = false

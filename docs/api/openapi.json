@@ -329,6 +329,87 @@
         }
       }
     },
+    "/api/v1/goal": {
+      "get": {
+        "summary": "Get Goal",
+        "description": "Cel użytkownika (start i czas docelowy) albo `goal: null`.",
+        "operationId": "get_goal_api_v1_goal_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Put Goal",
+        "description": "Ustawia (zastępuje) cel. Ten sam cel widzi Claude.",
+        "operationId": "put_goal_api_v1_goal_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Zły cel"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete Goal",
+        "description": "Usuwa cel.",
+        "operationId": "delete_goal_api_v1_goal_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/vo2max": {
       "get": {
         "summary": "Vo2Max",
@@ -1361,6 +1442,118 @@
           "duration_sec"
         ],
         "title": "ExerciseSet"
+      },
+      "GoalBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Wydarzenie, np. Półmaraton Warszawski"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "distance_km": {
+            "type": "number",
+            "title": "Distance Km",
+            "description": "Dystans startu w km, np. 21.0975"
+          },
+          "target_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seconds",
+            "description": "Czas docelowy w sekundach"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "date",
+          "distance_km"
+        ],
+        "title": "GoalBody"
+      },
+      "GoalOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "distance_km": {
+            "type": "number",
+            "title": "Distance Km"
+          },
+          "target_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seconds"
+          },
+          "target_pace_min_per_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Pace Min Per Km",
+            "description": "Tempo docelowe, minuty dziesiętnie"
+          },
+          "days_left": {
+            "type": "integer",
+            "title": "Days Left",
+            "description": "Dni do startu (ujemne po starcie)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "date",
+          "distance_km",
+          "target_seconds",
+          "target_pace_min_per_km",
+          "days_left"
+        ],
+        "title": "GoalOut"
+      },
+      "GoalState": {
+        "properties": {
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "goal"
+        ],
+        "title": "GoalState"
       },
       "HTTPValidationError": {
         "properties": {
