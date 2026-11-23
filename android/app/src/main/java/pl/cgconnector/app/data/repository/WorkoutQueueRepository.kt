@@ -50,6 +50,16 @@ interface WorkoutQueueRepository {
     /** Tylko wpisy outboxu CG-connector ([QueuedWorkout.canDelete]). */
     suspend fun requestDelete(id: Long)
 
+    /**
+     * Edycja wpisu: Garmin nie pozwala zmienić zaplanowanego treningu, więc nowa wersja trafia do kolejki
+     * na [date], a stary wpis jest usuwany (także z kalendarza Garmin). Zwraca id nowego wpisu.
+     */
+    suspend fun replace(
+        id: Long,
+        definition: WorkoutDefinition,
+        date: LocalDate,
+    ): Long
+
     /** Ponowne zaplanowanie wpisu z błędem ([QueuedWorkout.canRetry]). */
     suspend fun retry(id: Long)
 
@@ -100,6 +110,16 @@ class OfflineFirstWorkoutQueueRepository
                 )
             trigger.trigger()
             return id
+        }
+
+        override suspend fun replace(
+            id: Long,
+            definition: WorkoutDefinition,
+            date: LocalDate,
+        ): Long {
+            val newId = enqueue(definition, date)
+            requestDelete(id)
+            return newId
         }
 
         override suspend fun requestDelete(id: Long) {
@@ -213,13 +233,14 @@ class OfflineFirstWorkoutQueueRepository
                 val date = LocalDate.parse(dto.date)
                 if (dto.id in known) {
                     dao.applyServerState(dto.id, dto.name, date, dto.status, dto.lastError)
+                    dto.definition?.let { dao.fillDefinition(dto.id, it.toString()) }
                 } else {
                     dao.insert(
                         QueuedWorkoutEntity(
                             clientId = null,
                             name = dto.name,
                             sport = dto.sport,
-                            definitionJson = null,
+                            definitionJson = dto.definition?.toString(),
                             date = date,
                             status = dto.status,
                             remoteWorkoutId = dto.workoutId,

@@ -145,6 +145,8 @@ def test_schedule_is_sent_in_background_and_listed(
     assert [(i["id"], i["status"], i["name"]) for i in listed] == [
         (response.json()["id"], "sent", "Tempo")
     ]
+    # The app shows the steps and edits the workout from this copy of the definition.
+    assert listed[0]["definition"] == workout["definition"]
     again = client.post(
         f"/api/v1/workouts/{workout['id']}/schedule",
         json={"date": DAY.isoformat()},

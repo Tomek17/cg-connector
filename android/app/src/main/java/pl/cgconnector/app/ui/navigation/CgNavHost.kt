@@ -27,6 +27,7 @@ import kotlinx.serialization.Serializable
 import pl.cgconnector.app.R
 import pl.cgconnector.app.ui.activities.ActivitiesRoute
 import pl.cgconnector.app.ui.detail.ActivityDetailRoute
+import pl.cgconnector.app.ui.plan.PlanWorkoutRoute
 import pl.cgconnector.app.ui.progress.ProgressCategoryRoute
 import pl.cgconnector.app.ui.progress.ProgressRoute
 import pl.cgconnector.app.ui.progress.TagProgressRoute
@@ -87,7 +88,13 @@ data class RunningWizardDestination(
 @Serializable
 data class StrengthWizardDestination(
     val copyFromId: Long = StrengthWizardViewModel.NO_COPY,
+    /** Id wpisu Planu do edycji (zastąpienia); nazwa pola = `StrengthWizardViewModel.ARG_REPLACE_ID`. */
+    val replaceId: Long = StrengthWizardViewModel.NO_COPY,
 )
+
+/** [id]: wiersz kolejki Planu; nazwa pola = `PlanWorkoutViewModel.ARG_ID`. */
+@Serializable
+data class PlanWorkoutDestination(val id: Long)
 
 /** [sport]: `other` albo `bouldering`; nazwy pól = stałe `FreeformWizardViewModel.ARG_*`. */
 @Serializable
@@ -178,6 +185,7 @@ fun CgNavHost(isConfigured: Boolean) {
                             null -> Unit
                         }
                     },
+                    onOpen = { item -> navController.navigate(PlanWorkoutDestination(item.id)) },
                     floatingActionButton = {
                         NewWorkoutButton(
                             onNewRunning = { navController.navigate(RunningWizardDestination()) },
@@ -185,6 +193,12 @@ fun CgNavHost(isConfigured: Boolean) {
                             onNewFreeform = { sport -> navController.navigate(FreeformWizardDestination(sport.apiValue)) },
                         )
                     },
+                )
+            }
+            composable<PlanWorkoutDestination> {
+                PlanWorkoutRoute(
+                    onBack = { navController.popBackStack() },
+                    onEditStrength = { id -> navController.navigate(StrengthWizardDestination(replaceId = id)) },
                 )
             }
             composable<ProgressDestination> {
@@ -204,7 +218,13 @@ fun CgNavHost(isConfigured: Boolean) {
                 )
             }
             composable<RunningWizardDestination> { RunningWizardRoute(onDone = { navController.popBackStack() }) }
-            composable<StrengthWizardDestination> { StrengthWizardRoute(onDone = { navController.popBackStack() }) }
+            composable<StrengthWizardDestination> {
+                // Po edycji wracamy do Planu, nie do szczegółów zastąpionego wpisu.
+                StrengthWizardRoute(
+                    onDone = { navController.popBackStack() },
+                    onSaved = { if (!navController.popBackStack(QueueDestination, inclusive = false)) navController.popBackStack() },
+                )
+            }
             composable<FreeformWizardDestination> { FreeformWizardRoute(onDone = { navController.popBackStack() }) }
         }
     }

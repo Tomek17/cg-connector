@@ -31,6 +31,16 @@ class FakeWorkoutQueueRepository(
         return id
     }
 
+    override suspend fun replace(
+        id: Long,
+        definition: WorkoutDefinition,
+        date: LocalDate,
+    ): Long {
+        val newId = enqueue(definition, date)
+        requestDelete(id)
+        return newId
+    }
+
     override suspend fun requestDelete(id: Long) {
         deleteRequests += id
         items.value = items.value.map { if (it.id == id) it.copy(deleteRequested = true) else it }

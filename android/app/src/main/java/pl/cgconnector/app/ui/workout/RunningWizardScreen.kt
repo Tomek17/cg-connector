@@ -249,7 +249,7 @@ internal fun NumberField(
     )
 }
 
-private fun RunStepKind.labelRes(): Int =
+internal fun RunStepKind.labelRes(): Int =
     when (this) {
         RunStepKind.WARMUP -> R.string.step_warmup
         RunStepKind.INTERVAL -> R.string.step_interval

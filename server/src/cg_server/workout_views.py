@@ -29,6 +29,8 @@ class ScheduledOut(BaseModel):
     # pending | sent | failed | deleting | deleted
     status: str
     last_error: str | None = None
+    # Definicja treningu (wersja 1), żeby aplikacja pokazała szczegóły i mogła go edytować.
+    definition: dict[str, object] | None = None
 
 
 class ScheduledList(BaseModel):
@@ -57,4 +59,5 @@ def scheduled_out(item: ScheduledWorkout) -> ScheduledOut:
         date=item.date,
         status=item.status.value,
         last_error=item.last_error,
+        definition=item.workout.definition_json,
     )

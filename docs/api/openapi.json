@@ -2159,6 +2159,18 @@
               }
             ],
             "title": "Last Error"
+          },
+          "definition": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Definition"
           }
         },
         "type": "object",

@@ -215,6 +215,27 @@ class OfflineFirstWorkoutQueueRepositoryTest {
             assertThat(item.name).isEqualTo("Z Claude")
             assertThat(item.createdInApp).isFalse()
             assertThat(item.canDelete).isTrue()
+            // Definicja z serwera: Plan pokaże kroki, a trening da się skopiować i edytować.
+            assertThat(item.canCopy).isTrue()
+            assertThat(repository.definition(item.id)?.name).isEqualTo("Z Claude")
+        }
+
+    @Test
+    fun replace_queuesNewVersionAndDeletesOld() =
+        runTest {
+            val created = server.createWorkout(NewWorkoutDto("00000000-0000-4000-8000-00000000000b", WORKOUT_JSON))
+            server.schedule(created.id, date)
+            repository.sync()
+            val old = queue().single()
+            val edited = repository.definition(old.id)!!
+
+            val newId = repository.replace(old.id, edited, date)
+            repository.sync()
+
+            val rows = queue()
+            assertThat(rows.map { it.id }).contains(newId)
+            assertThat(rows.firstOrNull { it.id == old.id }?.status ?: QueueStatus.DELETED).isEqualTo(QueueStatus.DELETED)
+            assertThat(server.listScheduled(date, date).map { it.workoutId }).doesNotContain(created.id)
         }
 
     private class RecordingRemote(
@@ -241,7 +262,7 @@ class OfflineFirstWorkoutQueueRepositoryTest {
     }
 
     private companion object {
-        val WORKOUT_JSON = Json.parseToJsonElement("""{"sport":"running","name":"Z Claude"}""") as JsonObject
+        val WORKOUT_JSON = Json.parseToJsonElement("""{"version":1,"sport":"running","name":"Z Claude","steps":[{"type":"interval","seconds":600}]}""") as JsonObject
 
         fun httpError(
             code: Int,

@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pl.cgconnector.app.data.repository.UserTemplate
@@ -32,6 +33,8 @@ data class StrengthWizardState(
     val userTemplates: List<UserTemplate> = emptyList(),
     /** Jednorazowy komunikat „Zapisano szablon” (pokazany i skasowany przez ekran). */
     val templateSaved: Boolean = false,
+    /** Edycja wpisu Planu: zapis zastępuje ten wpis zamiast dodawać nowy. */
+    val isEditing: Boolean = false,
 )
 
 @HiltViewModel
@@ -43,6 +46,8 @@ class StrengthWizardViewModel
         savedStateHandle: SavedStateHandle,
         clock: Clock,
     ) : ViewModel() {
+        /** Wpis Planu do zastąpienia (edycja); [NO_COPY] = nowy trening. */
+        private val replaceId: Long = savedStateHandle.get<Long>(ARG_REPLACE_ID) ?: NO_COPY
         private var lastKey = 0L
         private val nextKey = { ++lastKey }
         private val today = clock.instant().atZone(AppZone.WARSAW).toLocalDate()
@@ -68,7 +73,16 @@ class StrengthWizardViewModel
                 }
             }
             val copyFrom = savedStateHandle.get<Long>(ARG_COPY_FROM_ID) ?: NO_COPY
-            if (copyFrom != NO_COPY) {
+            if (replaceId != NO_COPY) {
+                viewModelScope.launch {
+                    val item = repository.observeQueue().first().firstOrNull { it.id == replaceId }
+                    (repository.definition(replaceId) as? StrengthWorkout)?.let { original ->
+                        applyTemplate(original)
+                        _state.update { it.copy(date = item?.date ?: it.date, isEditing = true) }
+                        initial = _state.value
+                    }
+                }
+            } else if (copyFrom != NO_COPY) {
                 viewModelScope.launch {
                     (repository.definition(copyFrom) as? StrengthWorkout)?.let { copy ->
                         applyTemplate(copy)
@@ -152,7 +166,11 @@ class StrengthWizardViewModel
             }
             _state.update { it.copy(problems = emptyList(), isSaving = true) }
             viewModelScope.launch {
-                repository.enqueue(definition, current.date)
+                if (current.isEditing) {
+                    repository.replace(replaceId, definition, current.date)
+                } else {
+                    repository.enqueue(definition, current.date)
+                }
                 _state.update { it.copy(isSaving = false, isSaved = true) }
             }
         }
@@ -160,6 +178,9 @@ class StrengthWizardViewModel
         companion object {
             /** Nazwa pola musi zgadzać się z `StrengthWizardDestination.copyFromId`. */
             const val ARG_COPY_FROM_ID = "copyFromId"
+
+            /** Nazwa pola musi zgadzać się z `StrengthWizardDestination.replaceId`. */
+            const val ARG_REPLACE_ID = "replaceId"
             const val NO_COPY = -1L
             private const val DEFAULT_NAME = "Siła"
         }

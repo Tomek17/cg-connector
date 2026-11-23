@@ -42,6 +42,8 @@ data class ScheduledOutDto(
     /** `pending` | `sent` | `failed` | `deleting` | `deleted`. */
     val status: String,
     @SerialName("last_error") val lastError: String? = null,
+    /** Definicja treningu (wersja 1); starszy serwer jej nie wysyła. */
+    val definition: JsonObject? = null,
 )
 
 /** `GET /api/v1/scheduled` (schemat `ScheduledList`); bez wpisów `deleted`. */

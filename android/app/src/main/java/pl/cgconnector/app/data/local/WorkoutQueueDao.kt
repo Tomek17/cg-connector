@@ -72,6 +72,16 @@ interface WorkoutQueueDao {
         lastError: String?,
     )
 
+    /** Definicja z serwera dla wpisów utworzonych poza aplikacją (Claude); własnej definicji nie nadpisuje. */
+    @Query(
+        "UPDATE workout_queue SET definition_json = :definitionJson " +
+            "WHERE remote_scheduled_id = :remoteScheduledId AND definition_json IS NULL",
+    )
+    suspend fun fillDefinition(
+        remoteScheduledId: Long,
+        definitionJson: String,
+    )
+
     /** „Ponów”: wpis wraca do wysyłki; ponowny POST /schedule przywraca wpis serwera z `failed` do `pending`. */
     @Query(
         "UPDATE workout_queue SET status = 'pending', last_error = NULL, remote_scheduled_id = NULL " +
