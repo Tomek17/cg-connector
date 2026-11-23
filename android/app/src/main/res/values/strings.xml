@@ -497,12 +497,16 @@
     <string name="garmin_key_changed">Klucz serwera się zmienił, więc hasło nie zostało wysłane. Napisz do Tomka.</string>
     <string name="garmin_connected_sync">Połączono z Garminem. Pierwsze pobranie danych trwa kilka minut; odśwież potem zakładkę Treningi.</string>
     <string name="claude_title">Claude</string>
-    <string name="claude_intro">W claude.ai: Customize → Connectors → Add custom connector, adres %1$s. Przy łączeniu wklej kod z przycisku poniżej.</string>
+    <string name="claude_intro">Zajmuje 2 minuty. Wygeneruj kod, potem stuknij „Kopiuj adres i otwórz claude.ai”: w claude.ai kliknij Add custom connector i wklej adres (%1$s). Po kliknięciu Połącz wróć tu, skopiuj kod i wklej go na stronie CG-connector.</string>
     <string name="claude_new_code">Wygeneruj kod do Claude</string>
     <string name="claude_copy">Kopiuj kod</string>
-    <string name="claude_copy_url">Kopiuj adres</string>
     <string name="claude_hide">Ukryj</string>
     <string name="claude_code_hint">Kod jest pokazywany tylko teraz. Nie wysyłaj go nikomu i nie wklejaj do rozmowy z Claude.</string>
     <string name="claude_confirm_title">Nowy kod do Claude?</string>
     <string name="claude_confirm_text">Poprzedni kod przestanie działać, a Claude, jeśli był już połączony, trzeba będzie połączyć ponownie.</string>
+    <string name="invite_from_link">Adres i kod są już wpisane z linku zaproszenia. Stuknij „Połącz z serwerem”.</string>
+    <string name="claude_open">Kopiuj adres i otwórz claude.ai</string>
+    <string name="update_available">Dostępna nowa wersja %1$s</string>
+    <string name="update_hint">Pobierz plik i zainstaluj go na obecną aplikację. Twoje dane zostaną.</string>
+    <string name="update_download">Pobierz aktualizację</string>
 </resources>

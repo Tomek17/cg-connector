@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -45,7 +46,11 @@ fun InviteSectionRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.invite_title), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.invite_intro), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            stringResource(if (state.fromLink) R.string.invite_from_link else R.string.invite_intro),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (state.fromLink) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
         val urlError = state.urlError
         val urlSupportingText: (@Composable () -> Unit)? =
             if (urlError != null) {
@@ -187,6 +192,7 @@ private fun ClaudeSection(
 ) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.claude_title), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.claude_intro, "$serverUrl/mcp"), style = MaterialTheme.typography.bodyMedium)
@@ -200,11 +206,15 @@ private fun ClaudeSection(
             }
         } else {
             Text(code, style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
+            Button(
+                onClick = {
+                    copySensitive(context, "$serverUrl/mcp")
+                    uriHandler.openUri(CLAUDE_CONNECTORS_URL)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.claude_open)) }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { copySensitive(context, code) }) { Text(stringResource(R.string.claude_copy)) }
-                OutlinedButton(onClick = { copySensitive(context, "$serverUrl/mcp") }) {
-                    Text(stringResource(R.string.claude_copy_url))
-                }
+                OutlinedButton(onClick = { copySensitive(context, code) }) { Text(stringResource(R.string.claude_copy)) }
                 TextButton(onClick = viewModel::hideClaudeCode) { Text(stringResource(R.string.claude_hide)) }
             }
             Text(
@@ -271,4 +281,25 @@ private fun copySensitive(
         clip.description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
     }
     context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(clip)
+}
+
+private const val CLAUDE_CONNECTORS_URL = "https://claude.ai/customize/connectors"
+
+/** Karta „Dostępna nowa wersja” (pokazywana tylko, gdy na GitHubie jest nowsze wydanie). */
+@Composable
+fun UpdateSectionRoute(viewModel: UpdateViewModel = hiltViewModel()) {
+    val update by viewModel.update.collectAsStateWithLifecycle()
+    val available = update ?: return
+    val uriHandler = LocalUriHandler.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.update_available, available.version),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(stringResource(R.string.update_hint), style = MaterialTheme.typography.bodyMedium)
+        Button(onClick = { uriHandler.openUri(available.downloadUrl) }, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.update_download))
+        }
+    }
 }

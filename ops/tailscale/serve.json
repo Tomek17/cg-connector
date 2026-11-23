@@ -8,6 +8,7 @@
     "${TS_CERT_DOMAIN}:443": {
       "Handlers": {
         "/health": { "Proxy": "http://cg-server:8000/health" },
+        "/join": { "Proxy": "http://cg-server:8000/join" },
         "/api/v1/": { "Proxy": "http://cg-server:8000/api/v1" },
         "/mcp": { "Proxy": "http://cg-server:8000/mcp" },
         "/.well-known/oauth-authorization-server": { "Proxy": "http://cg-server:8000/.well-known/oauth-authorization-server" },

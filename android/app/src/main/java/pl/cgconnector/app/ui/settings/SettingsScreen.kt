@@ -72,6 +72,7 @@ fun SettingsRoute(
         statusSection = { StatusSectionRoute() },
         inviteSection = { InviteSectionRoute(urlErrorText = { urlErrorText(it) }) },
         accountSection = { AccountSectionRoute(serverUrl = state.serverUrl) },
+        updateSection = { UpdateSectionRoute() },
     )
 }
 
@@ -86,6 +87,7 @@ fun SettingsScreen(
     statusSection: @Composable () -> Unit = {},
     inviteSection: @Composable () -> Unit = {},
     accountSection: @Composable () -> Unit = {},
+    updateSection: @Composable () -> Unit = {},
 ) {
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
@@ -124,6 +126,8 @@ fun SettingsScreen(
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            updateSection()
+
             // Nowa osoba: kod zaproszenia wystarczy (token, Garmin i Claude konfiguruje się niżej).
             if (!state.hasSavedToken && !state.tokenLost) {
                 inviteSection()

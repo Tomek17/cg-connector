@@ -9,7 +9,7 @@ from uvicorn.config import LOGGING_CONFIG
 REDACTED = "[REDACTED]"
 PATTERNS = [
     (re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+"), rf"\1 {REDACTED}"),
-    (re.compile(r"\bcg[ac]_[A-Za-z0-9_-]+"), REDACTED),
+    (re.compile(r"\bcg[aci]_[A-Za-z0-9_-]+"), REDACTED),
     (
         re.compile(
             r"(?i)\b(code|code_verifier|state|request|token|access_token|refresh_token"

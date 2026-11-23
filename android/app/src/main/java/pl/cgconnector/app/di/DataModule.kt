@@ -41,6 +41,8 @@ import pl.cgconnector.app.data.repository.WorkoutQueueTrigger
 import pl.cgconnector.app.data.repository.WorkoutTemplateRepository
 import pl.cgconnector.app.data.onboarding.OnboardingRepository
 import pl.cgconnector.app.data.onboarding.ServerOnboardingRepository
+import pl.cgconnector.app.data.update.GitHubUpdateChecker
+import pl.cgconnector.app.data.update.UpdateChecker
 import pl.cgconnector.app.data.settings.DataStoreServerConfigRepository
 import pl.cgconnector.app.data.settings.KeystoreTokenCipher
 import pl.cgconnector.app.data.settings.ServerConfigRepository
@@ -58,6 +60,9 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindOnboardingRepository(impl: ServerOnboardingRepository): OnboardingRepository
+
+    @Binds
+    abstract fun bindUpdateChecker(impl: GitHubUpdateChecker): UpdateChecker
 
     @Binds
     abstract fun bindActivityRepository(impl: OfflineFirstActivityRepository): ActivityRepository

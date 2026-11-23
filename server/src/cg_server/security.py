@@ -19,6 +19,7 @@ from cg_server.oauth import CLAUDE_CALLBACKS, LOGIN_PATH
 PUBLIC_PATHS = frozenset(
     {
         "/health",
+        "/join",
         "/mcp",
         "/authorize",
         LOGIN_PATH,

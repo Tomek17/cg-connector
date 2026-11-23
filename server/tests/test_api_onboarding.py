@@ -208,3 +208,40 @@ def test_cli_invite_adds_user_and_prints_code(
     with open_db(app_settings)() as session:
         result = redeem_invite(session, code)
         assert result is not None and result[0].name == "brat"
+
+
+def test_join_page_links_app_and_prefills_code(client: TestClient, invite: str) -> None:
+    response = client.get("/join", params={"code": invite})
+    assert response.status_code == 200
+    html = response.text
+    assert "releases/latest" in html
+    assert "cgconnector://join?server=https%3A%2F%2Fcg.example.ts.net&amp;code=" + invite in html
+    # The page never redeems the code.
+    assert client.post("/api/v1/invite/redeem", json={"code": invite}).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "code", ["", "cgi_", "cgi_<script>alert(1)</script>xxxxxxxxxxxx", "cga_" + "x" * 40]
+)
+def test_join_page_rejects_bad_codes(client: TestClient, code: str) -> None:
+    response = client.get("/join", params={"code": code})
+    assert response.status_code == 400
+    assert "<script>" not in response.text
+
+
+def test_cli_invite_prints_join_link(
+    app_settings: Settings, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("CG_DATA_DIR", str(app_settings.data_dir))
+    monkeypatch.setenv("CG_ENCRYPTION_KEY", app_settings.encryption_key)
+    monkeypatch.setenv("CG_PUBLIC_HOST", "cg.example.ngrok-free.dev")
+    assert main(["invite", "--name", "ola"]) == 0
+    out = capsys.readouterr().out
+    assert "https://cg.example.ngrok-free.dev/join?code=cgi_" in out
+
+
+def test_invite_codes_are_redacted_in_logs() -> None:
+    from cg_server.logging_filter import redact
+
+    assert "cgi_abc" not in redact("GET /join?code=cgi_abcdefghijklmnopqrstuvwxyz HTTP/1.1")
+    assert "cgi_abc" not in redact("token cgi_abcdefghijklmnopqrstuvwxyz")
