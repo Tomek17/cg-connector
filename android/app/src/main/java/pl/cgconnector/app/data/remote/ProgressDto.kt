@@ -3,7 +3,9 @@ package pl.cgconnector.app.data.remote
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import pl.cgconnector.app.domain.ActivityTag
+import pl.cgconnector.app.domain.ClimbSession
 import pl.cgconnector.app.domain.ExerciseProgress
+import pl.cgconnector.app.domain.GradeCount
 import pl.cgconnector.app.domain.RunPoint
 import pl.cgconnector.app.domain.SetPoint
 import pl.cgconnector.app.domain.TagCount
@@ -37,6 +39,27 @@ data class TagProgressDto(
     val type: String,
     val running: List<RunPointDto> = emptyList(),
     val strength: List<ExerciseProgressDto> = emptyList(),
+    val climbing: List<ClimbSessionDto> = emptyList(),
+)
+
+@Serializable
+data class ClimbSessionDto(
+    @SerialName("activity_id") val activityId: Long,
+    val date: String,
+    val name: String? = null,
+    @SerialName("top_grade") val topGrade: String? = null,
+    @SerialName("top_sort") val topSort: Int? = null,
+    val sent: Int,
+    val failed: Int,
+    val grades: List<GradeCountDto> = emptyList(),
+)
+
+@Serializable
+data class GradeCountDto(
+    val grade: String,
+    val sort: Int,
+    val sent: Int,
+    val failed: Int,
 )
 
 @Serializable
@@ -102,6 +125,19 @@ fun TagProgressDto.toDomain(): TagProgress? {
                         exercise.sets.map {
                             SetPoint(it.activityId, LocalDate.parse(it.date), it.setNumber, it.weightKg, it.reps)
                         },
+                )
+            },
+        climbing =
+            climbing.map { session ->
+                ClimbSession(
+                    activityId = session.activityId,
+                    date = LocalDate.parse(session.date),
+                    name = session.name,
+                    topGrade = session.topGrade,
+                    topSort = session.topSort,
+                    sent = session.sent,
+                    failed = session.failed,
+                    grades = session.grades.map { GradeCount(it.grade, it.sort, it.sent, it.failed) },
                 )
             },
     )

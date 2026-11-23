@@ -228,11 +228,32 @@ class ExerciseProgressOut(BaseModel):
     sets: list[SetPointOut]
 
 
+class GradeCountOut(BaseModel):
+    grade: str = Field(description="Stopień z Garmina, np. V4")
+    sort: int = Field(description="Kolejność trudności (większa = trudniej)")
+    sent: int = Field(description="Udane wejścia")
+    failed: int = Field(description="Nieudane próby")
+
+
+class ClimbSessionOut(BaseModel):
+    activity_id: int
+    date: date
+    name: str | None
+    top_grade: str | None = Field(description="Najtrudniejszy udany problem; null = brak udanych")
+    top_sort: int | None
+    sent: int
+    failed: int
+    grades: list[GradeCountOut] = Field(description="Od najłatwiejszego stopnia")
+
+
 class TagProgress(BaseModel):
     tag: str
     type: ActivityKind
     running: list[RunPointOut] = Field(description="Bieg: punkt na aktywność, od najstarszej")
     strength: list[ExerciseProgressOut] = Field(description="Siłownia: ćwiczenia z seriami")
+    climbing: list[ClimbSessionOut] = Field(
+        default_factory=list, description="Ścianka: sesja z problemami, od najstarszej"
+    )
 
 
 class GoalBody(BaseModel):
@@ -470,9 +491,27 @@ def progress_tag(
         if kind == ActivityKind.STRENGTH
         else []
     )
+    climbing = (
+        progress.climbing_progress(session, user_id=user.id, tag=tag)
+        if kind == ActivityKind.CLIMBING
+        else []
+    )
     return TagProgress(
         tag=tag,
         type=kind,
+        climbing=[
+            ClimbSessionOut(
+                activity_id=c.activity_id,
+                date=c.day,
+                name=c.name,
+                top_grade=c.top_grade,
+                top_sort=c.top_sort,
+                sent=c.sent,
+                failed=c.failed,
+                grades=[GradeCountOut(**vars(g)) for g in c.grades],
+            )
+            for c in climbing
+        ],
         running=[
             RunPointOut(
                 activity_id=p.activity_id,

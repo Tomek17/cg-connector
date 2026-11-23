@@ -138,3 +138,13 @@ def add_sync(
 
 def set_garmin_status(session: Session, user: User, status: GarminStatus) -> None:
     session.add(GarminCredentials(user_id=user.id, encrypted_tokens=None, status=status))
+
+
+def climb_split(grade: str, sort: int, *, sent: bool) -> dict[str, Any]:
+    """One boulder in Garmin typed splits (shape seen live 2026-11-23)."""
+    return {
+        "type": "CLIMB_ACTIVE",
+        "duration": 60.0,
+        "status": "CLIMB_COMPLETED" if sent else "CLIMB_ATTEMPTED",
+        "gradeValue": {"sortOrder": sort, "valueKey": grade, "scale": "VERMIN"},
+    }

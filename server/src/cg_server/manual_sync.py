@@ -22,7 +22,7 @@ from cg_server.scheduler import GatewayFactory
 from cg_server.sync import SyncOptions, SyncResult, sync_user
 from cg_server.synclock import SyncBusy
 
-MIN_INTERVAL = timedelta(minutes=5)
+MIN_INTERVAL = timedelta(hours=1)
 # A `running` run older than this was interrupted (laptop asleep), not still running.
 RUNNING_FOR_AT_MOST = timedelta(minutes=30)
 

@@ -32,8 +32,10 @@ data class GoalEditorUiState(
     val presetKm: Double? = RaceGoal.HALF_MARATHON_KM,
     val customKm: String = "",
     val date: LocalDate = LocalDate.MIN,
-    /** `h:mm:ss` albo `mm:ss`; puste = bez czasu docelowego. */
-    val time: String = "",
+    /** Czas docelowy w trzech polach (klawiatura numeryczna nie ma dwukropka); wszystkie puste = bez czasu. */
+    val hours: String = "",
+    val minutes: String = "",
+    val seconds: String = "",
     val problems: Set<GoalProblem> = emptySet(),
     val isSaving: Boolean = false,
     val error: LoadError? = null,
@@ -43,11 +45,25 @@ data class GoalEditorUiState(
     val distanceKm: Double?
         get() = presetKm ?: customKm.trim().replace(',', '.').toDoubleOrNull()
 
-    /** Tempo dla wpisanego czasu, np. `4:59`; `null`, gdy czasu brak albo jest zły. */
+    /** Czy wpisano jakikolwiek czas. */
+    val hasTime: Boolean
+        get() = listOf(hours, minutes, seconds).any { it.isNotBlank() }
+
+    /** Czas docelowy w sekundach; `null` bez czasu albo przy złych wartościach (minuty i sekundy 0–59). */
+    val targetSeconds: Int?
+        get() {
+            if (!hasTime) return null
+            val h = hours.ifBlank { "0" }.toIntOrNull() ?: return null
+            val m = minutes.ifBlank { "0" }.toIntOrNull()?.takeIf { it in 0..59 } ?: return null
+            val s = seconds.ifBlank { "0" }.toIntOrNull()?.takeIf { it in 0..59 } ?: return null
+            return h * 3600 + m * 60 + s
+        }
+
+    /** Tempo dla wpisanego czasu w s/km; `null`, gdy czasu brak albo jest zły. */
     val paceSecPerKm: Double?
         get() {
             val km = distanceKm?.takeIf { it > 0 } ?: return null
-            return RaceGoal.parseTime(time)?.let { it / km }
+            return targetSeconds?.takeIf { it > 0 }?.let { it / km }
         }
 }
 
@@ -78,7 +94,9 @@ class GoalEditorViewModel
                             presetKm = preset,
                             customKm = if (preset == null) formatKm(goal.distanceKm) else "",
                             date = goal.date,
-                            time = goal.targetSeconds?.let(RaceGoal::formatTime).orEmpty(),
+                            hours = goal.targetSeconds?.let { (it / 3600).toString() }.orEmpty(),
+                            minutes = goal.targetSeconds?.let { (it % 3600 / 60).toString() }.orEmpty(),
+                            seconds = goal.targetSeconds?.let { (it % 60).toString() }.orEmpty(),
                         )
                     }
                 }
@@ -93,7 +111,14 @@ class GoalEditorViewModel
 
         fun setDate(value: LocalDate) = state.update { it.copy(date = value) }
 
-        fun setTime(value: String) = state.update { it.copy(time = value, problems = it.problems - GoalProblem.TIME) }
+        fun setHours(value: String) = setTimePart { it.copy(hours = digits(value, MAX_HOUR_DIGITS)) }
+
+        fun setMinutes(value: String) = setTimePart { it.copy(minutes = digits(value, 2)) }
+
+        fun setSeconds(value: String) = setTimePart { it.copy(seconds = digits(value, 2)) }
+
+        private fun setTimePart(change: (GoalEditorUiState) -> GoalEditorUiState) =
+            state.update { change(it).copy(problems = it.problems - GoalProblem.TIME) }
 
         fun save() {
             val s = state.value
@@ -103,7 +128,7 @@ class GoalEditorViewModel
                 state.update { it.copy(problems = problems) }
                 return
             }
-            val goal = RaceGoal(s.name.trim(), s.date, checkNotNull(s.distanceKm), RaceGoal.parseTime(s.time))
+            val goal = RaceGoal(s.name.trim(), s.date, checkNotNull(s.distanceKm), s.targetSeconds)
             submit { repository.save(goal) }
         }
 
@@ -133,10 +158,17 @@ class GoalEditorViewModel
                 buildSet {
                     if (s.name.isBlank()) add(GoalProblem.NAME)
                     if (s.distanceKm?.let { it in MIN_KM..MAX_KM } != true) add(GoalProblem.DISTANCE)
-                    if (s.time.isNotBlank() && RaceGoal.parseTime(s.time)?.let { it in MIN_SECONDS..MAX_SECONDS } != true) {
+                    if (s.hasTime && s.targetSeconds?.let { it in MIN_SECONDS..MAX_SECONDS } != true) {
                         add(GoalProblem.TIME)
                     }
                 }
+
+            private const val MAX_HOUR_DIGITS = 3
+
+            private fun digits(
+                value: String,
+                max: Int,
+            ): String = value.filter(Char::isDigit).take(max)
 
             private fun formatKm(km: Double): String = String.format(Locale.ROOT, "%.3f", km).trimEnd('0').trimEnd('.')
         }

@@ -11,6 +11,7 @@ enum class ActivityTag(val key: String, val type: ActivityType) {
     TEMPO("tempo", ActivityType.RUNNING),
     LONG("long", ActivityType.RUNNING),
     BASE("base", ActivityType.RUNNING),
+    EASY("easy", ActivityType.RUNNING),
     STRIDES("strides", ActivityType.RUNNING),
     UPPER("upper", ActivityType.STRENGTH),
     FBW("fbw", ActivityType.STRENGTH),
@@ -74,6 +75,30 @@ data class TagProgress(
     val running: List<RunPoint>,
     /** Od najczęściej wykonywanego ćwiczenia. */
     val strength: List<ExerciseProgress>,
+    /** Od najstarszej sesji na ściance. */
+    val climbing: List<ClimbSession> = emptyList(),
+)
+
+/** Sesja na ściance: najtrudniejszy udany problem i próby (z bulderów zapisanych na zegarku). */
+data class ClimbSession(
+    val activityId: Long,
+    val date: LocalDate,
+    val name: String?,
+    /** Np. `V4`; `null` = żadnego udanego wejścia. */
+    val topGrade: String?,
+    /** Kolejność trudności Garmina (większa = trudniej). */
+    val topSort: Int?,
+    val sent: Int,
+    val failed: Int,
+    /** Od najłatwiejszego stopnia. */
+    val grades: List<GradeCount>,
+)
+
+data class GradeCount(
+    val grade: String,
+    val sort: Int,
+    val sent: Int,
+    val failed: Int,
 )
 
 /** Dlaczego nie udało się pobrać danych z serwera (zakładka Progress działa tylko online). */

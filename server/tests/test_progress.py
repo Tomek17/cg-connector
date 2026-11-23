@@ -6,17 +6,18 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from cg_server.app import create_app
 from cg_server.config import Settings
 from cg_server.db import open_db
-from cg_server.models import ActivityDetails, ActivityKind
+from cg_server.models import ActivityDetails, ActivityKind, User
 from cg_server.progress import run_point
 from cg_server.tags import TagError, set_tag
 from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import add_user
 from tests.helpers import BASE, PUBLIC_HOST
-from tests.seed import add_activity
+from tests.seed import add_activity, climb_split
 
 
 def interval_laps() -> dict[str, Any]:
@@ -173,3 +174,37 @@ def test_run_point_without_details(settings: Settings) -> None:
         point = run_point(activity)
     assert point.work_laps == 0
     assert point.pace_s_per_km == 300.0
+
+
+def test_climbing_progress_counts_boulders_and_covers_untagged_sessions(
+    client: TestClient, token: str, settings: Settings
+) -> None:
+    with open_db(settings)() as session:
+        user = session.scalars(select(User).where(User.name == "anna")).one()
+        climb = add_activity(
+            session, user, 6, datetime(2026, 11, 20, 18), ActivityKind.CLIMBING, details=True
+        )
+        assert climb.details is not None
+        climb.details.typed_splits_json = {
+            "splits": [
+                climb_split("V2", 3, sent=True),
+                {"type": "CLIMB_REST", "duration": 120.0},
+                climb_split("V3", 4, sent=True),
+                climb_split("V5", 6, sent=False),
+                climb_split("V5", 6, sent=False),
+            ]
+        }
+        session.commit()
+
+    # The only climbing tag covers untagged sessions too (5 has no typed splits: no point).
+    counts = {t["tag"]: t["count"] for t in get(client, token, "/api/v1/progress")["tags"]}
+    assert counts["wall"] == 2
+    data = get(client, token, "/api/v1/progress/wall")
+    (only,) = data["climbing"]
+    assert only["activity_id"] == 6
+    assert (only["top_grade"], only["top_sort"], only["sent"], only["failed"]) == ("V3", 4, 2, 2)
+    assert [(g["grade"], g["sent"], g["failed"]) for g in only["grades"]] == [
+        ("V2", 1, 0),
+        ("V3", 1, 0),
+        ("V5", 0, 2),
+    ]

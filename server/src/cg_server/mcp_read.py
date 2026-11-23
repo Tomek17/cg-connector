@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from cg_server import queries
+from cg_server import progress, queries
 from cg_server.models import Activity, ActivityKind, GarminStatus
 from cg_server.queries import Period, SyncState
 
@@ -225,34 +225,21 @@ def activity_detail(
     return data
 
 
-# Typed split fields that may carry a boulder's grade or result (Garmin's names are not
-# verified yet: shown as they come, so the app's climbing charts can be built on them).
-_CLIMB_HINTS = ("grade", "difficult", "result", "status", "attempt", "send", "complet", "fall")
-
-
 def _climbs(activity: Activity) -> dict[str, Any]:
-    raw = activity.details.typed_splits_json if activity.details else None
-    splits = raw.get("splits") if isinstance(raw, dict) else None
-    if not isinstance(splits, list) or not splits:
+    """Boulders of a climbing session: top sent grade, sent/failed per grade ("sent/failed")."""
+    climbs = progress.climb_session(activity)
+    if climbs is None:
         return {}
-    items = []
-    keys: set[str] = set()
-    for split in splits[:MAX_LAPS]:
-        if not isinstance(split, dict):
-            continue
-        keys.update(k for k, v in split.items() if v is not None)
-        duration = split.get("duration")
-        seconds = duration if isinstance(duration, int | float) else None
-        item = {"type": split.get("type"), "time": fmt_duration(seconds)}
-        item.update(
+    return {
+        "climbs": compact(
             {
-                k: v
-                for k, v in split.items()
-                if v is not None and any(h in k.lower() for h in _CLIMB_HINTS)
+                "top": climbs.top_grade,
+                "sent": climbs.sent,
+                "failed": climbs.failed,
+                "by_grade": {g.grade: f"{g.sent}/{g.failed}" for g in climbs.grades},
             }
         )
-        items.append(compact(item))
-    return {"climbs": items, "climb_split_keys": sorted(keys)}
+    }
 
 
 def _downsample(points: list[tuple[date, float]], period: Period) -> list[tuple[date, float]]:

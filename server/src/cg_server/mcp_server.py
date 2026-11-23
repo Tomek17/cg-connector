@@ -231,7 +231,7 @@ def build_mcp(
     async def sync_now() -> CallToolResult:
         """Fetch new Garmin data now (normally once a day at 14:00), e.g. right after a
         workout. Waits for the sync; then read activities as usual. Refused if a sync
-        ran in the last 5 min, is running, or Garmin needs login/is paused."""
+        ran in the last hour, is running, or Garmin needs login/is paused."""
         with sessions() as session:
             user = current_user(session)
             user_id = user.id

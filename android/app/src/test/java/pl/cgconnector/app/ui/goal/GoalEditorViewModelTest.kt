@@ -42,7 +42,8 @@ class GoalEditorViewModelTest {
             assertThat(s.hasGoal).isTrue()
             assertThat(s.name).isEqualTo("Półmaraton Warszawski")
             assertThat(s.presetKm).isEqualTo(RaceGoal.HALF_MARATHON_KM)
-            assertThat(s.time).isEqualTo("1:45:00")
+            assertThat(listOf(s.hours, s.minutes, s.seconds)).containsExactly("1", "45", "0").inOrder()
+            assertThat(s.targetSeconds).isEqualTo(6300)
             assertThat(Math.round(s.paceSecPerKm!!)).isEqualTo(299)
         }
 
@@ -61,7 +62,7 @@ class GoalEditorViewModelTest {
             val vm = GoalEditorViewModel(repo, clock)
             vm.choosePreset(null)
             vm.setCustomKm("abc")
-            vm.setTime("1:99")
+            vm.setMinutes("99")
             vm.save()
             assertThat(vm.uiState.value.problems).containsExactly(GoalProblem.NAME, GoalProblem.DISTANCE, GoalProblem.TIME)
             assertThat(repo.goal.value).isNull()
@@ -90,11 +91,27 @@ class GoalEditorViewModelTest {
             val vm = GoalEditorViewModel(repo, clock)
             vm.setName("Maraton")
             vm.choosePreset(RaceGoal.MARATHON_KM)
-            vm.setTime("3:30:00")
+            vm.setHours("3")
+            vm.setMinutes("30")
             vm.save()
             assertThat(vm.uiState.value.error).isEqualTo(LoadError.OFFLINE)
             assertThat(vm.uiState.value.done).isFalse()
             assertThat(vm.uiState.value.isSaving).isFalse()
+        }
+
+    @Test
+    fun `time parts accept only digits and save as seconds`() =
+        runTest {
+            val repo = FakeGoalRepository()
+            val vm = GoalEditorViewModel(repo, clock)
+            vm.setName("Półmaraton")
+            vm.setHours("1")
+            vm.setMinutes("4:5")
+            vm.setSeconds("30s")
+            assertThat(vm.uiState.value.minutes).isEqualTo("45")
+            assertThat(vm.uiState.value.seconds).isEqualTo("30")
+            vm.save()
+            assertThat(repo.goal.value?.targetSeconds).isEqualTo(3600 + 45 * 60 + 30)
         }
 
     @Test

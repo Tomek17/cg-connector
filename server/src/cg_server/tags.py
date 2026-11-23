@@ -14,6 +14,7 @@ TAGS: dict[str, ActivityKind] = {
     "tempo": ActivityKind.RUNNING,
     "long": ActivityKind.RUNNING,
     "base": ActivityKind.RUNNING,
+    "easy": ActivityKind.RUNNING,
     "strides": ActivityKind.RUNNING,
     "upper": ActivityKind.STRENGTH,
     "fbw": ActivityKind.STRENGTH,

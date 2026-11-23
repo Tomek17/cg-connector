@@ -208,4 +208,22 @@ class DtoParsingTest {
         assertThat(json.encodeToString(TagUpdateDto.serializer(), TagUpdateDto(null))).isEqualTo("{}")
         assertThat(json.encodeToString(TagUpdateDto.serializer(), TagUpdateDto("legs"))).isEqualTo("""{"tag":"legs"}""")
     }
+
+    @Test
+    fun `parses climbing progress`() {
+        val progress =
+            json
+                .decodeFromString<TagProgressDto>(
+                    """
+                    {"tag":"wall","type":"climbing","running":[],"strength":[],
+                     "climbing":[{"activity_id":7,"date":"2026-11-21","name":"Bouldering","top_grade":"V3",
+                       "top_sort":4,"sent":4,"failed":10,
+                       "grades":[{"grade":"V2","sort":3,"sent":3,"failed":0},{"grade":"V5","sort":6,"sent":0,"failed":6}]}]}
+                    """.trimIndent(),
+                ).toDomain()!!
+        val session = progress.climbing.single()
+        assertThat(session.topGrade).isEqualTo("V3")
+        assertThat(session.failed).isEqualTo(10)
+        assertThat(session.grades.map { it.grade }).containsExactly("V2", "V5").inOrder()
+    }
 }
