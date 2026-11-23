@@ -1,5 +1,6 @@
 package pl.cgconnector.app.ui.progress
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,10 +42,17 @@ import kotlin.math.roundToInt
 fun TagProgressRoute(
     onBack: () -> Unit,
     onOpenExercise: (String) -> Unit,
+    onOpenActivity: (Long) -> Unit,
     viewModel: TagProgressViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    TagProgressScreen(state = state, onRetry = viewModel::load, onBack = onBack, onOpenExercise = onOpenExercise)
+    TagProgressScreen(
+        state = state,
+        onRetry = viewModel::load,
+        onBack = onBack,
+        onOpenExercise = onOpenExercise,
+        onOpenActivity = onOpenActivity,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,6 +62,7 @@ fun TagProgressScreen(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onOpenExercise: (String) -> Unit,
+    onOpenActivity: (Long) -> Unit = {},
 ) {
     val exercise = state.selectedExercise
     val title =
@@ -75,92 +84,151 @@ fun TagProgressScreen(
         ) {
             when {
                 progress == null || tag == null -> item { Text(stringResource(R.string.progress_empty_tag)) }
-                exercise != null -> exerciseCharts(exercise)
+                exercise != null -> exerciseCharts(exercise, onOpenActivity)
                 tag.type == ActivityType.RUNNING ->
                     if (progress.running.isEmpty()) {
                         item { Text(stringResource(R.string.progress_empty_tag)) }
                     } else {
-                        runningCharts(progress.running)
+                        runningCharts(progress.running, onOpenActivity)
                     }
                 tag.type == ActivityType.STRENGTH -> exerciseList(progress.strength, onOpenExercise)
                 progress.climbing.isEmpty() -> item { Text(stringResource(R.string.progress_climbing_empty)) }
-                else -> climbingCharts(progress.climbing)
+                else -> climbingCharts(progress.climbing, onOpenActivity)
             }
         }
     }
 }
 
-private fun LazyListScope.runningCharts(runs: List<RunPoint>) {
-    val dates = ProgressChartMath.dateRange(runs.map { it.date }) ?: return
+private fun LazyListScope.runningCharts(
+    runs: List<RunPoint>,
+    onOpenActivity: (Long) -> Unit,
+) {
+    val dates = runs.map { it.date }
+    val paceSec = runs.map { run -> run.paceMinPerKm?.let { it * 60 } }
+    val paceFormat = { sec: Double -> Formatters.pace(sec / 60) ?: "" }
+    val whole = { v: Double -> v.roundToInt().toString() }
+    val km = { v: Double -> String.format(Formatters.POLISH, "%.1f", v) }
+    // Tempo w sekundach na km, żeby podziałka wypadała na pełnych sekundach; szybciej = wyżej.
     val charts =
         listOf(
-            Triple(R.string.progress_chart_pace, runs.map { it.paceMinPerKm }, { v: Double -> Formatters.pace(v) ?: "" }),
-            Triple(R.string.progress_chart_hr, runs.map { it.avgHr?.toDouble() }, { v: Double -> v.roundToInt().toString() }),
-            Triple(R.string.progress_chart_cadence, runs.map { it.avgCadenceSpm?.toDouble() }, { v: Double -> v.roundToInt().toString() }),
-            Triple(R.string.progress_chart_distance, runs.map { it.distanceM }, { v: Double -> Formatters.km(v) }),
+            RunChart(R.string.progress_chart_pace, R.string.progress_series_pace, paceSec, paceFormat, invert = true, steps = PACE_STEPS),
+            RunChart(R.string.progress_chart_hr, R.string.progress_series_hr, runs.map { it.avgHr?.toDouble() }, whole, minStep = 1.0),
+            RunChart(
+                R.string.progress_chart_cadence,
+                R.string.progress_series_cadence,
+                runs.map { it.avgCadenceSpm?.toDouble() },
+                whole,
+                minStep = 1.0,
+            ),
+            RunChart(
+                R.string.progress_chart_distance,
+                R.string.progress_series_distance,
+                runs.map { r -> r.distanceM?.let { it / 1000 } },
+                km,
+            ),
         )
-    charts.forEach { (titleRes, values, format) ->
-        val pace = titleRes == R.string.progress_chart_pace
-        // Tempo: szybciej (mniej min/km) wyżej. Płaska seria tempa dostaje zakres ±10 s.
-        val data = ProgressChartMath.sessions(values, invert = pace, flatPadding = if (pace) 1.0 / 6 else 1.0) ?: return@forEach
-        item(key = "chart-$titleRes") {
-            ChartCard(
-                title = stringResource(titleRes),
-                data = data,
-                sessions = values.count { it != null },
+    charts.forEach { chart ->
+        val axis = ProgressChartMath.axis(chart.values.filterNotNull(), minStep = chart.minStep, steps = chart.steps) ?: return@forEach
+        item(key = "chart-${chart.title}") {
+            SessionChartCard(
+                title = stringResource(chart.title),
                 dates = dates,
-                format = format,
-                connect = true,
-                color = sportColors(ActivityType.RUNNING).content,
-                invert = pace,
+                series =
+                    listOf(
+                        ChartSeries(stringResource(chart.series), chart.values, sportColors(ActivityType.RUNNING).content, chart.format),
+                    ),
+                axis = axis,
+                axisFormat = chart.format,
+                invert = chart.invert,
             )
         }
     }
     item(key = "note") { Text(stringResource(R.string.progress_work_laps_note), style = MaterialTheme.typography.bodySmall) }
     item(key = "sessions") { Text(stringResource(R.string.progress_sessions), style = MaterialTheme.typography.titleMedium) }
-    items(runs.reversed(), key = { "run-${it.activityId}" }) { run -> RunRow(run) }
+    items(runs.reversed(), key = { "run-${it.activityId}" }) { run -> RunRow(run, onClick = { onOpenActivity(run.activityId) }) }
 }
 
-private fun LazyListScope.climbingCharts(sessions: List<ClimbSession>) {
-    val dates = ProgressChartMath.dateRange(sessions.map { it.date }) ?: return
+private class RunChart(
+    @StringRes val title: Int,
+    @StringRes val series: Int,
+    val values: List<Double?>,
+    val format: (Double) -> String,
+    val invert: Boolean = false,
+    val minStep: Double = 0.0,
+    val steps: List<Double>? = null,
+)
+
+/** Podziałka tempa w sekundach: pełne 5, 10, 15, 30 s albo minuty. */
+private val PACE_STEPS = listOf(5.0, 10.0, 15.0, 30.0, 60.0, 120.0)
+
+private fun LazyListScope.climbingCharts(
+    sessions: List<ClimbSession>,
+    onOpenActivity: (Long) -> Unit,
+) {
+    val dates = sessions.map { it.date }
     // Oś „najtrudniejszy top” w kolejności trudności Garmina, podpisy stopniami (V2, V3…).
     val gradeNames = sessions.flatMap { s -> s.grades.map { it.sort to it.grade } }.toMap()
     val gradeFormat = { v: Double -> gradeNames[v.roundToInt()] ?: "" }
     val countFormat = { v: Double -> v.roundToInt().toString() }
-    val charts =
-        listOf(
-            Triple(R.string.progress_chart_top_grade, sessions.map { it.topSort?.toDouble() }, gradeFormat),
-            Triple(R.string.progress_chart_sent, sessions.map { it.sent.toDouble() }, countFormat),
-            Triple(R.string.progress_chart_failed, sessions.map { it.failed.toDouble() }, countFormat),
-        )
-    charts.forEach { (titleRes, values, format) ->
-        val data = ProgressChartMath.sessions(values) ?: return@forEach
-        item(key = "chart-$titleRes") {
-            ChartCard(
-                title = stringResource(titleRes),
-                data = data,
-                sessions = values.count { it != null },
+    val tops = sessions.map { it.topSort?.toDouble() }
+    val attempts = sessions.map { (it.sent + it.failed).toDouble() }
+    ProgressChartMath.axis(tops.filterNotNull(), minStep = 1.0)?.let { axis ->
+        item(key = "chart-top") {
+            SessionChartCard(
+                title = stringResource(R.string.progress_chart_top_grade),
                 dates = dates,
-                format = format,
-                connect = true,
-                color = sportColors(ActivityType.CLIMBING).content,
+                series =
+                    listOf(
+                        ChartSeries(
+                            stringResource(R.string.progress_series_top),
+                            tops,
+                            sportColors(ActivityType.CLIMBING).content,
+                            gradeFormat,
+                        ),
+                    ),
+                axis = axis,
+                axisFormat = gradeFormat,
+            )
+        }
+    }
+    ProgressChartMath.axis(attempts, fromZero = true, minStep = 1.0)?.let { axis ->
+        item(key = "chart-attempts") {
+            SessionChartCard(
+                title = stringResource(R.string.progress_chart_attempts),
+                dates = dates,
+                series =
+                    listOf(
+                        ChartSeries(
+                            stringResource(R.string.progress_series_attempts),
+                            attempts,
+                            sportColors(ActivityType.CLIMBING).content,
+                            countFormat,
+                        ),
+                    ),
+                axis = axis,
+                axisFormat = countFormat,
             )
         }
     }
     item(key = "sessions") { Text(stringResource(R.string.progress_sessions), style = MaterialTheme.typography.titleMedium) }
-    items(sessions.reversed(), key = { "climb-${it.activityId}" }) { session -> ClimbRow(session) }
+    items(sessions.reversed(), key = { "climb-${it.activityId}" }) { session ->
+        ClimbRow(session, onClick = { onOpenActivity(session.activityId) })
+    }
 }
 
 @Composable
-private fun ClimbRow(session: ClimbSession) {
-    Card(Modifier.fillMaxWidth()) {
+private fun ClimbRow(
+    session: ClimbSession,
+    onClick: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(12.dp)) {
             Text(
                 listOfNotNull(SHORT_DATE.format(session.date), session.name).joinToString(" · "),
                 style = MaterialTheme.typography.titleSmall,
             )
             Text(
-                stringResource(R.string.progress_climb_row, session.topGrade ?: "–", session.sent, session.failed),
+                stringResource(R.string.progress_climb_row, session.topGrade ?: "–", session.sent + session.failed, session.sent),
                 style = MaterialTheme.typography.bodyMedium,
             )
             val grades = session.grades.map { stringResource(R.string.progress_climb_grade, it.grade, it.sent, it.sent + it.failed) }
@@ -170,8 +238,11 @@ private fun ClimbRow(session: ClimbSession) {
 }
 
 @Composable
-private fun RunRow(run: RunPoint) {
-    Card(Modifier.fillMaxWidth()) {
+private fun RunRow(
+    run: RunPoint,
+    onClick: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(12.dp)) {
             Text(
                 listOfNotNull(SHORT_DATE.format(run.date), run.name).joinToString(" · "),
@@ -222,39 +293,36 @@ private fun LazyListScope.exerciseList(
     }
 }
 
-private fun LazyListScope.exerciseCharts(exercise: ExerciseProgress) {
-    val sessions = ProgressChartMath.groupBySession(exercise.sets) { it.activityId }
-    val dates = ProgressChartMath.dateRange(exercise.sets.map { it.date }) ?: return
-    // Ciężar nad powtórzeniami; każda seria to osobna kropka.
-    ProgressChartMath.sets(sessions.map { s -> s.map { it.weightKg } })?.let { data ->
-        item(key = "weight") {
-            ChartCard(
-                title = stringResource(R.string.progress_chart_weight),
-                data = data,
-                sessions = sessions.size,
-                dates = dates,
-                format = { Formatters.weight(it) },
-                connect = false,
-                color = sportColors(ActivityType.STRENGTH).content,
+private fun LazyListScope.exerciseCharts(
+    exercise: ExerciseProgress,
+    onOpenActivity: (Long) -> Unit,
+) {
+    // Jeden punkt na trening: najcięższa seria (ciężar i jej powtórzenia), jak w dzienniku na siłowni.
+    val tops = ProgressChartMath.topSets(exercise.sets)
+    val weights = tops.map { it.weightKg }
+    val reps = tops.map { it.reps?.toDouble() }
+    ProgressChartMath.axis((weights + reps).filterNotNull(), fromZero = true, minStep = 1.0)?.let { axis ->
+        item(key = "top-set") {
+            val colors = sportColors(ActivityType.STRENGTH)
+            SessionChartCard(
+                title = stringResource(R.string.progress_chart_top_set),
+                dates = tops.map { it.date },
+                series =
+                    listOf(
+                        ChartSeries(stringResource(R.string.progress_series_kg), weights, colors.content) { Formatters.weight(it) },
+                        ChartSeries(stringResource(R.string.progress_series_reps), reps, MaterialTheme.colorScheme.outline) {
+                            it.roundToInt().toString()
+                        },
+                    ),
+                axis = axis,
+                axisFormat = { Formatters.weight(it) },
             )
         }
     }
-    ProgressChartMath.sets(sessions.map { s -> s.map { it.reps?.toDouble() } })?.let { data ->
-        item(key = "reps") {
-            ChartCard(
-                title = stringResource(R.string.progress_chart_reps),
-                data = data,
-                sessions = sessions.size,
-                dates = dates,
-                format = { it.roundToInt().toString() },
-                connect = false,
-                color = sportColors(ActivityType.STRENGTH).content,
-            )
-        }
-    }
+    val sessions = exercise.sets.groupBy { it.activityId }.values.toList()
     item { Text(stringResource(R.string.progress_sessions), style = MaterialTheme.typography.titleMedium) }
     items(sessions.reversed(), key = { "session-${it.first().activityId}" }) { sets ->
-        Card(Modifier.fillMaxWidth()) {
+        Card(Modifier.fillMaxWidth().clickable { onOpenActivity(sets.first().activityId) }) {
             Column(Modifier.padding(12.dp)) {
                 Text(SHORT_DATE.format(sets.first().date), style = MaterialTheme.typography.titleSmall)
                 Text(
