@@ -54,16 +54,30 @@ class SettingsViewModel
         val events: Flow<SettingsEvent> = _events.receiveAsFlow()
 
         init {
+            // Obserwuje konfigurację: po wymianie kodu zaproszenia ekran sam przechodzi w stan „połączono”.
             viewModelScope.launch {
-                val current = repository.state.first()
-                _uiState.update {
-                    when (current) {
-                        ConfigState.NotConfigured -> it.copy(isLoading = false)
-                        is ConfigState.TokenMissing ->
-                            it.copy(serverUrl = current.serverUrl, tokenLost = true, isLoading = false)
-                        is ConfigState.Configured ->
-                            it.copy(serverUrl = current.config.serverUrl, hasSavedToken = true, isLoading = false)
+                var first = true
+                repository.state.collect { current ->
+                    _uiState.update {
+                        when (current) {
+                            ConfigState.NotConfigured -> it.copy(hasSavedToken = false, isLoading = false)
+                            is ConfigState.TokenMissing ->
+                                it.copy(
+                                    serverUrl = if (first) current.serverUrl else it.serverUrl,
+                                    hasSavedToken = false,
+                                    tokenLost = true,
+                                    isLoading = false,
+                                )
+                            is ConfigState.Configured ->
+                                it.copy(
+                                    serverUrl = if (first || !it.hasSavedToken) current.config.serverUrl else it.serverUrl,
+                                    hasSavedToken = true,
+                                    tokenLost = false,
+                                    isLoading = false,
+                                )
+                        }
                     }
+                    first = false
                 }
             }
         }

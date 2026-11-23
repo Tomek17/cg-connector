@@ -804,6 +804,184 @@
           }
         }
       }
+    },
+    "/api/v1/invite/redeem": {
+      "post": {
+        "summary": "Redeem",
+        "description": "Wymienia jednorazowy kod zaproszenia (`cgi_…`, ważny 7 dni) na token aplikacji.",
+        "operationId": "redeem_api_v1_invite_redeem_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Zły albo zużyty kod"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/garmin/login-key": {
+      "get": {
+        "summary": "Login Key",
+        "description": "Klucz publiczny do zaszyfrowania hasła Garmina w aplikacji.",
+        "operationId": "login_key_api_v1_garmin_login_key_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginKeyOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/garmin/login": {
+      "post": {
+        "summary": "Garmin Login",
+        "description": "Loguje serwer do Garmin Connect hasłem zaszyfrowanym kluczem z /garmin/login-key.\nHasło nie jest zapisywane; serwer trzyma tylko zaszyfrowane tokeny Garmina.",
+        "operationId": "garmin_login_api_v1_garmin_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GarminLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminLoginOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/garmin/mfa": {
+      "post": {
+        "summary": "Garmin Mfa",
+        "description": "Drugi krok logowania: kod MFA od Garmina (jedna próba na logowanie).",
+        "operationId": "garmin_mfa_api_v1_garmin_mfa_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminLoginOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/claude-code": {
+      "post": {
+        "summary": "Claude Code",
+        "description": "Nowy kod CG (`cgc_…`) do podłączenia konektora w claude.ai. Unieważnia poprzedni kod\ni rozłącza dotychczasowe połączenia Claude tego użytkownika.",
+        "operationId": "claude_code_api_v1_claude_code_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaudeCodeOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1279,6 +1457,19 @@
         ],
         "title": "ActivitySummary"
       },
+      "ClaudeCodeOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "ClaudeCodeOut"
+      },
       "Exercise": {
         "properties": {
           "exercise": {
@@ -1466,6 +1657,59 @@
           "duration_sec"
         ],
         "title": "ExerciseSet"
+      },
+      "GarminLoginIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "password_encrypted": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Password Encrypted",
+            "description": "Base64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password_encrypted"
+        ],
+        "title": "GarminLoginIn"
+      },
+      "GarminLoginOut": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/LoginStatus"
+          },
+          "retry_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
+          },
+          "sync_started": {
+            "type": "boolean",
+            "title": "Sync Started",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "GarminLoginOut",
+        "description": "`ok`: połączono, pierwsze pobranie danych ruszyło w tle. `needs_mfa`: wyślij kod\nz Garmina na /garmin/mfa (ważne 10 min). Pozostałe: komunikat dla użytkownika;\n`retry_at`, gdy wiadomo, od kiedy można spróbować ponownie."
       },
       "GoalBody": {
         "properties": {
@@ -1675,6 +1919,43 @@
         "title": "HrZoneTarget",
         "description": "One of the heart rate zones configured on the watch."
       },
+      "InviteIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "InviteIn"
+      },
+      "InviteOut": {
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User"
+          },
+          "app_token": {
+            "type": "string",
+            "title": "App Token"
+          },
+          "login_key": {
+            "$ref": "#/components/schemas/LoginKeyOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "app_token",
+          "login_key"
+        ],
+        "title": "InviteOut"
+      },
       "Lap": {
         "properties": {
           "index": {
@@ -1796,6 +2077,45 @@
         ],
         "title": "Lap"
       },
+      "LoginKeyOut": {
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "title": "Algorithm",
+            "default": "RSA-OAEP-256"
+          },
+          "public_key": {
+            "type": "string",
+            "title": "Public Key",
+            "description": "Base64 DER SubjectPublicKeyInfo"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint",
+            "description": "SHA-256 klucza (hex), do przypięcia w aplikacji"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key",
+          "fingerprint"
+        ],
+        "title": "LoginKeyOut",
+        "description": "Public key for encrypting the Garmin password: RSA-OAEP, SHA-256 (also MGF1)."
+      },
+      "LoginStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "needs_mfa",
+          "bad_credentials",
+          "mfa_expired",
+          "rate_limited",
+          "too_many_attempts",
+          "key_changed"
+        ],
+        "title": "LoginStatus"
+      },
       "Me": {
         "properties": {
           "name": {
@@ -1881,6 +2201,21 @@
           "latest_activity_date"
         ],
         "title": "Me"
+      },
+      "MfaIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "MfaIn"
       },
       "NewWorkout": {
         "properties": {

@@ -70,6 +70,8 @@ fun SettingsRoute(
         onTokenChange = viewModel::onTokenChange,
         onSave = viewModel::save,
         statusSection = { StatusSectionRoute() },
+        inviteSection = { InviteSectionRoute(urlErrorText = { urlErrorText(it) }) },
+        accountSection = { AccountSectionRoute(serverUrl = state.serverUrl) },
     )
 }
 
@@ -82,6 +84,8 @@ fun SettingsScreen(
     onTokenChange: (String) -> Unit,
     onSave: () -> Unit,
     statusSection: @Composable () -> Unit = {},
+    inviteSection: @Composable () -> Unit = {},
+    accountSection: @Composable () -> Unit = {},
 ) {
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
 
@@ -120,6 +124,13 @@ fun SettingsScreen(
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // Nowa osoba: kod zaproszenia wystarczy (token, Garmin i Claude konfiguruje się niżej).
+            if (!state.hasSavedToken && !state.tokenLost) {
+                inviteSection()
+                HorizontalDivider()
+                Text(stringResource(R.string.settings_token_alternative), style = MaterialTheme.typography.titleMedium)
+            }
+
             Text(stringResource(R.string.settings_intro), style = MaterialTheme.typography.bodyMedium)
 
             if (state.tokenLost) {
@@ -176,6 +187,8 @@ fun SettingsScreen(
             if (state.hasSavedToken) {
                 HorizontalDivider()
                 statusSection()
+                HorizontalDivider()
+                accountSection()
             }
         }
     }

@@ -456,4 +456,43 @@
     <string name="plan_detail_weight">%1$s kg</string>
     <string name="plan_detail_rest">przerwa %1$d s</string>
     <string name="plan_detail_minutes">%1$d min</string>
+
+    <!-- Konfiguracja z aplikacji: zaproszenie, Garmin, Claude -->
+    <string name="settings_token_alternative">Masz token aplikacji?</string>
+    <string name="invite_title">Mam kod zaproszenia</string>
+    <string name="invite_intro">Wpisz adres serwera i kod zaproszenia (cgi_…) od Tomka. Kod jest jednorazowy i ważny 7 dni. Potem połączysz tu konto Garmin i Claude.</string>
+    <string name="invite_code_label">Kod zaproszenia</string>
+    <string name="invite_code_missing">Wpisz kod zaproszenia</string>
+    <string name="invite_connect">Połącz z serwerem</string>
+    <string name="invite_invalid">Kod zaproszenia jest nieprawidłowy, już użyty albo wygasł. Poproś Tomka o nowy.</string>
+    <string name="account_working">Chwila…</string>
+    <string name="account_cancel">Anuluj</string>
+    <string name="account_network">Nie udało się połączyć z serwerem. Sprawdź internet albo czy laptop Tomka jest włączony.</string>
+    <string name="account_retry_at">Spróbuj po %1$s.</string>
+    <string name="garmin_title">Konto Garmin</string>
+    <string name="garmin_connected">Połączone. Serwer pobiera Twoje treningi codziennie i wysyła treningi do kalendarza Garmin.</string>
+    <string name="garmin_relogin">Zaloguj ponownie</string>
+    <string name="garmin_login_intro">Zaloguj się kontem Garmin Connect. Hasło jest szyfrowane w telefonie i nie jest nigdzie zapisywane; serwer trzyma tylko zaszyfrowany klucz dostępu.</string>
+    <string name="garmin_email">E-mail Garmin Connect</string>
+    <string name="garmin_password">Hasło Garmin Connect</string>
+    <string name="garmin_one_attempt">Sprawdź hasło przed wysłaniem. Po kilku błędnych próbach Garmin blokuje logowanie na około dobę.</string>
+    <string name="garmin_connect">Połącz z Garminem</string>
+    <string name="garmin_mfa_intro">Garmin wysłał kod weryfikacyjny (e-mail albo SMS). Wpisz go w ciągu 10 minut.</string>
+    <string name="garmin_mfa_code">Kod z Garmina</string>
+    <string name="garmin_mfa_send">Potwierdź</string>
+    <string name="garmin_bad_credentials">Garmin odrzucił logowanie: zły e-mail, hasło albo kod. Sprawdź dane, zanim spróbujesz ponownie.</string>
+    <string name="garmin_mfa_expired">Kod wygasł. Zaloguj się jeszcze raz.</string>
+    <string name="garmin_rate_limited">Garmin chwilowo blokuje logowanie (za dużo prób). Nie próbuj teraz, spróbuj jutro.</string>
+    <string name="garmin_too_many_attempts">Za dużo nieudanych prób. Odczekaj, żeby Garmin nie zablokował konta.</string>
+    <string name="garmin_key_changed">Klucz serwera się zmienił, więc hasło nie zostało wysłane. Napisz do Tomka.</string>
+    <string name="garmin_connected_sync">Połączono z Garminem. Pierwsze pobranie danych trwa kilka minut; odśwież potem zakładkę Treningi.</string>
+    <string name="claude_title">Claude</string>
+    <string name="claude_intro">W claude.ai: Customize → Connectors → Add custom connector, adres %1$s. Przy łączeniu wklej kod z przycisku poniżej.</string>
+    <string name="claude_new_code">Wygeneruj kod do Claude</string>
+    <string name="claude_copy">Kopiuj kod</string>
+    <string name="claude_copy_url">Kopiuj adres</string>
+    <string name="claude_hide">Ukryj</string>
+    <string name="claude_code_hint">Kod jest pokazywany tylko teraz. Nie wysyłaj go nikomu i nie wklejaj do rozmowy z Claude.</string>
+    <string name="claude_confirm_title">Nowy kod do Claude?</string>
+    <string name="claude_confirm_text">Poprzedni kod przestanie działać, a Claude, jeśli był już połączony, trzeba będzie połączyć ponownie.</string>
 </resources>

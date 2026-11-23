@@ -5,7 +5,10 @@ issue a new refresh token. On HTTP 429 the status becomes `rate_limited` and not
 retried. The Garmin password only passes through `login()` and is never stored.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +17,7 @@ from cg_server.garmin.gateway import (
     GarminAuthError,
     GarminGateway,
     GarminRateLimited,
+    LoginStep,
     MfaPrompt,
 )
 from cg_server.models import GarminCredentials, GarminStatus, User, utcnow
@@ -103,10 +107,18 @@ def login(
     force: bool = False,
 ) -> None:
     """Password login. Refused (RateLimitCooldown) within 24 h of a 429 unless `force`."""
+    with _password_attempt(session, user, force=force):
+        tokens = gateway.login(email, password, prompt_mfa)
+    _save_tokens(session, user, tokens, key)
+
+
+@contextmanager
+def _password_attempt(session: Session, user: User, *, force: bool = False) -> Iterator[None]:
+    """Cooldown check before, and status bookkeeping after, any password/MFA step."""
     if not force and (until := rate_limit_cooldown_until(user)) is not None:
         raise RateLimitCooldown(until)
     try:
-        tokens = gateway.login(email, password, prompt_mfa)
+        yield
     except GarminRateLimited:
         mark_rate_limited(session, user)
         raise
@@ -115,6 +127,32 @@ def login(
         if not has_tokens(user):
             _set_status(session, user, GarminStatus.NEEDS_LOGIN)
         raise
+
+
+def start_login(
+    session: Session, user: User, gateway: GarminGateway, *, email: str, password: str, key: str
+) -> dict[str, Any] | None:
+    """First step of the login from the app: None = logged in (tokens saved), otherwise the
+    MFA state to pass to `finish_login` together with the user's code."""
+    with _password_attempt(session, user):
+        step: LoginStep = gateway.start_login(email, password)
+    if step.tokens is None:
+        return step.mfa_state or {}
+    _save_tokens(session, user, step.tokens, key)
+    return None
+
+
+def finish_login(
+    session: Session,
+    user: User,
+    gateway: GarminGateway,
+    *,
+    mfa_state: dict[str, Any],
+    mfa_code: str,
+    key: str,
+) -> None:
+    with _password_attempt(session, user):
+        tokens = gateway.finish_login(mfa_state, mfa_code)
     _save_tokens(session, user, tokens, key)
 
 

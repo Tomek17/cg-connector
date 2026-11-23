@@ -107,6 +107,26 @@ interface CgApi {
     @DELETE("api/v1/goal")
     suspend fun deleteGoal(): GoalStateDto
 
+    /** Klucz publiczny serwera do zaszyfrowania hasła Garmina. */
+    @GET("api/v1/garmin/login-key")
+    suspend fun garminLoginKey(): LoginKeyDto
+
+    /** Logowanie serwera do Garmina; wynik w `status` (zawsze HTTP 200). */
+    @POST("api/v1/garmin/login")
+    suspend fun garminLogin(
+        @Body body: GarminLoginRequestDto,
+    ): GarminLoginResponseDto
+
+    /** Drugi krok, gdy `status = needs_mfa`. */
+    @POST("api/v1/garmin/mfa")
+    suspend fun garminMfa(
+        @Body body: MfaRequestDto,
+    ): GarminLoginResponseDto
+
+    /** Nowy kod CG do claude.ai; unieważnia poprzedni i rozłącza dotychczasowe połączenia Claude. */
+    @POST("api/v1/claude-code")
+    suspend fun claudeCode(): ClaudeCodeDto
+
     companion object {
         const val MAX_SCHEDULED_DAYS = 366L
         const val MAX_LIMIT = 2000

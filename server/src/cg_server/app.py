@@ -16,7 +16,9 @@ from starlette.routing import Route
 
 from cg_server import __version__
 from cg_server.api import router as api_router
+from cg_server.api_onboarding import router as onboarding_router
 from cg_server.api_workouts import router as workouts_router
+from cg_server.app_login import AppLogins
 from cg_server.config import Settings, get_settings
 from cg_server.db import open_db
 from cg_server.garmin.gateway import RealGarminGateway
@@ -105,6 +107,9 @@ def create_app(
     app.state.outbox = outbox
     app.state.manual_sync = manual
     app.state.tz = ZoneInfo(settings.timezone)
+    app.state.settings = settings
+    app.state.gateway_factory = gateway_factory
+    app.state.app_logins = AppLogins()
 
     @app.exception_handler(Exception)
     async def internal_error(_request: Request, _exc: Exception) -> JSONResponse:
@@ -117,6 +122,7 @@ def create_app(
 
     app.include_router(api_router)
     app.include_router(workouts_router)
+    app.include_router(onboarding_router)
     app.include_router(login_router(provider))
 
     # Added innermost first: the allowlist runs before rate limiting and body reading.

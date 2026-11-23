@@ -3,7 +3,7 @@
 - path allowlist: anything else is 404 (no admin panel or docs on the internet),
 - security headers on every response,
 - request body size limit,
-- in-memory rate limit on the OAuth endpoints.
+- in-memory rate limit on the OAuth and app login endpoints.
 """
 
 import json
@@ -31,7 +31,18 @@ PUBLIC_PATHS = frozenset(
     }
 )
 PUBLIC_PREFIXES = ("/api/v1/",)
-RATE_LIMITED_PATHS = frozenset({"/authorize", LOGIN_PATH, "/token", "/register", "/revoke"})
+RATE_LIMITED_PATHS = frozenset(
+    {
+        "/authorize",
+        LOGIN_PATH,
+        "/token",
+        "/register",
+        "/revoke",
+        "/api/v1/invite/redeem",
+        "/api/v1/garmin/login",
+        "/api/v1/garmin/mfa",
+    }
+)
 
 
 async def _send_json(send: Send, status: int, detail: str) -> None:
