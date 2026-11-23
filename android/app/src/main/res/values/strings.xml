@@ -509,4 +509,47 @@
     <string name="update_available">Dostępna nowa wersja %1$s</string>
     <string name="update_hint">Pobierz plik i zainstaluj go na obecną aplikację. Twoje dane zostaną.</string>
     <string name="update_download">Pobierz aktualizację</string>
+    <string name="setup_step_of">Krok %1$d z %2$d</string>
+    <string name="setup_welcome_title">Cześć! To CG-connector</string>
+    <string name="setup_welcome_text">Tu zobaczysz swoje treningi z Garmina, zaplanujesz nowe i wyślesz je na zegarek. Claude (czat AI) może je analizować i układać Ci plan. Aplikacja przeprowadzi Cię przez wszystko krok po kroku.</string>
+    <string name="setup_welcome_need_title">Przygotuj (ok. 5 minut)</string>
+    <string name="setup_welcome_need">• e-mail i hasło do Garmin Connect
+• dostęp do poczty albo SMS-ów (Garmin może przysłać kod)
+• jeśli chcesz Claude: konto na claude.ai (darmowe, można je założyć po drodze)</string>
+    <string name="setup_welcome_invite_ready">Zaproszenie od Tomka jest już w aplikacji.</string>
+    <string name="setup_start">Zaczynamy</string>
+    <string name="setup_manual">Mam token aplikacji (dla zaawansowanych)</string>
+    <string name="setup_server_title">Połączenie z serwerem</string>
+    <string name="setup_server_from_link">Adres serwera i kod zaproszenia są już wpisane z linku od Tomka. Stuknij „Połącz”.</string>
+    <string name="setup_server_manual">Najprościej: zamknij aplikację i stuknij link zaproszenia od Tomka (np. w SMS-ie albo Messengerze). Aplikacja otworzy się z wpisanym adresem i kodem. Możesz też przepisać je ręcznie poniżej.</string>
+    <string name="setup_connect">Połącz</string>
+    <string name="setup_back">Wstecz</string>
+    <string name="setup_garmin_title">Konto Garmin</string>
+    <string name="setup_garmin_intro">Zaloguj się tym samym kontem, co w aplikacji Garmin Connect. Dzięki temu serwer co dzień pobierze Twoje treningi i wyśle zaplanowane treningi na zegarek. Hasło jest szyfrowane w telefonie i nigdzie nie jest zapisywane.</string>
+    <string name="setup_garmin_careful">Sprawdź e-mail i hasło przed wysłaniem: po kilku błędnych próbach Garmin blokuje logowanie na około dobę.</string>
+    <string name="setup_garmin_mfa">Garmin wysłał Ci kod weryfikacyjny e-mailem albo SMS-em. Przełącz się do poczty (zajrzyj też do Spamu), zapamiętaj albo skopiuj kod i wróć tutaj. Masz na to 10 minut.</string>
+    <string name="setup_garmin_restart">Kod nie przyszedł? Zaloguj od nowa</string>
+    <string name="setup_garmin_done">Konto Garmin połączone. Twoje treningi pobierają się teraz w tle.</string>
+    <string name="setup_next">Dalej</string>
+    <string name="setup_claude_title">Claude (możesz pominąć)</string>
+    <string name="setup_claude_intro">Claude to czat AI. Po podłączeniu widzi Twoje treningi i może planować nowe, np. „Zaplanuj mi interwały na czwartek”. Wystarczy darmowe konto. Podłączasz go raz, w przeglądarce w telefonie; potem działa też w aplikacji Claude.</string>
+    <string name="setup_claude_1">Przygotuj kod połączenia.</string>
+    <string name="setup_claude_make_code">Przygotuj kod</string>
+    <string name="setup_claude_code_ready">Kod gotowy.</string>
+    <string name="setup_claude_2">Stuknij przycisk: aplikacja skopiuje adres serwera i otworzy claude.ai w przeglądarce. Zaloguj się (albo załóż darmowe konto).</string>
+    <string name="setup_claude_3">Na stronie claude.ai stuknij „+” albo „Add custom connector”. Nazwa: CG-connector. W polu URL przytrzymaj palec i wybierz „Wklej” (adres to %1$s). Jeśli są dodatkowe opcje, wybierz „Register automatically” i zostaw puste pola Client ID i Client Secret. Stuknij „Dodaj”, potem „Połącz”.</string>
+    <string name="setup_claude_4">Otworzy się strona CG-connector z polem na kod (jeśli najpierw pojawi się ostrzeżenie ngrok, stuknij „Visit Site”). Wróć tutaj, skopiuj kod, wklej go na tej stronie i stuknij „Połącz z Claude”.</string>
+    <string name="setup_claude_5">Gotowe. W rozmowie z Claude stuknij „+”, potem „Konektory” i włącz CG-connector. Zapytaj np. „Jak wyglądał mój ostatni tydzień?”.</string>
+    <string name="setup_claude_done">Claude podłączony, dalej</string>
+    <string name="setup_claude_skip">Pomiń, zrobię to później w Ustawieniach</string>
+    <string name="setup_done_title">Wszystko gotowe!</string>
+    <string name="setup_done_text">Treningi z ostatnich tygodni pobierają się teraz; za kilka minut zobaczysz je w aplikacji.
+
+• Dziś: ostatni trening, cel i VO2max
+• Treningi: historia ze szczegółami
+• Plan: tworzysz trening i wysyłasz go na zegarek
+• Progress: wykresy postępów
+
+Serwer działa na laptopie Tomka. Gdy laptop jest wyłączony, aplikacja pokazuje ostatnio pobrane dane, a nowe pojawią się później.</string>
+    <string name="setup_done_go">Przejdź do aplikacji</string>
 </resources>

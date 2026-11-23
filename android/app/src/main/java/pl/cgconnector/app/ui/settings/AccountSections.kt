@@ -1,9 +1,12 @@
 package pl.cgconnector.app.ui.settings
 
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +35,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
@@ -192,7 +196,6 @@ private fun ClaudeSection(
 ) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.claude_title), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.claude_intro, "$serverUrl/mcp"), style = MaterialTheme.typography.bodyMedium)
@@ -209,7 +212,7 @@ private fun ClaudeSection(
             Button(
                 onClick = {
                     copySensitive(context, "$serverUrl/mcp")
-                    uriHandler.openUri(CLAUDE_CONNECTORS_URL)
+                    openInBrowser(context, CLAUDE_CONNECTORS_URL)
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.claude_open)) }
@@ -241,7 +244,7 @@ private fun ClaudeSection(
 }
 
 @Composable
-private fun MessageText(
+internal fun MessageText(
     message: AccountMessage,
     retryAt: String?,
 ) {
@@ -272,7 +275,7 @@ internal fun formatRetry(iso: String): String {
     return "$day.$month $hour:$minute"
 }
 
-private fun copySensitive(
+internal fun copySensitive(
     context: Context,
     text: String,
 ) {
@@ -283,7 +286,31 @@ private fun copySensitive(
     context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(clip)
 }
 
-private const val CLAUDE_CONNECTORS_URL = "https://claude.ai/customize/connectors"
+internal const val CLAUDE_CONNECTORS_URL = "https://claude.ai/customize/connectors"
+
+/**
+ * Otwiera adres w przeglądarce, nie w aplikacji, która go przechwytuje (np. aplikacja Claude dla
+ * claude.ai): własny konektor dodaje się na stronie claude.ai.
+ */
+internal fun openInBrowser(
+    context: Context,
+    url: String,
+) {
+    val intent = Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
+    val probe = Intent(Intent.ACTION_VIEW, "https://example.com".toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
+    val browser =
+        context.packageManager
+            .resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo
+            ?.packageName
+    // „android” = okno wyboru (brak domyślnej przeglądarki): wtedy system pyta sam.
+    if (browser != null && browser != "android") intent.setPackage(browser)
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+    }
+}
 
 /** Karta „Dostępna nowa wersja” (pokazywana tylko, gdy na GitHubie jest nowsze wydanie). */
 @Composable

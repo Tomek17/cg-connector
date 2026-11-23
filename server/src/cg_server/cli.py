@@ -120,8 +120,8 @@ SECRET_INFO = {
     ),
     SecretKind.INVITE: (
         "Kod zaproszenia",
-        "Kod jest jednorazowy i ważny 7 dni. Logowanie do Garmina i kod do Claude osoba "
-        "zrobi już sama w aplikacji.",
+        "Wyślij osobie ten link (jednorazowy, ważny 7 dni). Resztę poprowadzi aplikacja: "
+        "instalacja, logowanie do Garmina i podłączenie Claude.",
     ),
 }
 
