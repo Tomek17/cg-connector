@@ -147,8 +147,9 @@
     <string name="sync_now_done">Gotowe, dane są aktualne.</string>
     <string name="sync_now_partial">Serwer pobrał tylko część danych. Szczegóły w Ustawieniach.</string>
     <string name="sync_now_still_running">Serwer jeszcze pobiera dane. Dojdą przy następnym odświeżeniu.</string>
-    <string name="sync_now_too_soon">Dane były pobierane przed chwilą. Spróbuj za kilka minut.</string>
-    <string name="sync_now_too_soon_at">Dane były pobierane przed chwilą. Spróbuj po %1$s.</string>
+    <string name="sync_now_too_soon">Dane były pobierane w ciągu ostatniej godziny. Spróbuj później.</string>
+    <string name="sync_now_too_soon_at">Dane były pobierane w ciągu ostatniej godziny. Spróbuj po %1$s.</string>
+    <string name="sync_now_next_at">Ręczne pobranie najwyżej raz na godzinę. Następne możliwe po %1$s.</string>
     <string name="sync_now_already_running">Serwer właśnie pobiera dane z Garmina.</string>
     <string name="sync_now_needs_login">Garmin wymaga ponownego logowania na serwerze (cg-server garmin-login).</string>
     <string name="sync_now_rate_limited">Garmin chwilowo blokuje zapytania. Serwer spróbuje sam później.</string>

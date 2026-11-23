@@ -57,7 +57,9 @@ def test_check_rules(app_settings: Settings) -> None:
         result = manual_sync.check(session, user, now)
         assert result.refusal == Refusal.TOO_SOON
         assert result.retry_at is not None and result.retry_at > now
-        assert manual_sync.check(session, user, now + timedelta(minutes=10)).refusal is None
+        later = manual_sync.check(session, user, now + timedelta(minutes=30))
+        assert later.refusal == Refusal.TOO_SOON
+        assert manual_sync.check(session, user, now + timedelta(minutes=61)).refusal is None
 
         session.add(SyncRun(user_id=user.id, started_at=now, status=SyncStatus.RUNNING))
         session.commit()

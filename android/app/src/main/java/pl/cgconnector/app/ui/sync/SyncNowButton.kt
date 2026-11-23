@@ -24,6 +24,7 @@ import pl.cgconnector.app.R
 import pl.cgconnector.app.data.repository.SyncNowOutcome
 import pl.cgconnector.app.data.repository.SyncNowOutcome.Reason
 import pl.cgconnector.app.ui.progress.messageRes
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -38,11 +39,18 @@ fun SyncNowButton(
     onSync: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        OutlinedButton(onClick = onSync, enabled = !state.isSyncing, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = onSync, enabled = state.canSync, modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.isSyncing) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                 Text(stringResource(if (state.isSyncing) R.string.sync_now_running else R.string.sync_now))
             }
+        }
+        state.nextAllowedAt?.takeIf { !state.isSyncing }?.let { next ->
+            Text(
+                text = stringResource(R.string.sync_now_next_at, TIME.format(next.atZone(ZoneId.systemDefault()))),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         state.outcome?.let { outcome ->
             val (text, isError) = outcome.message()

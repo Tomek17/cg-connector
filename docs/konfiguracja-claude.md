@@ -99,7 +99,7 @@ Claude sam wybiera narzędzie na podstawie pytania. Nie musisz znać nazw. Daty 
 | `get_activity` | Szczegóły jednej aktywności: okrążenia, minuty w strefach tętna, serie siłowe, training effect i obciążenie. |
 | `set_activity_tag` | Nadaje aktywności jeden tag (bieg: `intervals`, `tempo`, `long`, `base`, `strides`; siłownia: `upper`, `fbw`, `push`, `pull`, `legs`; wspinaczka: `wall`) albo go usuwa. Zmienia tylko bazę CG-connector, nie Garmina. Na tagach opiera się zakładka Progress w aplikacji. |
 | `set_goal` | Ustawia Twój cel: start (np. Półmaraton Warszawski), datę, dystans i opcjonalnie czas docelowy (`h:mm:ss`); `name: null` usuwa cel. Cel widać na stronie głównej aplikacji, a `get_profile` podaje go Claude razem z tempem docelowym. |
-| `sync_now` | Pobiera nowe dane z Garmina od razu (normalnie raz dziennie o 14:00), np. zaraz po treningu. Odmawia, gdy synchronizacja była w ostatnich 5 minutach, właśnie trwa albo Garmin wymaga logowania. |
+| `sync_now` | Pobiera nowe dane z Garmina od razu (normalnie raz dziennie o 14:00), np. zaraz po treningu. Odmawia, gdy synchronizacja była w ostatniej godzinie, właśnie trwa albo Garmin wymaga logowania. |
 | `get_vo2max_trend` | Trend VO2max z biegu: ostatnia wartość, zmiana, min/max, punkty. Domyślnie ostatnie 180 dni. |
 | `get_training_summary` | Sumy tygodniowe (pon–niedz) albo miesięczne per typ aktywności: liczba, km, czas, przewyższenie, tempo biegu. Domyślnie 8 tygodni albo 6 miesięcy. |
 
