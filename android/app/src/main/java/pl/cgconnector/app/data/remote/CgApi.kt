@@ -90,6 +90,10 @@ interface CgApi {
         @Path("tag") tag: String,
     ): TagProgressDto
 
+    /** Synchronizacja z Garminem teraz (serwer robi ją w tle; wynik w `/me`). */
+    @POST("api/v1/sync")
+    suspend fun syncNow(): SyncNowDto
+
     /** Cel użytkownika albo `goal: null`. */
     @GET("api/v1/goal")
     suspend fun goal(): GoalStateDto

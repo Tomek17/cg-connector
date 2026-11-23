@@ -410,6 +410,30 @@
         ]
       }
     },
+    "/api/v1/sync": {
+      "post": {
+        "summary": "Sync Now",
+        "description": "Pobiera nowe dane z Garmina teraz, poza codzienną synchronizacją.",
+        "operationId": "sync_now_api_v1_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncNow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/vo2max": {
       "get": {
         "summary": "Vo2Max",
@@ -2577,6 +2601,43 @@
           "avg_pace_min_per_km"
         ],
         "title": "SummaryItem"
+      },
+      "SyncNow": {
+        "properties": {
+          "started": {
+            "type": "boolean",
+            "title": "Started"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "retry_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "started"
+        ],
+        "title": "SyncNow",
+        "description": "`started`: sync runs in the background (check `/me` for its result). Otherwise\n`reason`: no_garmin | needs_login | rate_limited | running | too_soon."
       },
       "TagCountOut": {
         "properties": {

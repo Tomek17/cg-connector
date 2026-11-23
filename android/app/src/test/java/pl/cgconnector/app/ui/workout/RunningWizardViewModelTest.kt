@@ -120,6 +120,26 @@ class RunningWizardViewModelTest {
         }
 
     @Test
+    fun `editing a plan entry keeps its date and replaces it on save`() =
+        runTest {
+            val id = repository.enqueue(BuiltInTemplates.RUNNING[1], LocalDate.of(2030, 1, 15))
+
+            val edit = RunningWizardViewModel(repository, templates, SavedStateHandle(mapOf("replaceId" to id)), clock)
+            assertThat(edit.state.value.isEditing).isTrue()
+            assertThat(edit.state.value.date).isEqualTo(LocalDate.of(2030, 1, 15))
+            assertThat(edit.hasUnsavedChanges()).isFalse()
+
+            edit.onRepeatTimesChange(edit.state.value.blocks[1].key, "8")
+            edit.save()
+
+            assertThat(repository.deleteRequests).containsExactly(id)
+            val (saved, date) = repository.enqueued.last()
+            val repeat = (saved as RunningWorkout).items.filterIsInstance<RepeatBlock>().single()
+            assertThat(repeat.times).isEqualTo(8)
+            assertThat(date).isEqualTo(LocalDate.of(2030, 1, 15))
+        }
+
+    @Test
     fun `own template is saved and can be deleted`() {
         viewModel.saveAsTemplate()
         val saved = viewModel.state.value.userTemplates.single()

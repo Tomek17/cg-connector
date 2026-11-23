@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
+import anyio
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
@@ -18,8 +19,9 @@ from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
-from cg_server import goals, mcp_read, queries
+from cg_server import goals, manual_sync, mcp_read, queries
 from cg_server.config import Settings
+from cg_server.manual_sync import ManualSync
 from cg_server.mcp_workouts import READ_ONLY, register_workout_tools
 from cg_server.models import ActivityKind, Goal, User, utcnow
 from cg_server.oauth import SCOPE, CgOAuthProvider
@@ -32,6 +34,11 @@ TAG = ToolAnnotations(destructive_hint=False, idempotent_hint=True, open_world_h
 TAG_LIST = "; ".join(
     f"{kind.value}: {', '.join(t for t, k in TAGS.items() if k == kind)}"
     for kind in dict.fromkeys(TAGS.values())
+)
+
+# Talks to Garmin (open world) but only reads from it; repeating it is harmless.
+SYNC = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=True
 )
 
 INSTRUCTIONS = (
@@ -87,6 +94,7 @@ def build_mcp(
     sessions: sessionmaker[Session],
     provider: CgOAuthProvider,
     outbox: OutboxRunner | None = None,
+    manual: ManualSync | None = None,
 ) -> MCPServer:
     mcp = MCPServer(
         "CG-connector",
@@ -218,6 +226,32 @@ def build_mcp(
             except goals.GoalError as e:
                 raise ToolError(str(e)) from None
             return _result({"goal": goal_item(goal)})
+
+    @mcp.tool(annotations=SYNC)
+    async def sync_now() -> CallToolResult:
+        """Fetch new Garmin data now (normally once a day at 14:00), e.g. right after a
+        workout. Waits for the sync; then read activities as usual. Refused if a sync
+        ran in the last 5 min, is running, or Garmin needs login/is paused."""
+        with sessions() as session:
+            user = current_user(session)
+            user_id = user.id
+            result = manual_sync.check(session, user)
+        if result.refusal is not None:
+            data: dict[str, Any] = {"synced": False, "reason": result.refusal.value}
+            if result.retry_at is not None:
+                data["retry_at"] = result.retry_at.astimezone(tz).strftime("%H:%M")
+            return _result(data)
+        done = await anyio.to_thread.run_sync(manual.run, user_id) if manual else None
+        if done is None:
+            return _result({"synced": False, "reason": "running"})
+        return _result(
+            {
+                "synced": True,
+                "status": done.status.value,
+                "new": done.activities_new,
+                "updated": done.activities_updated,
+            }
+        )
 
     @mcp.tool(annotations=READ_ONLY)
     def get_vo2max_trend(from_date: FromDate = None, to_date: ToDate = None) -> CallToolResult:

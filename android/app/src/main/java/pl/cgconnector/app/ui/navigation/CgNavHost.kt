@@ -86,6 +86,8 @@ data class TagProgressDestination(
 @Serializable
 data class RunningWizardDestination(
     val copyFromId: Long = RunningWizardViewModel.NO_COPY,
+    /** Id wpisu Planu do edycji (zastąpienia); nazwa pola = `RunningWizardViewModel.ARG_REPLACE_ID`. */
+    val replaceId: Long = RunningWizardViewModel.NO_COPY,
 )
 
 /** [copyFromId]: id wpisu Planu do skopiowania; nazwa pola = `StrengthWizardViewModel.ARG_COPY_FROM_ID`. */
@@ -204,7 +206,13 @@ fun CgNavHost(isConfigured: Boolean) {
             composable<PlanWorkoutDestination> {
                 PlanWorkoutRoute(
                     onBack = { navController.popBackStack() },
-                    onEditStrength = { id -> navController.navigate(StrengthWizardDestination(replaceId = id)) },
+                    onEdit = { item ->
+                        when (item.sport) {
+                            WorkoutSport.RUNNING -> navController.navigate(RunningWizardDestination(replaceId = item.id))
+                            WorkoutSport.STRENGTH -> navController.navigate(StrengthWizardDestination(replaceId = item.id))
+                            else -> Unit
+                        }
+                    },
                 )
             }
             composable<ProgressDestination> {
@@ -223,7 +231,13 @@ fun CgNavHost(isConfigured: Boolean) {
                     onOpenExercise = { exercise -> navController.navigate(TagProgressDestination(tag, exercise)) },
                 )
             }
-            composable<RunningWizardDestination> { RunningWizardRoute(onDone = { navController.popBackStack() }) }
+            composable<RunningWizardDestination> {
+                // Po edycji wracamy do Planu, nie do szczegółów zastąpionego wpisu.
+                RunningWizardRoute(
+                    onDone = { navController.popBackStack() },
+                    onSaved = { if (!navController.popBackStack(QueueDestination, inclusive = false)) navController.popBackStack() },
+                )
+            }
             composable<StrengthWizardDestination> {
                 // Po edycji wracamy do Planu, nie do szczegółów zastąpionego wpisu.
                 StrengthWizardRoute(

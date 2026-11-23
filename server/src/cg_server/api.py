@@ -10,12 +10,21 @@ from datetime import date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    status,
+)
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
-from cg_server import goals, progress, queries
+from cg_server import goals, manual_sync, progress, queries
 from cg_server.models import Activity, ActivityKind, Goal, User, utcnow
 from cg_server.queries import Period
 from cg_server.tags import TAGS, TagError, set_tag
@@ -523,6 +532,30 @@ def delete_goal(user: CurrentUser, session: DbSession) -> GoalState:
     """Usuwa cel."""
     goals.clear_goal(session, user.id)
     return GoalState(goal=None)
+
+
+class SyncNow(BaseModel):
+    """`started`: sync runs in the background (check `/me` for its result). Otherwise
+    `reason`: no_garmin | needs_login | rate_limited | running | too_soon."""
+
+    started: bool
+    reason: str | None = None
+    retry_at: datetime | None = None
+
+
+@router.post("/sync")
+def sync_now(
+    request: Request, tasks: BackgroundTasks, user: CurrentUser, session: DbSession, tz: LocalTz
+) -> SyncNow:
+    """Pobiera nowe dane z Garmina teraz, poza codzienną synchronizacją."""
+    result = manual_sync.check(session, user)
+    if result.refusal is not None:
+        retry = result.retry_at.astimezone(tz) if result.retry_at else None
+        return SyncNow(started=False, reason=result.refusal.value, retry_at=retry)
+    runner: manual_sync.ManualSync | None = getattr(request.app.state, "manual_sync", None)
+    if runner is not None:
+        tasks.add_task(runner.run, user.id)
+    return SyncNow(started=runner is not None, reason=None if runner else "running")
 
 
 @router.get("/vo2max")

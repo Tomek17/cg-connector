@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import pl.cgconnector.app.alerts.HomeSurfaces
 import pl.cgconnector.app.data.repository.ActivityRepository
 import pl.cgconnector.app.data.repository.RefreshResult
 import pl.cgconnector.app.data.repository.WorkoutQueueTrigger
@@ -25,12 +26,15 @@ class RefreshWorker
         private val repository: ActivityRepository,
         private val scheduler: RefreshScheduler,
         private val workoutQueue: WorkoutQueueTrigger,
+        private val homeSurfaces: HomeSurfaces,
         private val clock: Clock,
     ) : CoroutineWorker(context, params) {
         override suspend fun doWork(): Result {
             val result = repository.refresh()
             // Serwer odpowiada: wysyłamy kolejkę treningów (MASTER_PROMPT 3.4).
             if (result is RefreshResult.Success) workoutQueue.trigger()
+            // Widżet (zmiana dnia) i powiadomienia (np. dane od dawna nieaktualne) także bez otwierania aplikacji.
+            homeSurfaces.refreshNow()
             scheduler.scheduleNext(RefreshSchedule.delayAfter(result, clock.instant()))
             return Result.success()
         }
