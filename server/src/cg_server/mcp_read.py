@@ -220,7 +220,39 @@ def activity_detail(
         data["hr_zones_min"] = {f"z{z.zone}": round(z.seconds / 60) for z in details.hr_zones}
     if sets := _sets(details.exercise_sets):
         data["sets"] = sets
+    if activity.kind == ActivityKind.CLIMBING and (climbs := _climbs(activity)):
+        data.update(climbs)
     return data
+
+
+# Typed split fields that may carry a boulder's grade or result (Garmin's names are not
+# verified yet: shown as they come, so the app's climbing charts can be built on them).
+_CLIMB_HINTS = ("grade", "difficult", "result", "status", "attempt", "send", "complet", "fall")
+
+
+def _climbs(activity: Activity) -> dict[str, Any]:
+    raw = activity.details.typed_splits_json if activity.details else None
+    splits = raw.get("splits") if isinstance(raw, dict) else None
+    if not isinstance(splits, list) or not splits:
+        return {}
+    items = []
+    keys: set[str] = set()
+    for split in splits[:MAX_LAPS]:
+        if not isinstance(split, dict):
+            continue
+        keys.update(k for k, v in split.items() if v is not None)
+        duration = split.get("duration")
+        seconds = duration if isinstance(duration, int | float) else None
+        item = {"type": split.get("type"), "time": fmt_duration(seconds)}
+        item.update(
+            {
+                k: v
+                for k, v in split.items()
+                if v is not None and any(h in k.lower() for h in _CLIMB_HINTS)
+            }
+        )
+        items.append(compact(item))
+    return {"climbs": items, "climb_split_keys": sorted(keys)}
 
 
 def _downsample(points: list[tuple[date, float]], period: Period) -> list[tuple[date, float]]:

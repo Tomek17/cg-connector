@@ -103,6 +103,10 @@ class GarminGateway(Protocol):
         """Strength sets (`exerciseSets`); empty for non-strength activities."""
         ...
 
+    def get_activity_typed_splits(self, activity_id: int) -> dict[str, Any]:
+        """Typed splits (`/typedsplits`): for climbing one split per climb and rest."""
+        ...
+
     def upload_workout(self, workout: dict[str, Any]) -> int:
         """Create a workout (JSON from `cg_server.workout_garmin`); return its `workoutId`."""
         ...
@@ -248,6 +252,11 @@ class RealGarminGateway:
     def get_activity_exercise_sets(self, activity_id: int) -> dict[str, Any]:
         with _translate_errors():
             return self._session().get_activity_exercise_sets(str(activity_id))
+
+    def get_activity_typed_splits(self, activity_id: int) -> dict[str, Any]:
+        with _translate_errors():
+            result: dict[str, Any] = self._session().get_activity_typed_splits(str(activity_id))
+            return result
 
     def upload_workout(self, workout: dict[str, Any]) -> int:
         with _translate_errors():

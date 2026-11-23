@@ -36,6 +36,7 @@ DETAIL_CALLS = {
     "get_activity_splits",
     "get_activity_hr_in_timezones",
     "get_activity_exercise_sets",
+    "get_activity_typed_splits",
 }
 
 
@@ -547,3 +548,25 @@ def test_sync_refuses_to_run_while_another_process_holds_the_lock(
     # Once the lock is free the sync works (and the stale run is marked interrupted).
     assert run(session, user, fake, settings.encryption_key).status == SyncStatus.OK
     assert (settings.data_dir / "sync.lock").exists()
+
+
+def test_climbing_gets_typed_splits_and_old_sessions_are_backfilled(
+    session: Session, settings: Settings
+) -> None:
+    user = make_user(session, settings.encryption_key)
+    fake = FakeGarminGateway(activities=activities_fixture())
+    run(session, user, fake, settings.encryption_key)
+
+    climb = session.scalars(select(Activity).where(Activity.garmin_activity_id == 3)).one()
+    assert climb.details is not None
+    assert climb.details.typed_splits_json["splits"][0]["type"] == "CLIMB_ACTIVE"
+    running = session.scalars(select(Activity).where(Activity.garmin_activity_id == 1)).one()
+    assert running.details is not None and running.details.typed_splits_json is None
+
+    # A session synced before typed splits existed is completed by the next run.
+    climb.details.typed_splits_json = None
+    session.commit()
+    run(session, user, fake, settings.encryption_key, now=NOW + timedelta(days=1))
+    session.refresh(climb)
+    assert climb.details is not None
+    assert climb.details.typed_splits_json["splits"][1]["type"] == "CLIMB_REST"
