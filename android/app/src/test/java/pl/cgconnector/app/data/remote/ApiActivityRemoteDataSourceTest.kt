@@ -66,6 +66,14 @@ class ApiActivityRemoteDataSourceTest {
         override suspend fun setGoal(body: GoalDto): GoalStateDto = error("unused")
 
         override suspend fun deleteGoal(): GoalStateDto = error("unused")
+
+        override suspend fun garminLoginKey(): LoginKeyDto = error("unused")
+
+        override suspend fun garminLogin(body: GarminLoginRequestDto): GarminLoginResponseDto = error("unused")
+
+        override suspend fun garminMfa(body: MfaRequestDto): GarminLoginResponseDto = error("unused")
+
+        override suspend fun claudeCode(): ClaudeCodeDto = error("unused")
     }
 
     private fun dto(
