@@ -196,7 +196,6 @@ private fun ClaudeSection(
 ) {
     var confirm by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.claude_title), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.claude_intro, "$serverUrl/mcp"), style = MaterialTheme.typography.bodyMedium)
