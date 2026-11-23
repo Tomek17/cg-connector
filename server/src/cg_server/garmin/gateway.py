@@ -20,6 +20,7 @@ import logging
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from garminconnect import (
@@ -37,6 +38,18 @@ MaxMetrics = dict[str, Any] | list[dict[str, Any]]
 # `hrTimeInZones`: garminconnect annotates dict, but Garmin returns a list of zones
 # ({"zoneNumber", "secsInZone", "zoneLowBoundary"}); accept both.
 HrZones = dict[str, Any] | list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class LoginStep:
+    """Result of the first step of a two-step login (from the app).
+
+    Either `tokens` (logged in) or `mfa_state` (Garmin wants an MFA code; pass the state to
+    `finish_login`). The state holds Garmin session cookies: keep it in memory only.
+    """
+
+    tokens: str | None = None
+    mfa_state: dict[str, Any] | None = None
 
 
 class GarminError(Exception):
@@ -59,6 +72,14 @@ class GarminAuthError(GarminError):
 class GarminGateway(Protocol):
     def login(self, email: str, password: str, prompt_mfa: MfaPrompt) -> str:
         """Log in with password (+ MFA code from `prompt_mfa`), return tokens to store."""
+        ...
+
+    def start_login(self, email: str, password: str) -> LoginStep:
+        """Password login without a blocking MFA prompt (see `LoginStep`)."""
+        ...
+
+    def finish_login(self, mfa_state: dict[str, Any], mfa_code: str) -> str:
+        """Finish a login waiting for MFA; returns the tokens."""
         ...
 
     def resume(self, tokens: str) -> None:
@@ -198,6 +219,24 @@ class RealGarminGateway:
         garmin = Garmin(email=email, password=password, prompt_mfa=prompt_mfa)
         with _translate_errors():
             garmin.login()
+        self._garmin = garmin
+        return self.dumps()
+
+    def start_login(self, email: str, password: str) -> LoginStep:
+        os.environ.pop("GARMINTOKENS", None)
+        garmin = Garmin(email=email, password=password, return_on_mfa=True)
+        with _translate_errors():
+            status, state = garmin.login()
+        if status == "needs_mfa":
+            return LoginStep(mfa_state=state)
+        self._garmin = garmin
+        return LoginStep(tokens=self.dumps())
+
+    def finish_login(self, mfa_state: dict[str, Any], mfa_code: str) -> str:
+        os.environ.pop("GARMINTOKENS", None)
+        garmin = Garmin()
+        with _translate_errors():
+            garmin.resume_login(mfa_state, mfa_code)
         self._garmin = garmin
         return self.dumps()
 

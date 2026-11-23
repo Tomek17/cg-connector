@@ -103,6 +103,20 @@ liście). `last_error` to `<kod>: <opis po angielsku>`, kody: `send_failed`, `de
 Po usunięciu ostatniego wpisu danego treningu serwer usuwa też trening „CG …” z biblioteki Garmina
 (tylko obiekty utworzone przez CG-connector).
 
+### Konfiguracja z aplikacji (zaproszenie, Garmin, Claude)
+
+Osoba konfiguruje wszystko sama w aplikacji; Tomek tylko wysyła kod zaproszenia (`cg-server invite --name <nazwa>`).
+
+| Endpoint | Auth | Co robi |
+|---|---|---|
+| `POST /invite/redeem` `{code}` | brak | jednorazowy kod `cgi_…` (ważny 7 dni) → `{user, app_token, login_key}`; 404 = zły/zużyty/wygasły |
+| `GET /garmin/login-key` | token | klucz publiczny RSA (`RSA-OAEP-256`, MGF1 SHA-256, Base64 DER SPKI) + `fingerprint` |
+| `POST /garmin/login` `{email, password_encrypted}` | token | hasło zaszyfrowane kluczem z `login_key`; odpowiedź `status` |
+| `POST /garmin/mfa` `{code}` | token | drugi krok, gdy `status = needs_mfa` (stan ważny 10 min, jedna próba) |
+| `POST /claude-code` | token | nowy kod CG `cgc_…`; unieważnia stary i rozłącza dotychczasowe połączenia Claude |
+
+`status` (zawsze HTTP 200): `ok` (tokeny zapisane, `sync_started` = pierwsze pobranie ruszyło), `needs_mfa`, `bad_credentials`, `mfa_expired`, `rate_limited` (Garmin 429, pauza 24 h, `retry_at`), `too_many_attempts` (2 nieudane próby na godzinę, `retry_at`), `key_changed` (pobierz klucz ponownie). Hasło nie jest zapisywane ani logowane; klucz prywatny leży w `data/app-login-key.pem`, zaszyfrowany `CG_ENCRYPTION_KEY`. Szyfrowanie hasła w aplikacji chroni je przed tunelem (ngrok widzi ruch w jawnej postaci).
+
 ## Rozbieżności z propozycją z `android/README.md`
 
 | Propozycja aplikacji | Stan w API | Powód / co zrobić w aplikacji |

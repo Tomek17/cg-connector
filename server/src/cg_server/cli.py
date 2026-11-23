@@ -117,6 +117,12 @@ SECRET_INFO = {
         "Token aplikacji Android",
         "Wpisz go w ustawieniach aplikacji CG-connector na telefonie.",
     ),
+    SecretKind.INVITE: (
+        "Kod zaproszenia",
+        "Wyślij go tej osobie razem z adresem serwera. W aplikacji: Ustawienia → Mam kod "
+        "zaproszenia. Kod jest jednorazowy i ważny 7 dni; logowanie do Garmina i kod do "
+        "Claude osoba zrobi już sama w aplikacji.",
+    ),
 }
 
 
@@ -128,6 +134,15 @@ def _show_secret_once(secret: str) -> None:
     sys.stdout.flush()
 
 
+def cmd_invite(settings: Settings, name: str) -> None:
+    """Invite code for `name`; adds the user first if needed."""
+    with open_db(settings)() as session:
+        if get_user(session, name) is None:
+            add_user(session, name)
+            print(f"Dodano użytkownika „{name}”.")
+    cmd_issue_secret(settings, name, SecretKind.INVITE)
+
+
 def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> None:
     with open_db(settings)() as session:
         user = _require_user(session, name)
@@ -136,7 +151,8 @@ def cmd_issue_secret(settings: Settings, name: str, kind: SecretKind) -> None:
     print(f"{title} dla „{name}” (pokazywany tylko raz, zapisz go w bezpiecznym miejscu):")
     _show_secret_once(secret)
     print(hint)
-    print("Poprzedni kod/token (jeśli był) przestał działać.")
+    if kind is not SecretKind.INVITE:
+        print("Poprzedni kod/token (jeśli był) przestał działać.")
     if kind is SecretKind.CG_CODE:
         print("Wcześniejsze połączenia claude.ai zostały rozłączone; połącz konektor ponownie.")
 
@@ -446,6 +462,9 @@ def main(
     serve.add_argument("--port", type=int, default=8000)
     sub.add_parser("gen-key", help="wypisz nowy klucz szyfrowania (CG_ENCRYPTION_KEY)")
     sub.add_parser("user-add", help="dodaj użytkownika").add_argument("--name", required=True)
+    sub.add_parser(
+        "invite", help="kod zaproszenia: osoba konfiguruje resztę sama w aplikacji"
+    ).add_argument("--name", required=True)
     garmin_login = sub.add_parser(
         "garmin-login", help="zaloguj użytkownika do Garmin Connect (jednorazowo, hasło + MFA)"
     )
@@ -497,6 +516,8 @@ def main(
             print(generate_key())
         elif args.command == "user-add":
             cmd_user_add(get_settings(), args.name)
+        elif args.command == "invite":
+            cmd_invite(get_settings(), args.name)
         elif args.command == "user-code":
             cmd_issue_secret(get_settings(), args.user, SecretKind.CG_CODE)
         elif args.command == "app-token":

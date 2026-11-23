@@ -13,6 +13,7 @@ from cg_server.garmin.gateway import (
     GarminAuthError,
     GarminNotFound,
     HrZones,
+    LoginStep,
     MaxMetrics,
     MfaPrompt,
 )
@@ -95,6 +96,8 @@ class FakeGarminGateway:
         activities: list[dict[str, Any]] | None = None,
         vo2max: list[tuple[str, float]] | None = None,
         on_call: CallHook | None = None,
+        password: str | None = None,
+        mfa_code: str | None = None,
     ) -> None:
         self.tokens = tokens
         self.refreshed_tokens = refreshed_tokens
@@ -106,6 +109,11 @@ class FakeGarminGateway:
         self.calls: list[str] = []
         self.call_args: list[tuple[str, tuple[Any, ...]]] = []
         self.mfa_code: str | None = None
+        # Two-step login (from the app): `password` None = any password works;
+        # `mfa_code` set = Garmin asks for this MFA code.
+        self.expected_password = password
+        self.expected_mfa = mfa_code
+        self.logins: list[tuple[str, str]] = []
         self._session_tokens: str | None = None
         # Garmin side of workouts: library {workoutId: json}, calendar {scheduleId: entry}.
         self.workouts: dict[int, dict[str, Any]] = {}
@@ -130,6 +138,23 @@ class FakeGarminGateway:
     def login(self, email: str, password: str, prompt_mfa: MfaPrompt) -> str:
         self._call("login")
         self.mfa_code = prompt_mfa()
+        self._session_tokens = self.tokens
+        return self.tokens
+
+    def start_login(self, email: str, password: str) -> LoginStep:
+        self._call("start_login")
+        self.logins.append((email, password))
+        if self.expected_password is not None and password != self.expected_password:
+            raise GarminAuthError("Garmin: błąd uwierzytelnienia")
+        if self.expected_mfa is not None:
+            return LoginStep(mfa_state={"fake": "state", "email": email})
+        self._session_tokens = self.tokens
+        return LoginStep(tokens=self.tokens)
+
+    def finish_login(self, mfa_state: dict[str, Any], mfa_code: str) -> str:
+        self._call("finish_login")
+        if mfa_state.get("fake") != "state" or mfa_code != self.expected_mfa:
+            raise GarminAuthError("Garmin: błąd uwierzytelnienia")
         self._session_tokens = self.tokens
         return self.tokens
 
