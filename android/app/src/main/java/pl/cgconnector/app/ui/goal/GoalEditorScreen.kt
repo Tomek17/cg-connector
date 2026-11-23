@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -62,7 +63,9 @@ fun GoalEditorRoute(
         onPreset = viewModel::choosePreset,
         onCustomKm = viewModel::setCustomKm,
         onDate = viewModel::setDate,
-        onTime = viewModel::setTime,
+        onHours = viewModel::setHours,
+        onMinutes = viewModel::setMinutes,
+        onSeconds = viewModel::setSeconds,
         onSave = viewModel::save,
         onDelete = viewModel::delete,
     )
@@ -77,7 +80,9 @@ fun GoalEditorScreen(
     onPreset: (Double?) -> Unit,
     onCustomKm: (String) -> Unit,
     onDate: (LocalDate) -> Unit,
-    onTime: (String) -> Unit,
+    onHours: (String) -> Unit,
+    onMinutes: (String) -> Unit,
+    onSeconds: (String) -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -135,24 +140,7 @@ fun GoalEditorScreen(
                 )
             }
             GoalDateButton(state.date, state.today, onDate)
-            OutlinedTextField(
-                value = state.time,
-                onValueChange = onTime,
-                label = { Text(stringResource(R.string.goal_time)) },
-                placeholder = { Text("1:45:00") },
-                isError = GoalProblem.TIME in state.problems,
-                supportingText = {
-                    val pace = state.paceSecPerKm?.let { Formatters.pace(it / 60.0) }
-                    when {
-                        GoalProblem.TIME in state.problems -> Text(stringResource(R.string.goal_problem_time))
-                        pace != null -> Text(stringResource(R.string.goal_pace, pace))
-                        else -> Text(stringResource(R.string.goal_time_hint))
-                    }
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            TargetTimeFields(state, onHours, onMinutes, onSeconds)
             state.error?.let {
                 Text(stringResource(it.messageRes()), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
@@ -183,6 +171,54 @@ fun GoalEditorScreen(
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+/** Czas docelowy: godziny, minuty, sekundy (osobne pola, bo klawiatura numeryczna nie ma dwukropka). */
+@Composable
+private fun TargetTimeFields(
+    state: GoalEditorUiState,
+    onHours: (String) -> Unit,
+    onMinutes: (String) -> Unit,
+    onSeconds: (String) -> Unit,
+) {
+    val error = GoalProblem.TIME in state.problems
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.goal_time), style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TimePartField(state.hours, onHours, R.string.goal_time_hours, "1", error, Modifier.weight(1f))
+            TimePartField(state.minutes, onMinutes, R.string.goal_time_minutes, "45", error, Modifier.weight(1f))
+            TimePartField(state.seconds, onSeconds, R.string.goal_time_seconds, "00", error, Modifier.weight(1f))
+        }
+        val pace = state.paceSecPerKm?.let { Formatters.pace(it / 60.0) }
+        val (text, color) =
+            when {
+                error -> stringResource(R.string.goal_problem_time) to MaterialTheme.colorScheme.error
+                pace != null -> stringResource(R.string.goal_pace, pace) to MaterialTheme.colorScheme.onSurfaceVariant
+                else -> stringResource(R.string.goal_time_hint) to MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        Text(text, style = MaterialTheme.typography.bodySmall, color = color)
+    }
+}
+
+@Composable
+private fun TimePartField(
+    value: String,
+    onChange: (String) -> Unit,
+    label: Int,
+    placeholder: String,
+    isError: Boolean,
+    modifier: Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(stringResource(label)) },
+        placeholder = { Text(placeholder) },
+        isError = isError,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        singleLine = true,
+        modifier = modifier,
+    )
 }
 
 /** Data startu: od dziś do [MAX_YEARS_AHEAD] lat naprzód (cel może być odległy, inaczej niż treningi). */

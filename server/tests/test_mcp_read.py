@@ -19,7 +19,7 @@ from cg_server.queries import WARSAW
 from cg_server.user_secrets import SecretKind, issue_secret
 from cg_server.users import add_user
 from tests.helpers import BASE, PUBLIC_HOST, login_tokens, running
-from tests.seed import add_activity, add_sync, add_vo2max, set_garmin_status
+from tests.seed import add_activity, add_sync, add_vo2max, climb_split, set_garmin_status
 
 pytestmark = pytest.mark.anyio
 
@@ -67,8 +67,11 @@ def codes(app_settings: Settings) -> dict[str, str]:
         assert climb.details is not None
         climb.details.typed_splits_json = {
             "splits": [
-                {"type": "CLIMB_ACTIVE", "duration": 95.0, "difficultyGrade": "V4", "x": None},
+                climb_split("V2", 3, sent=True),
                 {"type": "CLIMB_REST", "duration": 180.0},
+                climb_split("V4", 5, sent=False),
+                climb_split("V4", 5, sent=True),
+                climb_split("V5", 6, sent=False),
             ]
         }
         add_activity(session, b, 201, at(t - timedelta(days=1)))
@@ -451,8 +454,9 @@ async def test_climbing_activity_shows_climbs(
     http: httpx2.AsyncClient, codes: dict[str, str]
 ) -> None:
     data = await ok(http, codes["a"], "get_activity", {"activity_id": 103})
-    assert data["climbs"] == [
-        {"type": "CLIMB_ACTIVE", "time": "1:35", "difficultyGrade": "V4"},
-        {"type": "CLIMB_REST", "time": "3:00"},
-    ]
-    assert data["climb_split_keys"] == ["difficultyGrade", "duration", "type"]
+    assert data["climbs"] == {
+        "top": "V4",
+        "sent": 2,
+        "failed": 2,
+        "by_grade": {"V2": "1/0", "V4": "1/1", "V5": "0/1"},
+    }

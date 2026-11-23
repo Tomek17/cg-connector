@@ -27,6 +27,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.ActivityType
+import pl.cgconnector.app.domain.ClimbSession
 import pl.cgconnector.app.domain.ExerciseProgress
 import pl.cgconnector.app.domain.RunPoint
 import pl.cgconnector.app.domain.workout.ExerciseCatalog
@@ -82,7 +83,8 @@ fun TagProgressScreen(
                         runningCharts(progress.running)
                     }
                 tag.type == ActivityType.STRENGTH -> exerciseList(progress.strength, onOpenExercise)
-                else -> item { Text(stringResource(R.string.progress_climbing_soon)) }
+                progress.climbing.isEmpty() -> item { Text(stringResource(R.string.progress_climbing_empty)) }
+                else -> climbingCharts(progress.climbing)
             }
         }
     }
@@ -117,6 +119,55 @@ private fun LazyListScope.runningCharts(runs: List<RunPoint>) {
     item(key = "note") { Text(stringResource(R.string.progress_work_laps_note), style = MaterialTheme.typography.bodySmall) }
     item(key = "sessions") { Text(stringResource(R.string.progress_sessions), style = MaterialTheme.typography.titleMedium) }
     items(runs.reversed(), key = { "run-${it.activityId}" }) { run -> RunRow(run) }
+}
+
+private fun LazyListScope.climbingCharts(sessions: List<ClimbSession>) {
+    val dates = ProgressChartMath.dateRange(sessions.map { it.date }) ?: return
+    // Oś „najtrudniejszy top” w kolejności trudności Garmina, podpisy stopniami (V2, V3…).
+    val gradeNames = sessions.flatMap { s -> s.grades.map { it.sort to it.grade } }.toMap()
+    val color = sportColors(ActivityType.CLIMBING).content
+    val gradeFormat = { v: Double -> gradeNames[v.roundToInt()] ?: "" }
+    val countFormat = { v: Double -> v.roundToInt().toString() }
+    val charts =
+        listOf(
+            Triple(R.string.progress_chart_top_grade, sessions.map { it.topSort?.toDouble() }, gradeFormat),
+            Triple(R.string.progress_chart_sent, sessions.map { it.sent.toDouble() }, countFormat),
+            Triple(R.string.progress_chart_failed, sessions.map { it.failed.toDouble() }, countFormat),
+        )
+    charts.forEach { (titleRes, values, format) ->
+        val data = ProgressChartMath.sessions(values) ?: return@forEach
+        item(key = "chart-$titleRes") {
+            ChartCard(
+                title = stringResource(titleRes),
+                data = data,
+                sessions = values.count { it != null },
+                dates = dates,
+                format = format,
+                connect = true,
+                color = color,
+            )
+        }
+    }
+    item(key = "sessions") { Text(stringResource(R.string.progress_sessions), style = MaterialTheme.typography.titleMedium) }
+    items(sessions.reversed(), key = { "climb-${it.activityId}" }) { session -> ClimbRow(session) }
+}
+
+@Composable
+private fun ClimbRow(session: ClimbSession) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                listOfNotNull(SHORT_DATE.format(session.date), session.name).joinToString(" · "),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                stringResource(R.string.progress_climb_row, session.topGrade ?: "–", session.sent, session.failed),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            val grades = session.grades.map { stringResource(R.string.progress_climb_grade, it.grade, it.sent, it.sent + it.failed) }
+            Text(grades.joinToString("  "), style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
 
 @Composable

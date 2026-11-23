@@ -1164,7 +1164,7 @@
               }
             ],
             "title": "Tag",
-            "description": "Tag (jeden): intervals, tempo, long, base, strides, upper, fbw, push, pull, legs, wall; null = brak"
+            "description": "Tag (jeden): intervals, tempo, long, base, easy, strides, upper, fbw, push, pull, legs, wall; null = brak"
           },
           "details_available": {
             "type": "boolean",
@@ -1431,7 +1431,7 @@
               }
             ],
             "title": "Tag",
-            "description": "Tag (jeden): intervals, tempo, long, base, strides, upper, fbw, push, pull, legs, wall; null = brak"
+            "description": "Tag (jeden): intervals, tempo, long, base, easy, strides, upper, fbw, push, pull, legs, wall; null = brak"
           }
         },
         "type": "object",
@@ -1469,6 +1469,81 @@
           "code"
         ],
         "title": "ClaudeCodeOut"
+      },
+      "ClimbSessionOut": {
+        "properties": {
+          "activity_id": {
+            "type": "integer",
+            "title": "Activity Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "top_grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Grade",
+            "description": "Najtrudniejszy udany problem; null = brak udanych"
+          },
+          "top_sort": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Sort"
+          },
+          "sent": {
+            "type": "integer",
+            "title": "Sent"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/GradeCountOut"
+            },
+            "type": "array",
+            "title": "Grades",
+            "description": "Od najłatwiejszego stopnia"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_id",
+          "date",
+          "name",
+          "top_grade",
+          "top_sort",
+          "sent",
+          "failed",
+          "grades"
+        ],
+        "title": "ClimbSessionOut"
       },
       "Exercise": {
         "properties": {
@@ -1822,6 +1897,38 @@
           "goal"
         ],
         "title": "GoalState"
+      },
+      "GradeCountOut": {
+        "properties": {
+          "grade": {
+            "type": "string",
+            "title": "Grade",
+            "description": "Stopień z Garmina, np. V4"
+          },
+          "sort": {
+            "type": "integer",
+            "title": "Sort",
+            "description": "Kolejność trudności (większa = trudniej)"
+          },
+          "sent": {
+            "type": "integer",
+            "title": "Sent",
+            "description": "Udane wejścia"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "description": "Nieudane próby"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grade",
+          "sort",
+          "sent",
+          "failed"
+        ],
+        "title": "GradeCountOut"
       },
       "HTTPValidationError": {
         "properties": {
@@ -3027,6 +3134,14 @@
             "type": "array",
             "title": "Strength",
             "description": "Siłownia: ćwiczenia z seriami"
+          },
+          "climbing": {
+            "items": {
+              "$ref": "#/components/schemas/ClimbSessionOut"
+            },
+            "type": "array",
+            "title": "Climbing",
+            "description": "Ścianka: sesja z problemami, od najstarszej"
           }
         },
         "type": "object",

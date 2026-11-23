@@ -42,6 +42,7 @@ fun ActivityTag.labelRes(): Int =
         ActivityTag.TEMPO -> R.string.tag_tempo
         ActivityTag.LONG -> R.string.tag_long
         ActivityTag.BASE -> R.string.tag_base
+        ActivityTag.EASY -> R.string.tag_easy
         ActivityTag.STRIDES -> R.string.tag_strides
         ActivityTag.UPPER -> R.string.tag_upper
         ActivityTag.FBW -> R.string.tag_fbw

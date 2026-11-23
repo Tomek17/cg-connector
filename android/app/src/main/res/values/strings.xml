@@ -181,11 +181,14 @@
     <string name="goal_distance_km">Dystans (km)</string>
     <string name="goal_date">Data startu: %1$s</string>
     <string name="goal_time">Czas docelowy (opcjonalnie)</string>
-    <string name="goal_time_hint">h:mm:ss, np. 1:45:00</string>
+    <string name="goal_time_hint">Np. 1 godz. 45 min 0 s. Puste pola = bez czasu docelowego.</string>
+    <string name="goal_time_hours">godz.</string>
+    <string name="goal_time_minutes">min</string>
+    <string name="goal_time_seconds">s</string>
     <string name="goal_pace">Tempo: %1$s min/km</string>
     <string name="goal_problem_name">Wpisz nazwę wydarzenia.</string>
     <string name="goal_problem_distance">Dystans od 0,1 do 500 km.</string>
-    <string name="goal_problem_time">Czas jak 1:45:00 albo 45:00.</string>
+    <string name="goal_problem_time">Minuty i sekundy od 0 do 59, czas od 1 minuty.</string>
     <string name="goal_delete">Usuń cel</string>
     <string name="goal_delete_title">Usunąć cel?</string>
     <string name="goal_claude_note">Cel widzi też Claude i może go zmienić na Twoją prośbę.</string>
@@ -405,11 +408,17 @@
         <item quantity="other">%1$d sesji</item>
     </plurals>
     <string name="progress_no_exercises">W treningach z tym tagiem nie ma zapisanych serii z powtórzeniami lub ciężarem.</string>
-    <string name="progress_climbing_soon">Wykresy ścianki (najlepszy top w skali V i liczba prób udanych i nieudanych) pojawią się w następnej wersji, gdy serwer zacznie pobierać problemy z Garmina.</string>
+    <string name="progress_climbing_empty">Brak sesji z zapisanymi problemami. Zapisuj bulderki na zegarku (stopień i czy wszedłeś), a pojawią się tu po synchronizacji.</string>
+    <string name="progress_chart_top_grade">Najtrudniejszy top</string>
+    <string name="progress_chart_sent">Udane wejścia</string>
+    <string name="progress_chart_failed">Nieudane próby</string>
+    <string name="progress_climb_row">Top %1$s · %2$d udanych · %3$d nieudanych</string>
+    <string name="progress_climb_grade">%1$s: %2$d/%3$d</string>
     <string name="tag_intervals">Interwały</string>
     <string name="tag_tempo">Tempo</string>
     <string name="tag_long">Długi bieg</string>
     <string name="tag_base">Baza</string>
+    <string name="tag_easy">Easy</string>
     <string name="tag_strides">Przebieżki</string>
     <string name="tag_upper">Góra ciała</string>
     <string name="tag_fbw">FBW</string>
