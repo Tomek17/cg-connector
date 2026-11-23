@@ -21,6 +21,7 @@ from cg_server.config import Settings, get_settings
 from cg_server.db import open_db
 from cg_server.garmin.gateway import RealGarminGateway
 from cg_server.login_page import login_router
+from cg_server.manual_sync import ManualSync
 from cg_server.mcp_server import build_mcp
 from cg_server.oauth import CLAUDE_CALLBACKS, MAX_CLIENT_METADATA_BYTES, CgOAuthProvider
 from cg_server.outbox import GatewayFactory, OutboxRunner
@@ -70,7 +71,8 @@ def create_app(
     provider = CgOAuthProvider(settings, sessions)
     # Sends scheduled workouts right after they are added (scheduler: every 15 min).
     outbox = OutboxRunner(sessions, settings, gateway_factory)
-    mcp = build_mcp(settings, sessions, provider, outbox)
+    manual = ManualSync(sessions, settings, gateway_factory)
+    mcp = build_mcp(settings, sessions, provider, outbox, manual)
     mcp_app = mcp.streamable_http_app(
         streamable_http_path="/mcp",
         stateless_http=True,
@@ -101,6 +103,7 @@ def create_app(
     )
     app.state.sessions = sessions
     app.state.outbox = outbox
+    app.state.manual_sync = manual
     app.state.tz = ZoneInfo(settings.timezone)
 
     @app.exception_handler(Exception)

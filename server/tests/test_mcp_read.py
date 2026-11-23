@@ -29,6 +29,7 @@ TOOLS = [
     "get_vo2max_trend",
     "get_training_summary",
     "set_goal",
+    "sync_now",
 ]
 
 
@@ -429,3 +430,9 @@ async def test_set_goal_and_profile(http: httpx2.AsyncClient, codes: dict[str, s
     assert is_error and "h:mm:ss" in text
     cleared = await ok(http, codes["a"], "set_goal", {"name": None})
     assert cleared == {"goal": None}
+
+
+async def test_sync_now_is_refused_without_garmin_tokens(
+    http: httpx2.AsyncClient, codes: dict[str, str]
+) -> None:
+    assert await ok(http, codes["a"], "sync_now") == {"synced": False, "reason": "no_garmin"}

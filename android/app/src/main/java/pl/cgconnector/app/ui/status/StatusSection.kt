@@ -31,6 +31,7 @@ import pl.cgconnector.app.domain.ServerState
 import pl.cgconnector.app.ui.components.LabelValue
 import pl.cgconnector.app.ui.components.StatusBadge
 import pl.cgconnector.app.ui.format.Formatters
+import pl.cgconnector.app.ui.sync.SyncNowButton
 import pl.cgconnector.app.ui.theme.StatusTone
 import java.time.Instant
 
@@ -96,6 +97,7 @@ fun StatusSection(
                 OutlinedButton(onClick = onRefresh, enabled = !state.isRefreshing, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.status_check_now))
                 }
+                SyncNowButton()
             }
         }
     }

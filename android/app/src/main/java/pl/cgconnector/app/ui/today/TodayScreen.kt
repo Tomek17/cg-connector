@@ -49,6 +49,7 @@ import pl.cgconnector.app.ui.queue.sportLabel
 import pl.cgconnector.app.ui.queue.statusLabel
 import pl.cgconnector.app.ui.queue.statusTone
 import pl.cgconnector.app.ui.status.tone
+import pl.cgconnector.app.ui.sync.SyncNowButton
 import pl.cgconnector.app.ui.theme.StatusTone
 import pl.cgconnector.app.ui.vo2max.Vo2MaxViewModel
 import java.time.LocalDate
@@ -110,6 +111,7 @@ fun TodayScreen(
             WeekCard(state.week)
             Vo2Card(state, onOpenVo2Max)
             ServerLine(state, onOpenSettings)
+            SyncNowButton()
         }
     }
 }
