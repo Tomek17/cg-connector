@@ -48,6 +48,7 @@ private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, 
 @Composable
 fun QueueRoute(
     onCopy: (QueuedWorkout) -> Unit = {},
+    onOpen: (QueuedWorkout) -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     viewModel: QueueViewModel = hiltViewModel(),
 ) {
@@ -60,6 +61,7 @@ fun QueueRoute(
         onDelete = viewModel::askDelete,
         onRetry = viewModel::retry,
         onCopy = onCopy,
+        onOpen = onOpen,
         onConfirmDelete = viewModel::confirmDelete,
         onDismissDelete = viewModel::dismissDelete,
         floatingActionButton = floatingActionButton,
@@ -77,6 +79,7 @@ fun QueueScreen(
     onDismissDelete: () -> Unit,
     floatingActionButton: @Composable () -> Unit = {},
     onCopy: (QueuedWorkout) -> Unit = {},
+    onOpen: (QueuedWorkout) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -100,7 +103,15 @@ fun QueueScreen(
                 item {
                     Text(stringResource(R.string.queue_watch_hint), style = MaterialTheme.typography.bodySmall)
                 }
-                items(state.items, key = { it.id }) { item -> QueueRow(item, onDelete = { onDelete(item) }, onRetry = { onRetry(item) }, onCopy = { onCopy(item) }) }
+                items(state.items, key = { it.id }) { item ->
+                    QueueRow(
+                        item,
+                        onDelete = { onDelete(item) },
+                        onRetry = { onRetry(item) },
+                        onCopy = { onCopy(item) },
+                        onOpen = { onOpen(item) },
+                    )
+                }
             }
         }
     }
@@ -122,8 +133,9 @@ private fun QueueRow(
     onDelete: () -> Unit,
     onRetry: () -> Unit,
     onCopy: () -> Unit,
+    onOpen: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ActivityTypeIcon(item.sport?.activityType() ?: ActivityType.OTHER)

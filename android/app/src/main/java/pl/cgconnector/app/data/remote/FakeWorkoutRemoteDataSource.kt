@@ -3,6 +3,7 @@ package pl.cgconnector.app.data.remote
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -26,6 +27,7 @@ class FakeWorkoutRemoteDataSource
         private val mutex = Mutex()
         private val workouts = mutableMapOf<String, WorkoutOutDto>()
         private val scheduled = linkedMapOf<Long, ScheduledOutDto>()
+        private val definitions = mutableMapOf<Long, JsonObject>()
         private var nextId = 1L
 
         override suspend fun createWorkout(body: NewWorkoutDto): WorkoutOutDto =
@@ -34,7 +36,7 @@ class FakeWorkoutRemoteDataSource
                 if (REJECT_MARKER in name) throw httpError(422, "Invalid workout definition (fake)")
                 workouts.getOrPut(body.clientId) {
                     val sport = body.definition["sport"]?.jsonPrimitive?.content.orEmpty()
-                    WorkoutOutDto(nextId++, body.clientId, name, sport, createdBy = "app")
+                    WorkoutOutDto(nextId++, body.clientId, name, sport, createdBy = "app").also { definitions[it.id] = body.definition }
                 }
             }
 
@@ -51,7 +53,15 @@ class FakeWorkoutRemoteDataSource
                 // Jak serwer: ponowne zaplanowanie wpisu z błędem przywraca go do kolejki.
                 when {
                     existing == null ->
-                        ScheduledOutDto(nextId++, workoutId, workout.name, workout.sport, date.toString(), "pending")
+                        ScheduledOutDto(
+                            nextId++,
+                            workoutId,
+                            workout.name,
+                            workout.sport,
+                            date.toString(),
+                            "pending",
+                            definition = definitions[workoutId],
+                        )
                     existing.status == "failed" -> existing.copy(status = "pending", lastError = null)
                     else -> existing
                 }.also { scheduled[it.id] = it }

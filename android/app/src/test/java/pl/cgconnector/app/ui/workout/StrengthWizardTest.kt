@@ -139,4 +139,24 @@ class StrengthWizardTest {
 
         assertThat(viewModel.hasUnsavedChanges()).isTrue()
     }
+
+    @Test
+    fun `editing a plan entry keeps its date and replaces it on save`() =
+        runTest {
+            val source = StrengthWorkout("Siła B", listOf(StrengthExercise("Plank", sets = 3, seconds = 45)))
+            val id = repository.enqueue(source, LocalDate.of(2030, 1, 15))
+
+            val edit = StrengthWizardViewModel(repository, templates, SavedStateHandle(mapOf("replaceId" to id)), clock)
+            assertThat(edit.state.value.isEditing).isTrue()
+            assertThat(edit.state.value.date).isEqualTo(LocalDate.of(2030, 1, 15))
+            assertThat(edit.hasUnsavedChanges()).isFalse()
+
+            edit.updateExercise(edit.state.value.exercises.single().copy(sets = "4"))
+            edit.save()
+
+            assertThat(repository.deleteRequests).containsExactly(id)
+            val (saved, date) = repository.enqueued.last()
+            assertThat((saved as StrengthWorkout).exercises.single().sets).isEqualTo(4)
+            assertThat(date).isEqualTo(LocalDate.of(2030, 1, 15))
+        }
 }

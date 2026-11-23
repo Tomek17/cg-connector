@@ -239,6 +239,7 @@
     <string name="wizard_running_title">Nowy trening biegowy</string>
     <string name="wizard_new_strength">Trening siłowy</string>
     <string name="wizard_strength_title">Nowy trening siłowy</string>
+    <string name="wizard_strength_edit_title">Edycja treningu siłowego</string>
     <string name="wizard_new_bouldering">Bouldering</string>
     <string name="wizard_new_other">Inne (sam opis)</string>
     <string name="wizard_freeform_title">Nowy trening: %1$s</string>
@@ -365,4 +366,36 @@
     <string name="tag_cancel">Anuluj</string>
     <string name="tag_saving">Zapisuję tag…</string>
     <string name="tag_save_failed">Nie udało się zapisać tagu: %1$s</string>
+
+    <!-- Szczegóły treningu z Planu -->
+    <string name="plan_detail_title">Trening z Planu</string>
+    <string name="plan_detail_edit">Edytuj</string>
+    <string name="plan_detail_missing">Tego treningu nie ma już w Planie.</string>
+    <string name="plan_detail_no_definition">Telefon nie zna jeszcze kroków tego treningu. Odśwież Plan; jeśli to nie pomoże, zaktualizuj serwer.</string>
+    <string name="plan_detail_total_time">Razem %1$s</string>
+    <string name="plan_detail_total_time_about">Razem ok. %1$s</string>
+    <string name="plan_detail_total_km">%1$s km</string>
+    <string name="plan_detail_pace_axis">%1$s /km</string>
+    <string name="plan_detail_chart_description">Wykres treningu: %1$d odcinków, szerokość to czas, wysokość to tempo</string>
+    <string name="plan_detail_legend_easy">Rozgrzewka i schłodzenie</string>
+    <string name="plan_detail_legend_recovery">Trucht i odpoczynek</string>
+    <string name="plan_detail_repeat">%1$d×</string>
+    <string name="plan_detail_target_pace">%1$s–%2$s /km</string>
+    <string name="plan_detail_target_zone">strefa %1$d</string>
+    <string name="plan_detail_target_hr">%1$d–%2$d bpm</string>
+    <plurals name="plan_detail_sets_reps">
+        <item quantity="one">%1$d seria × %2$d powt.</item>
+        <item quantity="few">%1$d serie × %2$d powt.</item>
+        <item quantity="many">%1$d serii × %2$d powt.</item>
+        <item quantity="other">%1$d serii × %2$d powt.</item>
+    </plurals>
+    <plurals name="plan_detail_sets_seconds">
+        <item quantity="one">%1$d seria × %2$d s</item>
+        <item quantity="few">%1$d serie × %2$d s</item>
+        <item quantity="many">%1$d serii × %2$d s</item>
+        <item quantity="other">%1$d serii × %2$d s</item>
+    </plurals>
+    <string name="plan_detail_weight">%1$s kg</string>
+    <string name="plan_detail_rest">przerwa %1$d s</string>
+    <string name="plan_detail_minutes">%1$d min</string>
 </resources>
