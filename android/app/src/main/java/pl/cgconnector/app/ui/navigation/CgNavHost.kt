@@ -27,6 +27,7 @@ import kotlinx.serialization.Serializable
 import pl.cgconnector.app.R
 import pl.cgconnector.app.ui.activities.ActivitiesRoute
 import pl.cgconnector.app.ui.detail.ActivityDetailRoute
+import pl.cgconnector.app.ui.goal.GoalEditorRoute
 import pl.cgconnector.app.ui.plan.PlanWorkoutRoute
 import pl.cgconnector.app.ui.progress.ProgressCategoryRoute
 import pl.cgconnector.app.ui.progress.ProgressRoute
@@ -60,6 +61,9 @@ data object Vo2MaxDestination
 
 @Serializable
 data object TodayDestination
+
+@Serializable
+data object GoalEditorDestination
 
 @Serializable
 data object QueueDestination
@@ -171,8 +175,10 @@ fun CgNavHost(isConfigured: Boolean) {
                     onOpenPlan = { navController.navigateToTab(QueueDestination) },
                     onOpenVo2Max = { navController.navigate(Vo2MaxDestination) },
                     onOpenSettings = { navController.navigateToTab(SettingsDestination) },
+                    onOpenGoal = { navController.navigate(GoalEditorDestination) },
                 )
             }
+            composable<GoalEditorDestination> { GoalEditorRoute(onDone = { navController.popBackStack() }) }
             composable<Vo2MaxDestination> { Vo2MaxRoute(onBack = { navController.popBackStack() }) }
             composable<QueueDestination> {
                 QueueRoute(

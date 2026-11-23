@@ -106,3 +106,28 @@ class FakeProgressRepository(
         return setTagResult
     }
 }
+
+class FakeGoalRepository(
+    goal: pl.cgconnector.app.domain.RaceGoal? = null,
+    var result: Loaded<Unit> = Loaded.Ok(Unit),
+) : pl.cgconnector.app.data.repository.GoalRepository {
+    val goal = MutableStateFlow(goal)
+    var refreshCalls = 0
+
+    override fun observeGoal(): Flow<pl.cgconnector.app.domain.RaceGoal?> = goal
+
+    override suspend fun refresh(): Loaded<Unit> {
+        refreshCalls++
+        return result
+    }
+
+    override suspend fun save(goal: pl.cgconnector.app.domain.RaceGoal): Loaded<Unit> {
+        if (result is Loaded.Ok) this.goal.value = goal
+        return result
+    }
+
+    override suspend fun clear(): Loaded<Unit> {
+        if (result is Loaded.Ok) goal.value = null
+        return result
+    }
+}

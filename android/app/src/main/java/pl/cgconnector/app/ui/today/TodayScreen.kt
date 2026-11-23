@@ -32,6 +32,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.Freshness
+import pl.cgconnector.app.domain.RaceGoal
 import pl.cgconnector.app.domain.ServerState
 import pl.cgconnector.app.domain.TypeTotals
 import pl.cgconnector.app.domain.WeekSummary
@@ -43,6 +44,7 @@ import pl.cgconnector.app.ui.components.StatusBadge
 import pl.cgconnector.app.ui.components.StatusDot
 import pl.cgconnector.app.ui.components.activityType
 import pl.cgconnector.app.ui.format.Formatters
+import pl.cgconnector.app.ui.goal.presetLabel
 import pl.cgconnector.app.ui.queue.sportLabel
 import pl.cgconnector.app.ui.queue.statusLabel
 import pl.cgconnector.app.ui.queue.statusTone
@@ -57,6 +59,7 @@ fun TodayRoute(
     onOpenPlan: () -> Unit,
     onOpenVo2Max: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenGoal: () -> Unit,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -75,6 +78,7 @@ fun TodayRoute(
         onOpenPlan = onOpenPlan,
         onOpenVo2Max = onOpenVo2Max,
         onOpenSettings = onOpenSettings,
+        onOpenGoal = onOpenGoal,
     )
 }
 
@@ -86,6 +90,7 @@ fun TodayScreen(
     onOpenPlan: () -> Unit,
     onOpenVo2Max: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenGoal: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -100,6 +105,7 @@ fun TodayScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            GoalCard(state.goal, state.today, onOpenGoal)
             NextWorkoutCard(state.nextWorkout, state.today, onOpenPlan)
             WeekCard(state.week)
             Vo2Card(state, onOpenVo2Max)
@@ -144,6 +150,61 @@ private fun NextWorkoutCard(
         }
     }
 }
+
+/** Cel na górze ekranu: start, ile dni zostało, czas i tempo docelowe. Dotknięcie = zmiana celu. */
+@Composable
+private fun GoalCard(
+    goal: RaceGoal?,
+    today: LocalDate,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.today_goal), style = MaterialTheme.typography.labelLarge)
+            if (goal == null) {
+                Text(stringResource(R.string.today_goal_empty), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.today_goal_set), style = MaterialTheme.typography.titleSmall)
+                return@Column
+            }
+            Text(goal.name, style = MaterialTheme.typography.titleLarge)
+            val days = goal.daysLeft(today)
+            val whenText =
+                when {
+                    days > 0 -> pluralStringResource(R.plurals.today_goal_days_left, days.toInt(), days.toInt())
+                    days == 0L -> stringResource(R.string.today_goal_today)
+                    else -> stringResource(R.string.today_goal_past, SHORT_DATE.format(goal.date))
+                }
+            Text(
+                listOf(whenText, SHORT_DATE.format(goal.date), distanceLabel(goal.distanceKm)).joinToString(" · "),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            val target = goal.targetSeconds
+            val pace = goal.targetPaceSecPerKm?.let { Formatters.pace(it / 60.0) }
+            Text(
+                text =
+                    if (target != null && pace != null) {
+                        stringResource(R.string.today_goal_target, RaceGoal.formatTime(target), pace)
+                    } else {
+                        stringResource(R.string.today_goal_no_time)
+                    },
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun distanceLabel(km: Double): String =
+    RaceGoal.PRESETS.firstOrNull { kotlin.math.abs(it - km) < 0.001 }?.let { stringResource(presetLabel(it)) }
+        ?: stringResource(R.string.unit_km, String.format(Formatters.POLISH, "%.1f", km))
 
 @Composable
 private fun WeekCard(week: WeekSummary) {

@@ -18,10 +18,10 @@ from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
-from cg_server import mcp_read, queries
+from cg_server import goals, mcp_read, queries
 from cg_server.config import Settings
 from cg_server.mcp_workouts import READ_ONLY, register_workout_tools
-from cg_server.models import ActivityKind, User, utcnow
+from cg_server.models import ActivityKind, Goal, User, utcnow
 from cg_server.oauth import SCOPE, CgOAuthProvider
 from cg_server.outbox import OutboxRunner
 from cg_server.queries import Period
@@ -49,6 +49,7 @@ class Profile(BaseModel):
     garmin_status: str | None
     last_sync_at: datetime | None
     latest_activity_date: date | None
+    goal: dict[str, Any] | None = None
 
 
 def current_user(session: Session) -> User:
@@ -59,6 +60,19 @@ def current_user(session: Session) -> User:
     if user is None:
         raise ToolError("Unknown user")
     return user
+
+
+def goal_item(goal: Goal) -> dict[str, Any]:
+    pace = goals.pace_s_per_km(goal)
+    return mcp_read.compact(
+        {
+            "name": goal.name,
+            "date": str(goal.event_date),
+            "km": goal.distance_km,
+            "target": goals.format_time(goal.target_seconds) if goal.target_seconds else None,
+            "pace": mcp_read.fmt_pace(pace),
+        }
+    )
 
 
 def _result(data: dict[str, Any]) -> CallToolResult:
@@ -95,12 +109,15 @@ def build_mcp(
 
     @mcp.tool(annotations=READ_ONLY)
     def get_profile() -> Profile:
-        """Signed-in user, Garmin connection status, last successful sync (local time) and the
-        local date of the newest synced activity."""
+        """Signed-in user, Garmin connection status, last successful sync (local time), the
+        local date of the newest synced activity and the user's goal (race, date, target
+        time and pace) if set."""
         with sessions() as session:
             user = current_user(session)
             state = queries.sync_status(session, user_id=user.id, tz=tz)
+            goal = goals.get_goal(session, user.id)
             return Profile(
+                goal=goal_item(goal) if goal else None,
                 user=user.name,
                 garmin_status=state.garmin_status.value if state.garmin_status else None,
                 last_sync_at=state.last_success_at.astimezone(tz)
@@ -172,6 +189,35 @@ def build_mcp(
             except TagError as e:
                 raise ToolError(str(e)) from None
             return _result({"id": activity.garmin_activity_id, "tag": activity.tag})
+
+    @mcp.tool(annotations=TAG)
+    def set_goal(
+        name: Annotated[
+            str | None, Field(description="Event, e.g. 'Warsaw Half Marathon'; null clears.")
+        ],
+        event_date: Annotated[date | None, Field(description="Race day, YYYY-MM-DD.")] = None,
+        distance_km: Annotated[float | None, Field(description="Race distance in km.")] = None,
+        target_time: Annotated[
+            str | None, Field(description="Target finish time h:mm:ss, optional.")
+        ] = None,
+    ) -> CallToolResult:
+        """Set the user's single goal (target race and finish time), shown on the app home
+        screen. Replaces the previous goal; name null removes it."""
+        with sessions() as session:
+            user = current_user(session)
+            if name is None:
+                goals.clear_goal(session, user.id)
+                return _result({"goal": None})
+            if event_date is None or distance_km is None:
+                raise ToolError("event_date and distance_km are required.")
+            try:
+                seconds = goals.parse_time(target_time) if target_time else None
+                goal = goals.set_goal(
+                    session, user.id, goals.GoalIn(name, event_date, distance_km, seconds)
+                )
+            except goals.GoalError as e:
+                raise ToolError(str(e)) from None
+            return _result({"goal": goal_item(goal)})
 
     @mcp.tool(annotations=READ_ONLY)
     def get_vo2max_trend(from_date: FromDate = None, to_date: ToDate = None) -> CallToolResult:

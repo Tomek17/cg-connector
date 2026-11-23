@@ -58,6 +58,12 @@ class ApiActivityRemoteDataSourceTest {
         override suspend fun progressTags(): ProgressTagsDto = error("unused")
 
         override suspend fun tagProgress(tag: String): TagProgressDto = error("unused")
+
+        override suspend fun goal(): GoalStateDto = error("unused")
+
+        override suspend fun setGoal(body: GoalDto): GoalStateDto = error("unused")
+
+        override suspend fun deleteGoal(): GoalStateDto = error("unused")
     }
 
     private fun dto(
