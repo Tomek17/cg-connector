@@ -51,10 +51,12 @@ import pl.cgconnector.app.ui.components.CloseIconButton
 @Composable
 fun RunningWizardRoute(
     onDone: () -> Unit,
+    /** Po zapisie; domyślnie jak wyjście bez zapisu. */
+    onSaved: () -> Unit = onDone,
     viewModel: RunningWizardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(state.isSaved) { if (state.isSaved) onDone() }
+    LaunchedEffect(state.isSaved) { if (state.isSaved) onSaved() }
     val onCancel = rememberLeaveGuard(hasChanges = viewModel::hasUnsavedChanges, onLeave = onDone)
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
@@ -102,7 +104,9 @@ private fun RunningWizardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.wizard_running_title)) },
+                title = {
+                    Text(stringResource(if (state.isEditing) R.string.wizard_running_edit_title else R.string.wizard_running_title))
+                },
                 navigationIcon = { CloseIconButton(onClick = onCancel) },
                 actions = {
                     TextButton(onClick = onShowTemplates) { Text(stringResource(R.string.wizard_templates)) }

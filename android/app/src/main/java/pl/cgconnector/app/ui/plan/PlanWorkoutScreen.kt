@@ -67,11 +67,11 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun PlanWorkoutRoute(
     onBack: () -> Unit,
-    onEditStrength: (Long) -> Unit,
+    onEdit: (QueuedWorkout) -> Unit,
     viewModel: PlanWorkoutViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    PlanWorkoutScreen(state = state, onBack = onBack, onEditStrength = onEditStrength)
+    PlanWorkoutScreen(state = state, onBack = onBack, onEdit = onEdit)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,7 +79,7 @@ fun PlanWorkoutRoute(
 fun PlanWorkoutScreen(
     state: PlanWorkoutUiState,
     onBack: () -> Unit,
-    onEditStrength: (Long) -> Unit,
+    onEdit: (QueuedWorkout) -> Unit,
 ) {
     val item = state.item
     val definition = state.definition
@@ -89,8 +89,8 @@ fun PlanWorkoutScreen(
                 title = { Text(item?.name ?: stringResource(R.string.plan_detail_title)) },
                 navigationIcon = { BackIconButton(onClick = onBack) },
                 actions = {
-                    if (item != null && definition is StrengthWorkout && state.canEdit) {
-                        TextButton(onClick = { onEditStrength(item.id) }) { Text(stringResource(R.string.plan_detail_edit)) }
+                    if (item != null && (definition is StrengthWorkout || definition is RunningWorkout) && state.canEdit) {
+                        TextButton(onClick = { onEdit(item) }) { Text(stringResource(R.string.plan_detail_edit)) }
                     }
                 },
             )

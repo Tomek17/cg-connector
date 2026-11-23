@@ -284,6 +284,7 @@
     <string name="wizard_new">Nowy trening</string>
     <string name="wizard_new_running">Trening biegowy</string>
     <string name="wizard_running_title">Nowy trening biegowy</string>
+    <string name="wizard_running_edit_title">Edycja treningu biegowego</string>
     <string name="wizard_new_strength">Trening siłowy</string>
     <string name="wizard_strength_title">Nowy trening siłowy</string>
     <string name="wizard_strength_edit_title">Edycja treningu siłowego</string>
