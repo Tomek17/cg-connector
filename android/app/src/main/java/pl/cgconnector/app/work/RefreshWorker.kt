@@ -6,9 +6,11 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 import pl.cgconnector.app.alerts.HomeSurfaces
 import pl.cgconnector.app.data.repository.ActivityRepository
 import pl.cgconnector.app.data.repository.RefreshResult
+import pl.cgconnector.app.data.repository.StatsRepository
 import pl.cgconnector.app.data.repository.WorkoutQueueTrigger
 import java.time.Clock
 
@@ -27,6 +29,7 @@ class RefreshWorker
         private val scheduler: RefreshScheduler,
         private val workoutQueue: WorkoutQueueTrigger,
         private val homeSurfaces: HomeSurfaces,
+        private val stats: StatsRepository,
         private val clock: Clock,
     ) : CoroutineWorker(context, params) {
         override suspend fun doWork(): Result {
@@ -35,7 +38,8 @@ class RefreshWorker
             if (result is RefreshResult.Success) workoutQueue.trigger()
             // Widżet (zmiana dnia) i powiadomienia (np. dane od dawna nieaktualne) także bez otwierania aplikacji.
             homeSurfaces.refreshNow()
-            scheduler.scheduleNext(RefreshSchedule.delayAfter(result, clock.instant()))
+            val serverLastSyncAt = stats.observeSyncStatus().first().serverLastSyncAt
+            scheduler.scheduleNext(RefreshSchedule.delayAfter(result, clock.instant(), serverLastSyncAt))
             return Result.success()
         }
 
