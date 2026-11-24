@@ -127,6 +127,11 @@ interface CgApi {
     @POST("api/v1/claude-code")
     suspend fun claudeCode(): ClaudeCodeDto
 
+    @POST("api/v1/invites")
+    suspend fun createInvite(
+        @Body body: NewInviteRequestDto,
+    ): NewInviteDto
+
     companion object {
         const val MAX_SCHEDULED_DAYS = 366L
         const val MAX_LIMIT = 2000

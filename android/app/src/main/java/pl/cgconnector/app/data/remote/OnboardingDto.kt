@@ -53,3 +53,17 @@ data class GarminLoginResponseDto(
 data class ClaudeCodeDto(
     val code: String,
 )
+
+/** `POST /api/v1/invites` (tylko administrator). */
+@Serializable
+data class NewInviteRequestDto(
+    val name: String,
+)
+
+@Serializable
+data class NewInviteDto(
+    val name: String,
+    val link: String,
+    @SerialName("new_user") val newUser: Boolean,
+    @SerialName("expires_at") val expiresAt: String,
+)

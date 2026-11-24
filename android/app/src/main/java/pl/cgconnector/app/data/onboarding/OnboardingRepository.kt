@@ -16,6 +16,7 @@ import pl.cgconnector.app.data.remote.CgPublicApi
 import pl.cgconnector.app.data.remote.GarminLoginRequestDto
 import pl.cgconnector.app.data.remote.InviteRequestDto
 import pl.cgconnector.app.data.remote.MfaRequestDto
+import pl.cgconnector.app.data.remote.NewInviteRequestDto
 import pl.cgconnector.app.data.settings.ServerConfigRepository
 import pl.cgconnector.app.di.IoDispatcher
 import pl.cgconnector.app.domain.PasswordEncryptor
@@ -84,7 +85,19 @@ interface OnboardingRepository {
 
     /** Nowy kod CG do claude.ai albo `null`, gdy aplikacja nie jest skonfigurowana. */
     suspend fun newClaudeCode(): String?
+
+    /** Czy to konto może zapraszać nowe osoby (Tomek). */
+    suspend fun isAdmin(): Boolean = false
+
+    /** Link zaproszenia dla osoby [name] (nowe konto albo nowy link dla istniejącego). */
+    suspend fun createInvite(name: String): PersonInvite = throw InviteRefusedException(InviteRefusal.NOT_ALLOWED)
 }
+
+data class PersonInvite(val name: String, val link: String, val newUser: Boolean)
+
+enum class InviteRefusal { NOT_ALLOWED, SELF, BAD_NAME }
+
+class InviteRefusedException(val reason: InviteRefusal) : Exception("Zaproszenie odrzucone: $reason")
 
 /**
  * Odcisk klucza serwera jest przypinany przy wymianie zaproszenia (albo przy pierwszym pobraniu)
@@ -149,6 +162,24 @@ class ServerOnboardingRepository
         }
 
         override suspend fun newClaudeCode(): String? = api()?.claudeCode()?.code
+
+        override suspend fun isAdmin(): Boolean = api()?.me()?.isAdmin == true
+
+        override suspend fun createInvite(name: String): PersonInvite {
+            val api = api() ?: throw InviteRefusedException(InviteRefusal.NOT_ALLOWED)
+            val response =
+                try {
+                    api.createInvite(NewInviteRequestDto(name.trim().lowercase()))
+                } catch (e: HttpException) {
+                    throw when (e.code()) {
+                        403 -> InviteRefusedException(InviteRefusal.NOT_ALLOWED)
+                        409 -> InviteRefusedException(InviteRefusal.SELF)
+                        422 -> InviteRefusedException(InviteRefusal.BAD_NAME)
+                        else -> e
+                    }
+                }
+            return PersonInvite(response.name, response.link, response.newUser)
+        }
 
         private suspend fun api(): CgApi? = apiProvider.get()
 

@@ -24,7 +24,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, sessionmaker
 
-from cg_server import goals, manual_sync, progress, queries
+from cg_server import goals, manual_sync, progress, queries, users
 from cg_server.models import Activity, ActivityKind, Goal, User, utcnow
 from cg_server.queries import Period
 from cg_server.tags import TAGS, TagError, set_tag
@@ -120,6 +120,9 @@ class Me(BaseModel):
     last_sync_attempt_at: datetime | None = Field(description="Początek ostatniej próby syncu")
     last_sync_status: str | None = Field(description="Status ostatniej próby syncu")
     latest_activity_date: date | None = Field(description="Dzień najnowszej aktywności")
+    is_admin: bool = Field(
+        default=False, description="Może zapraszać nowe osoby z aplikacji (POST /invites)"
+    )
 
 
 class ActivitySummary(BaseModel):
@@ -350,9 +353,10 @@ router = APIRouter(prefix="/api/v1")
 
 
 @router.get("/me")
-def me(user: CurrentUser, session: DbSession, tz: LocalTz) -> Me:
+def me(request: Request, user: CurrentUser, session: DbSession, tz: LocalTz) -> Me:
     state = queries.sync_status(session, user_id=user.id, tz=tz)
     return Me(
+        is_admin=users.is_admin(session, request.app.state.settings, user),
         name=user.name,
         display_name=user.name,
         garmin_status=state.garmin_status.value if state.garmin_status else None,

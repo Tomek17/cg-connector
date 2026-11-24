@@ -17,6 +17,8 @@ from cg_server.config import Settings
 
 JOIN_PATH = "/join"
 RELEASES_URL = "https://github.com/Tomek17/cg-connector/releases/latest"
+# Every release also carries the APK under this fixed name (release-android.yml).
+APK_URL = f"{RELEASES_URL}/download/cg-connector.apk"
 DEEP_LINK = "cgconnector://join"
 CODE_RE = re.compile(r"cgi_[A-Za-z0-9_-]{20,80}")
 
@@ -48,10 +50,12 @@ small {{ color: #5a6577; }}
 INVITE = """<p>Tomek zaprasza Cię do CG-connector: Twoje treningi z Garmina w aplikacji, z Claude
 i z wysyłaniem treningów na zegarek.</p>
 <h2>1. Zainstaluj aplikację</h2>
-<p>Na stronie wydania rozwiń <strong>Assets</strong> i stuknij plik <code>.apk</code>. Gdy
-telefon zapyta, pozwól przeglądarce instalować aplikacje. Masz już aplikację?
-Przejdź do kroku 2.</p>
-<a class="button" href="{releases}">Pobierz aplikację</a>
+<p>Stuknij przycisk, a gdy plik się pobierze, otwórz go i stuknij <strong>Zainstaluj</strong>.
+Gdy telefon zapyta, pozwól przeglądarce instalować aplikacje (ostrzeżenie Play Protect:
+<em>Zainstaluj mimo to</em>). Masz już aplikację? Przejdź do kroku 2.</p>
+<a class="button" href="{apk}">Pobierz aplikację</a>
+<p><small>Nie pobiera się? <a href="{releases}">Strona wydania</a>: plik <code>.apk</code>
+w sekcji Assets.</small></p>
 <h2>2. Otwórz zaproszenie w aplikacji</h2>
 <p>Wróć na tę stronę i stuknij przycisk. Aplikacja otworzy się z wpisanym adresem i kodem
 i dalej poprowadzi Cię krok po kroku (Garmin, potem Claude).</p>
@@ -74,6 +78,7 @@ def join_router(settings: Settings) -> APIRouter:
         server = settings.public_url
         deep_link = f"{DEEP_LINK}?{urlencode({'server': server, 'code': code})}"
         body = INVITE.format(
+            apk=escape(APK_URL),
             releases=escape(RELEASES_URL),
             deep_link=escape(deep_link),
             server=escape(server),
