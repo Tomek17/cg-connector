@@ -1,9 +1,11 @@
 package pl.cgconnector.app.work
 
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.time.Clock
 import java.time.Duration
@@ -23,6 +25,12 @@ class RefreshScheduler
         /** Przy starcie aplikacji: nie rusza już zaplanowanego łańcucha (KEEP). */
         fun ensureScheduled() {
             enqueue(RefreshSchedule.delayUntilNextRun(clock.instant()), ExistingWorkPolicy.KEEP)
+            // Siatka bezpieczeństwa, gdy system odłoży zadanie o 14:20 (oszczędzanie baterii).
+            val catchUp =
+                PeriodicWorkRequestBuilder<CatchUpRefreshWorker>(CATCH_UP_EVERY)
+                    .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
+                    .build()
+            workManager.enqueueUniquePeriodicWork(CatchUpRefreshWorker.UNIQUE_NAME, ExistingPeriodicWorkPolicy.KEEP, catchUp)
         }
 
         /**
@@ -43,5 +51,9 @@ class RefreshScheduler
                     .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
                     .build()
             workManager.enqueueUniqueWork(RefreshWorker.UNIQUE_NAME, policy, request)
+        }
+
+        private companion object {
+            val CATCH_UP_EVERY: Duration = Duration.ofHours(2)
         }
     }

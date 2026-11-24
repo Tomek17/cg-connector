@@ -30,11 +30,14 @@ import pl.cgconnector.app.data.onboarding.PendingInviteStore
 import pl.cgconnector.app.domain.InviteLink
 import pl.cgconnector.app.ui.navigation.CgNavHost
 import pl.cgconnector.app.ui.theme.CgTheme
+import pl.cgconnector.app.work.AppRefresher
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     @Inject lateinit var pendingInvite: PendingInviteStore
+
+    @Inject lateinit var appRefresher: AppRefresher
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -60,6 +63,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Otwarcie aplikacji: świeże dane bez przeciągania listy (gdy ostatnie odświeżenie jest starsze niż 15 min).
+        appRefresher.onForeground()
     }
 
     override fun onNewIntent(intent: Intent) {

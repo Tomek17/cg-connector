@@ -93,6 +93,7 @@ class RefreshScheduleTest {
     fun nonRetryableResultsWaitForTomorrow() {
         val now = local("2026-11-18T14:21+01:00[Europe/Warsaw]")
         val tomorrow = Duration.ofHours(23).plusMinutes(59)
+        val serverSynced = local("2026-11-18T14:05+01:00[Europe/Warsaw]")
 
         listOf(
             RefreshResult.Success(3),
@@ -100,7 +101,39 @@ class RefreshScheduleTest {
             RefreshResult.Unauthorized,
             RefreshResult.InvalidResponse,
         ).forEach { result ->
-            assertThat(RefreshSchedule.delayAfter(result, now)).isEqualTo(tomorrow)
+            assertThat(RefreshSchedule.delayAfter(result, now, serverSynced)).isEqualTo(tomorrow)
         }
+    }
+
+    @Test
+    fun successBeforeServerSyncedTodayRetriesInOneHour() {
+        val now = local("2026-11-18T14:21+01:00[Europe/Warsaw]")
+        val yesterday = local("2026-11-17T14:03+01:00[Europe/Warsaw]")
+
+        assertThat(RefreshSchedule.delayAfter(RefreshResult.Success(0), now, yesterday)).isEqualTo(Duration.ofHours(1))
+        // Po 23:00 już nie ponawiamy.
+        val late = local("2026-11-18T23:10+01:00[Europe/Warsaw]")
+        assertThat(RefreshSchedule.delayAfter(RefreshResult.Success(0), late, yesterday)).isEqualTo(Duration.ofHours(15).plusMinutes(10))
+    }
+
+    @Test
+    fun missedDailyRefreshIsDetected() {
+        val now = local("2026-11-24T14:40+01:00[Europe/Warsaw]")
+
+        assertThat(RefreshSchedule.isMissed(local("2026-11-23T14:22+01:00[Europe/Warsaw]"), now)).isTrue()
+        assertThat(RefreshSchedule.isMissed(local("2026-11-24T14:25+01:00[Europe/Warsaw]"), now)).isFalse()
+        assertThat(RefreshSchedule.isMissed(null, now)).isTrue()
+        // Przed 14:20 wystarczy wczorajsze odświeżenie po 14:20.
+        val morning = local("2026-11-24T09:00+01:00[Europe/Warsaw]")
+        assertThat(RefreshSchedule.isMissed(local("2026-11-23T14:22+01:00[Europe/Warsaw]"), morning)).isFalse()
+    }
+
+    @Test
+    fun serverSyncedTodayOnlyCountsAfterSyncHour() {
+        val now = local("2026-11-24T15:00+01:00[Europe/Warsaw]")
+
+        assertThat(RefreshSchedule.serverSyncedToday(local("2026-11-24T14:02+01:00[Europe/Warsaw]"), now)).isTrue()
+        assertThat(RefreshSchedule.serverSyncedToday(local("2026-11-24T11:40+01:00[Europe/Warsaw]"), now)).isFalse()
+        assertThat(RefreshSchedule.serverSyncedToday(null, local("2026-11-24T10:00+01:00[Europe/Warsaw]"))).isTrue()
     }
 }
