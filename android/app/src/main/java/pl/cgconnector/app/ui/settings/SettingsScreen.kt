@@ -72,6 +72,7 @@ fun SettingsRoute(
         statusSection = { StatusSectionRoute() },
         inviteSection = { InviteSectionRoute(urlErrorText = { urlErrorText(it) }) },
         accountSection = { AccountSectionRoute(serverUrl = state.serverUrl) },
+        personInviteSection = { PersonInviteSectionRoute() },
         updateSection = { UpdateSectionRoute() },
     )
 }
@@ -87,6 +88,7 @@ fun SettingsScreen(
     statusSection: @Composable () -> Unit = {},
     inviteSection: @Composable () -> Unit = {},
     accountSection: @Composable () -> Unit = {},
+    personInviteSection: @Composable () -> Unit = {},
     updateSection: @Composable () -> Unit = {},
 ) {
     var tokenVisible by rememberSaveable { mutableStateOf(false) }
@@ -193,6 +195,7 @@ fun SettingsScreen(
                 statusSection()
                 HorizontalDivider()
                 accountSection()
+                personInviteSection()
             }
         }
     }

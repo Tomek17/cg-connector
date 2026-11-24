@@ -18,7 +18,7 @@ from cg_server.garmin.fake import FakeGarminGateway
 from cg_server.garmin.gateway import GarminRateLimited
 from cg_server.models import GarminStatus, User, UserSecret, utcnow
 from cg_server.user_secrets import SecretKind, issue_secret, redeem_invite, user_for_secret
-from cg_server.users import add_user, get_user
+from cg_server.users import add_user, get_user, is_admin
 from tests.helpers import BASE, PUBLIC_HOST
 
 PASSWORD = "-".join(["Tajne", "Haslo", "123"])  # synthetic test value
@@ -214,7 +214,7 @@ def test_join_page_links_app_and_prefills_code(client: TestClient, invite: str) 
     response = client.get("/join", params={"code": invite})
     assert response.status_code == 200
     html = response.text
-    assert "releases/latest" in html
+    assert "releases/latest/download/cg-connector.apk" in html
     assert "cgconnector://join?server=https%3A%2F%2Fcg.example.ts.net&amp;code=" + invite in html
     # The page never redeems the code.
     assert client.post("/api/v1/invite/redeem", json={"code": invite}).status_code == 200
@@ -245,3 +245,44 @@ def test_invite_codes_are_redacted_in_logs() -> None:
 
     assert "cgi_abc" not in redact("GET /join?code=cgi_abcdefghijklmnopqrstuvwxyz HTTP/1.1")
     assert "cgi_abc" not in redact("token cgi_abcdefghijklmnopqrstuvwxyz")
+
+
+def test_admin_invites_from_the_app(client: TestClient, app_settings: Settings) -> None:
+    with open_db(app_settings)() as session:
+        admin = issue_secret(session, add_user(session, "tomek"), SecretKind.APP_TOKEN)
+        other = issue_secret(session, add_user(session, "brat"), SecretKind.APP_TOKEN)
+    me = client.get("/api/v1/me", headers=bearer(admin)).json()
+    assert me["is_admin"] is True
+    assert client.get("/api/v1/me", headers=bearer(other)).json()["is_admin"] is False
+
+    created = client.post("/api/v1/invites", json={"name": " Wojtek "}, headers=bearer(admin))
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["name"] == "wojtek" and body["new_user"] is True
+    assert body["link"].startswith(f"https://{PUBLIC_HOST}/join?code=cgi_")
+    code = body["link"].split("code=")[1]
+    assert client.post("/api/v1/invite/redeem", json={"code": code}).json()["user"] == "wojtek"
+
+    again = client.post("/api/v1/invites", json={"name": "brat"}, headers=bearer(admin)).json()
+    assert again["new_user"] is False
+
+    assert (
+        client.post("/api/v1/invites", json={"name": "x"}, headers=bearer(other)).status_code == 403
+    )
+    assert (
+        client.post("/api/v1/invites", json={"name": "tomek"}, headers=bearer(admin)).status_code
+        == 409
+    )
+    bad = client.post("/api/v1/invites", json={"name": "Ża!"}, headers=bearer(admin))
+    assert bad.status_code == 422
+
+
+def test_admin_from_settings(app_settings: Settings) -> None:
+    with open_db(app_settings)() as session:
+        first = add_user(session, "tomek")
+        second = add_user(session, "brat")
+        assert is_admin(session, app_settings, first) and not is_admin(
+            session, app_settings, second
+        )
+        chosen = app_settings.model_copy(update={"admin_user": "brat"})
+        assert is_admin(session, chosen, second) and not is_admin(session, chosen, first)

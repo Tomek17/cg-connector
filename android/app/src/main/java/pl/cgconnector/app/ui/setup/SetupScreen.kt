@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -46,12 +45,12 @@ import pl.cgconnector.app.domain.UrlError
 import pl.cgconnector.app.ui.settings.AccountUiState
 import pl.cgconnector.app.ui.settings.AccountViewModel
 import pl.cgconnector.app.ui.settings.CLAUDE_CONNECTORS_URL
+import pl.cgconnector.app.ui.settings.CopyField
 import pl.cgconnector.app.ui.settings.GarminStage
 import pl.cgconnector.app.ui.settings.InviteUiState
 import pl.cgconnector.app.ui.settings.InviteViewModel
 import pl.cgconnector.app.ui.settings.MessageText
 import pl.cgconnector.app.ui.settings.UpdateSectionRoute
-import pl.cgconnector.app.ui.settings.copySensitive
 import pl.cgconnector.app.ui.settings.openInBrowser
 
 /** Kreator pierwszego uruchomienia: prowadzi nową osobę bez żadnej instrukcji z zewnątrz. */
@@ -323,19 +322,25 @@ private fun ClaudeStep(
         }
     }
     NumberedStep(2, stringResource(R.string.setup_claude_2)) {
-        Button(
-            onClick = {
-                copySensitive(context, "$serverUrl/mcp")
-                openInBrowser(context, CLAUDE_CONNECTORS_URL)
-            },
-            enabled = code != null,
-        ) { Text(stringResource(R.string.claude_open)) }
+        CopyField(
+            label = stringResource(R.string.claude_url_label),
+            value = "$serverUrl/mcp",
+            copyLabel = stringResource(R.string.claude_copy_url),
+            sensitive = false,
+        )
+        OutlinedButton(onClick = { openInBrowser(context, CLAUDE_CONNECTORS_URL) }, enabled = code != null) {
+            Text(stringResource(R.string.claude_open))
+        }
     }
-    NumberedStep(3, stringResource(R.string.setup_claude_3, "$serverUrl/mcp"))
+    NumberedStep(3, stringResource(R.string.setup_claude_3))
     NumberedStep(4, stringResource(R.string.setup_claude_4)) {
         if (code != null) {
-            Text(code, style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
-            OutlinedButton(onClick = { copySensitive(context, code) }) { Text(stringResource(R.string.claude_copy)) }
+            CopyField(
+                label = stringResource(R.string.claude_code_label),
+                value = code,
+                copyLabel = stringResource(R.string.claude_copy),
+                sensitive = true,
+            )
         }
     }
     NumberedStep(5, stringResource(R.string.setup_claude_5))

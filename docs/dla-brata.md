@@ -27,7 +27,7 @@ Tomek wysyła Ci (SMS-em albo w komunikatorze) **link zaproszenia**, np. `https:
 ## Krok 2. Instalacja aplikacji
 
 1. Otwórz link na telefonie. Jeśli pojawi się ostrzeżenie ngrok, stuknij **Visit Site**.
-2. Stuknij **Pobierz aplikację**. Na stronie wydania rozwiń **Assets** i stuknij plik kończący się na **`.apk`**.
+2. Stuknij **Pobierz aplikację**: od razu pobierze się najnowszy plik `.apk`.
 3. Gdy telefon zapyta, pozwól przeglądarce **instalować nieznane aplikacje** (na Samsungu nazwy mogą się trochę różnić). Otwórz pobrany plik i stuknij **Zainstaluj**. Ostrzeżenie Google Play Protect: *Zainstaluj mimo to* (to normalne dla aplikacji spoza sklepu).
 
 Kolejne wersje aplikacja pokaże sama: w **Ustawieniach** pojawi się „Dostępna nowa wersja” z przyciskiem **Pobierz aktualizację**. Instalujesz ją na obecną aplikację, dane zostają.
@@ -52,7 +52,11 @@ Przykładowe pytania: „Jak zmienia się mój VO2max?”, „Zaplanuj mi interw
 
 ## Dla Tomka: zaproszenie nowej osoby
 
-Na laptopie (serwer włączony), w Ubuntu, jedna osoba = jedno polecenie (nazwa małymi literami, np. `brat`, `ola`):
+Najprościej z telefonu: **Ustawienia → Zaproś osobę** (widzi to tylko konto administratora, czyli najstarsze konto na serwerze albo to z `CG_ADMIN_USER` w `.env`). Wpisz nazwę (małe litery, np. `wojtek`), stuknij **Utwórz link zaproszenia**, potem **Wyślij link** (SMS, Messenger…). Ta sama nazwa drugi raz = nowy link dla tej osoby (poprzedni przestaje działać).
+
+Instrukcję podłączenia Claude ze zrzutami możesz wysłać razem z linkiem: [podlaczenie-claude.pdf](podlaczenie-claude.pdf).
+
+To samo z laptopa (serwer włączony), w Ubuntu, jedna osoba = jedno polecenie (nazwa małymi literami, np. `brat`, `ola`):
 
 ```bash
 cd ~/cg-connector/server && docker compose exec cg-server cg-server invite --name brat

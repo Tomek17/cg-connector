@@ -9,10 +9,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PersistableBundle
+import android.widget.Toast
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -198,7 +202,13 @@ private fun ClaudeSection(
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.claude_title), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.claude_intro, "$serverUrl/mcp"), style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.claude_intro), style = MaterialTheme.typography.bodyMedium)
+        CopyField(
+            label = stringResource(R.string.claude_url_label),
+            value = "$serverUrl/mcp",
+            copyLabel = stringResource(R.string.claude_copy_url),
+            sensitive = false,
+        )
         val code = state.claudeCode
         if (code == null) {
             OutlinedButton(onClick = { confirm = true }, enabled = !state.claudeWorking) {
@@ -208,18 +218,17 @@ private fun ClaudeSection(
                 Text(stringResource(R.string.account_network), color = MaterialTheme.colorScheme.error)
             }
         } else {
-            Text(code, style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
-            Button(
-                onClick = {
-                    copySensitive(context, "$serverUrl/mcp")
-                    openInBrowser(context, CLAUDE_CONNECTORS_URL)
-                },
+            OutlinedButton(
+                onClick = { openInBrowser(context, CLAUDE_CONNECTORS_URL) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.claude_open)) }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { copySensitive(context, code) }) { Text(stringResource(R.string.claude_copy)) }
-                TextButton(onClick = viewModel::hideClaudeCode) { Text(stringResource(R.string.claude_hide)) }
-            }
+            CopyField(
+                label = stringResource(R.string.claude_code_label),
+                value = code,
+                copyLabel = stringResource(R.string.claude_copy),
+                sensitive = true,
+            )
+            TextButton(onClick = viewModel::hideClaudeCode) { Text(stringResource(R.string.claude_hide)) }
             Text(
                 stringResource(R.string.claude_code_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -275,15 +284,49 @@ internal fun formatRetry(iso: String): String {
     return "$day.$month $hour:$minute"
 }
 
-internal fun copySensitive(
+/**
+ * Kopiuje do schowka. [sensitive] = system nie pokazuje treści w podglądzie schowka (kody).
+ * Android 13+ sam potwierdza kopiowanie; na starszych pokazujemy krótki komunikat.
+ */
+internal fun copyToClipboard(
     context: Context,
     text: String,
+    sensitive: Boolean,
 ) {
     val clip = ClipData.newPlainText("CG-connector", text)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    if (sensitive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         clip.description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
     }
     context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(clip)
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        Toast.makeText(context, R.string.copied, Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * Wartość do przeniesienia w inne miejsce (adres konektora, kod, link): widoczna w całości,
+ * zaznaczalna palcem i z dużym przyciskiem „Kopiuj”.
+ */
+@Composable
+internal fun CopyField(
+    label: String,
+    value: String,
+    copyLabel: String,
+    sensitive: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    OutlinedCard(modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SelectionContainer {
+                Text(value, style = MaterialTheme.typography.bodyLarge, fontFamily = FontFamily.Monospace)
+            }
+            Button(onClick = { copyToClipboard(context, value, sensitive) }, modifier = Modifier.fillMaxWidth()) {
+                Text(copyLabel)
+            }
+        }
+    }
 }
 
 internal const val CLAUDE_CONNECTORS_URL = "https://claude.ai/customize/connectors"

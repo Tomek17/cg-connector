@@ -33,6 +33,8 @@ data class MeDto(
     @SerialName("last_sync_status") val lastSyncStatus: String? = null,
     /** `YYYY-MM-DD`. */
     @SerialName("latest_activity_date") val latestActivityDate: String? = null,
+    /** Może zapraszać nowe osoby z aplikacji (`POST /api/v1/invites`). */
+    @SerialName("is_admin") val isAdmin: Boolean = false,
 )
 
 /** `GET /api/v1/activities` (schemat `ActivityList`). */

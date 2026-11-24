@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     max_request_bytes: int = 1024 * 1024
     # Requests per minute per client IP on /authorize, /token, /register, /revoke.
     rate_limit_per_minute: int = 30
+    # Who may invite new people from the app; empty = the first account created (Tomek).
+    admin_user: str = ""
 
     @property
     def is_production(self) -> bool:

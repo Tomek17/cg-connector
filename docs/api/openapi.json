@@ -847,6 +847,49 @@
         }
       }
     },
+    "/api/v1/invites": {
+      "post": {
+        "summary": "Create Invite",
+        "description": "Link zaproszenia dla nowej osoby (albo nowy dla istniejącej) prosto z aplikacji Tomka.",
+        "operationId": "create_invite_api_v1_invites_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewInviteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewInviteOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tylko administrator zaprasza"
+          },
+          "409": {
+            "description": "Własne konto"
+          },
+          "422": {
+            "description": "Zła nazwa"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/garmin/login-key": {
       "get": {
         "summary": "Login Key",
@@ -2295,6 +2338,12 @@
             ],
             "title": "Latest Activity Date",
             "description": "Dzień najnowszej aktywności"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin",
+            "description": "Może zapraszać nowe osoby z aplikacji (POST /invites)",
+            "default": false
           }
         },
         "type": "object",
@@ -2323,6 +2372,53 @@
           "code"
         ],
         "title": "MfaIn"
+      },
+      "NewInviteIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Nazwa konta: małe litery, cyfry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NewInviteIn"
+      },
+      "NewInviteOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "link": {
+            "type": "string",
+            "title": "Link",
+            "description": "Link zaproszenia do wysłania tej osobie (jednorazowy)"
+          },
+          "new_user": {
+            "type": "boolean",
+            "title": "New User",
+            "description": "false = istniejące konto, poprzedni link przestał działać"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "link",
+          "new_user",
+          "expires_at"
+        ],
+        "title": "NewInviteOut"
       },
       "NewWorkout": {
         "properties": {

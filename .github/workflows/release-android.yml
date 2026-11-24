@@ -162,5 +162,7 @@ jobs:
           EOF
           pre=""
           case "$NAME" in *-*) pre="--prerelease" ;; esac
-          gh release create "$NAME" "$apk" "$apk.sha256" --verify-tag $pre \
+          # Stała nazwa: link .../releases/latest/download/cg-connector.apk zawsze pobiera najnowszą wersję.
+          cp "$apk" dist/cg-connector.apk
+          gh release create "$NAME" "$apk" "$apk.sha256" dist/cg-connector.apk --verify-tag $pre \
             --title "CG-connector $NAME" --notes-file notes.md --generate-notes

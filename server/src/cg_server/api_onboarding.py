@@ -20,9 +20,11 @@ from cg_server.app_login import ALGORITHM, AppLogins, DecryptError, LoginKey
 from cg_server.config import Settings
 from cg_server.garmin import accounts
 from cg_server.garmin.gateway import GarminAuthError, GarminRateLimited
-from cg_server.models import User
+from cg_server.join_page import invite_link
+from cg_server.models import User, utcnow
 from cg_server.outbox import GatewayFactory
-from cg_server.user_secrets import SecretKind, issue_secret, redeem_invite
+from cg_server.user_secrets import INVITE_VALID_FOR, SecretKind, issue_secret, redeem_invite
+from cg_server.users import UserError, add_user, get_user, is_admin
 
 log = logging.getLogger(__name__)
 _key_lock = threading.Lock()  # one key file even when the first requests come in together
@@ -55,6 +57,17 @@ class InviteOut(BaseModel):
     user: str
     app_token: str
     login_key: LoginKeyOut
+
+
+class NewInviteIn(BaseModel):
+    name: str = Field(min_length=1, max_length=32, description="Nazwa konta: małe litery, cyfry")
+
+
+class NewInviteOut(BaseModel):
+    name: str
+    link: str = Field(description="Link zaproszenia do wysłania tej osobie (jednorazowy)")
+    new_user: bool = Field(description="false = istniejące konto, poprzedni link przestał działać")
+    expires_at: datetime
 
 
 class GarminLoginIn(BaseModel):
@@ -125,6 +138,42 @@ def redeem(body: InviteIn, session: DbSession, key: Key) -> InviteOut:
         )
     user, token = result
     return InviteOut(user=user.name, app_token=token, login_key=_key_out(key))
+
+
+@router.post(
+    "/invites",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        403: {"description": "Tylko administrator zaprasza"},
+        409: {"description": "Własne konto"},
+        422: {"description": "Zła nazwa"},
+    },
+)
+def create_invite(
+    body: NewInviteIn, request: Request, user: CurrentUser, session: DbSession, tz: LocalTz
+) -> NewInviteOut:
+    """Link zaproszenia dla nowej osoby (albo nowy dla istniejącej) prosto z aplikacji Tomka."""
+    settings = _settings(request)
+    if not is_admin(session, settings, user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Zapraszać może tylko administrator")
+    name = body.name.strip().lower()
+    target = get_user(session, name)
+    if target is not None and target.id == user.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "To Twoje konto")
+    new_user = target is None
+    if target is None:
+        try:
+            target = add_user(session, name)
+        except UserError as e:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+    code = issue_secret(session, target, SecretKind.INVITE)
+    log.info("Zaproszenie z aplikacji dla użytkownika %s", target.id)
+    return NewInviteOut(
+        name=target.name,
+        link=invite_link(settings, code),
+        new_user=new_user,
+        expires_at=(utcnow() + INVITE_VALID_FOR).astimezone(tz),
+    )
 
 
 @router.get("/garmin/login-key")

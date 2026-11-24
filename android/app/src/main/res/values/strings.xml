@@ -504,7 +504,7 @@
     <string name="garmin_key_changed">Klucz serwera się zmienił, więc hasło nie zostało wysłane. Napisz do Tomka.</string>
     <string name="garmin_connected_sync">Połączono z Garminem. Pierwsze pobranie danych trwa kilka minut; odśwież potem zakładkę Treningi.</string>
     <string name="claude_title">Claude</string>
-    <string name="claude_intro">Zajmuje 2 minuty. Wygeneruj kod, potem stuknij „Kopiuj adres i otwórz claude.ai”: w claude.ai kliknij Add custom connector i wklej adres (%1$s). Po kliknięciu Połącz wróć tu, skopiuj kod i wklej go na stronie CG-connector.</string>
+    <string name="claude_intro">Zajmuje 2 minuty. Skopiuj adres, otwórz claude.ai i dodaj własny konektor z tym adresem. Po kliknięciu Połącz wróć tu, wygeneruj i skopiuj kod, wklej go na stronie CG-connector.</string>
     <string name="claude_new_code">Wygeneruj kod do Claude</string>
     <string name="claude_copy">Kopiuj kod</string>
     <string name="claude_hide">Ukryj</string>
@@ -512,7 +512,11 @@
     <string name="claude_confirm_title">Nowy kod do Claude?</string>
     <string name="claude_confirm_text">Poprzedni kod przestanie działać, a Claude, jeśli był już połączony, trzeba będzie połączyć ponownie.</string>
     <string name="invite_from_link">Adres i kod są już wpisane z linku zaproszenia. Stuknij „Połącz z serwerem”.</string>
-    <string name="claude_open">Kopiuj adres i otwórz claude.ai</string>
+    <string name="claude_open">Otwórz claude.ai</string>
+    <string name="claude_copy_url">Kopiuj adres</string>
+    <string name="claude_url_label">Adres konektora (URL)</string>
+    <string name="claude_code_label">Kod do Claude</string>
+    <string name="copied">Skopiowano</string>
     <string name="update_available">Dostępna nowa wersja %1$s</string>
     <string name="update_hint">Pobierz plik i zainstaluj go na obecną aplikację. Twoje dane zostaną.</string>
     <string name="update_download">Pobierz aktualizację</string>
@@ -543,8 +547,8 @@
     <string name="setup_claude_1">Przygotuj kod połączenia.</string>
     <string name="setup_claude_make_code">Przygotuj kod</string>
     <string name="setup_claude_code_ready">Kod gotowy.</string>
-    <string name="setup_claude_2">Stuknij przycisk: aplikacja skopiuje adres serwera i otworzy claude.ai w przeglądarce. Zaloguj się (albo załóż darmowe konto).</string>
-    <string name="setup_claude_3">Na stronie claude.ai stuknij „+” albo „Add custom connector”. Nazwa: CG-connector. W polu URL przytrzymaj palec i wybierz „Wklej” (adres to %1$s). Jeśli są dodatkowe opcje, wybierz „Register automatically” i zostaw puste pola Client ID i Client Secret. Stuknij „Dodaj”, potem „Połącz”.</string>
+    <string name="setup_claude_2">Stuknij „Kopiuj adres”, potem „Otwórz claude.ai”. Strona otworzy się w przeglądarce; zaloguj się (albo załóż darmowe konto).</string>
+    <string name="setup_claude_3">Na claude.ai stuknij „Add custom connector”. Nazwa: CG-connector. W polu URL przytrzymaj palec i wybierz „Wklej”. Jeśli są dodatkowe opcje, wybierz „Register automatically” i zostaw puste Client ID i Client Secret. Stuknij „Dodaj”, potem „Połącz”.</string>
     <string name="setup_claude_4">Otworzy się strona CG-connector z polem na kod (jeśli najpierw pojawi się ostrzeżenie ngrok, stuknij „Visit Site”). Wróć tutaj, skopiuj kod, wklej go na tej stronie i stuknij „Połącz z Claude”.</string>
     <string name="setup_claude_5">Gotowe. W rozmowie z Claude stuknij „+”, potem „Konektory” i włącz CG-connector. Zapytaj np. „Jak wyglądał mój ostatni tydzień?”.</string>
     <string name="setup_claude_done">Claude podłączony, dalej</string>
@@ -559,4 +563,19 @@
 
 Serwer działa na laptopie Tomka. Gdy laptop jest wyłączony, aplikacja pokazuje ostatnio pobrane dane, a nowe pojawią się później.</string>
     <string name="setup_done_go">Przejdź do aplikacji</string>
+    <string name="person_invite_title">Zaproś osobę</string>
+    <string name="person_invite_intro">Wpisz nazwę konta nowej osoby. Dostaniesz link zaproszenia do wysłania SMS-em albo w komunikatorze; resztę aplikacja przeprowadzi u niej sama. Link jest jednorazowy i ważny 7 dni.</string>
+    <string name="person_invite_name">Nazwa konta</string>
+    <string name="person_invite_name_hint">Małe litery i cyfry, np. wojtek. Ta sama nazwa = nowy link dla istniejącej osoby.</string>
+    <string name="person_invite_create">Utwórz link zaproszenia</string>
+    <string name="person_invite_ready_new">Konto „%1$s” założone. Wyślij link tej osobie prywatnie.</string>
+    <string name="person_invite_ready_again">Nowy link dla „%1$s”. Poprzedni przestał działać; po użyciu nowego jej aplikacja połączy się od nowa.</string>
+    <string name="person_invite_message">Cześć! Zaproszenie do CG-connector (treningi z Garmina w aplikacji i w Claude). Otwórz ten link na telefonie z Androidem, pobierz aplikację i stuknij „Otwórz w aplikacji”: %1$s</string>
+    <string name="person_invite_share">Wyślij link</string>
+    <string name="person_invite_link">Link zaproszenia</string>
+    <string name="person_invite_copy">Kopiuj link</string>
+    <string name="person_invite_done">Gotowe</string>
+    <string name="person_invite_not_allowed">To konto nie może zapraszać.</string>
+    <string name="person_invite_self">To jest Twoje konto. Wpisz nazwę nowej osoby.</string>
+    <string name="person_invite_bad_name">Nazwa może mieć tylko małe litery, cyfry, „-” i „_” (do 32 znaków).</string>
 </resources>
