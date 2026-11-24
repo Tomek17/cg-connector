@@ -45,7 +45,8 @@ FORM = """<p>Aplikacja „{client}” chce połączyć się z Twoimi danymi z Ga
 <input id="code" name="code" type="password" autocomplete="off" required autofocus>
 <button type="submit">Połącz z Claude</button>
 </form>
-<p><small>Kod jest w aplikacji CG-connector: Ustawienia, sekcja Claude, przycisk „Kopiuj kod”.</small></p>
+<p><small>Kod jest w aplikacji CG-connector: Ustawienia, sekcja Claude,
+przycisk „Kopiuj kod”.</small></p>
 """
 
 LOCKED = """<p class="error">Zbyt wiele nieudanych prób. Odczekaj 15 minut i spróbuj ponownie.</p>
