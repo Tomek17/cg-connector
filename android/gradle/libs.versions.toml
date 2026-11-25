@@ -1,7 +1,7 @@
 # Wersje sprawdzone 2026-11-18 (developer.android.com, Maven Central, gradle.org).
 # Aktualizacje: Dependabot (ekosystem gradle).
 [versions]
-agp = "9.5.1"
+agp = "9.5.2"
 kotlin = "2.4.21"
 ksp = "2.3.14"
 hilt = "2.60.1"
@@ -10,7 +10,7 @@ core-ktx = "1.19.1"
 activity-compose = "1.13.0"
 lifecycle = "2.11.0"
 navigation = "2.10.2"
-compose-bom = "2026.09.00"
+compose-bom = "2026.11.01"
 room = "2.8.5"
 work = "2.12.0"
 datastore = "1.3.0"
