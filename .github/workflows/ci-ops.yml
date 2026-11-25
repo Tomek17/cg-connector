@@ -17,7 +17,7 @@ jobs:
         with:
           # Ta sama wersja co obraz cg-server (w nim działa część kopii).
           python-version: "3.12"
-      - name: shellcheck (skrypty WSL)
-        run: shellcheck ops/wsl/*.sh
+      - name: shellcheck (skrypty WSL i VPS)
+        run: shellcheck -x ops/wsl/*.sh ops/vps/*.sh
       - name: Testy kopii zapasowych (syntetyczna baza SQLite)
         run: python -m unittest discover -s ops/tests -v

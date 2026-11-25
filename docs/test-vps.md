@@ -92,7 +92,7 @@ także na laptopie, bo Garmin może zablokować konto.
 
 | Co widzisz | Znaczenie | Dalej |
 |---|---|---|
-| `WYNIK: ZALICZONY` | Garmin działa z tej serwerowni | wklej podsumowanie Claude → etap 2 (plan przeprowadzki). Maszynę zostaw, posłuży jako serwer |
+| `WYNIK: ZALICZONY` | Garmin działa z tej serwerowni | wklej podsumowanie Claude → [przeprowadzka](przeprowadzka-vps.md). Maszynę zostaw, posłuży jako serwer |
 | ✗ w kroku 1, a 403 / „TLS” / błąd połączenia | Garmin blokuje logowanie z tego IP | wklej wynik; spróbujemy Hetzner albo wariantu „logowanie w domu, serwer w chmurze” |
 | ✗ w kroku 1 „odmowa logowania” | zwykle zły e-mail, hasło lub kod MFA | odczekaj kilka godzin i spróbuj raz jeszcze |
 | HTTP 429 | Garmin ograniczył zapytania | 24 h przerwy, potem decydujemy razem |
