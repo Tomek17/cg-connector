@@ -140,7 +140,8 @@ After=docker.service
 [Service]
 Type=oneshot
 Environment=CG_BACKUP_RETENTION_DAYS=14
-ExecStart=$HOME/cg-connector/ops/wsl/backup.sh
+# /bin/bash: SELinux (Oracle Linux) nie pozwala systemd uruchamiać skryptów z katalogu domowego.
+ExecStart=/bin/bash $HOME/cg-connector/ops/wsl/backup.sh
 EOF
 sudo tee /etc/systemd/system/cg-backup.timer >/dev/null <<EOF
 [Unit]
