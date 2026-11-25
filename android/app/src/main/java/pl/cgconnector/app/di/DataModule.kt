@@ -24,7 +24,9 @@ import pl.cgconnector.app.data.remote.ProgressRemoteDataSource
 import pl.cgconnector.app.data.remote.WorkoutRemoteDataSource
 import pl.cgconnector.app.data.repository.ActivityRepository
 import pl.cgconnector.app.data.repository.DataStoreGoalRepository
+import pl.cgconnector.app.data.repository.DataStoreExerciseLayoutStore
 import pl.cgconnector.app.data.repository.DataStoreQueuePauseStore
+import pl.cgconnector.app.data.repository.ExerciseLayoutStore
 import pl.cgconnector.app.data.repository.DataStoreWorkoutTemplateRepository
 import pl.cgconnector.app.data.repository.GarminSyncRepository
 import pl.cgconnector.app.data.repository.GoalRepository
@@ -89,6 +91,9 @@ abstract class DataModule {
 
     @Binds
     abstract fun bindWorkoutTemplateRepository(impl: DataStoreWorkoutTemplateRepository): WorkoutTemplateRepository
+
+    @Binds
+    abstract fun bindExerciseLayoutStore(impl: DataStoreExerciseLayoutStore): ExerciseLayoutStore
 
     @Binds
     abstract fun bindQueuePauseStore(impl: DataStoreQueuePauseStore): QueuePauseStore

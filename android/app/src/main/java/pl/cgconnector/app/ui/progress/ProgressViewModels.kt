@@ -7,11 +7,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import pl.cgconnector.app.data.repository.ExerciseLayoutStore
 import pl.cgconnector.app.data.repository.Loaded
 import pl.cgconnector.app.data.repository.ProgressRepository
 import pl.cgconnector.app.domain.ActivityTag
 import pl.cgconnector.app.domain.ActivityType
+import pl.cgconnector.app.domain.ExerciseLayout
 import pl.cgconnector.app.domain.ExerciseProgress
 import pl.cgconnector.app.domain.LoadError
 import pl.cgconnector.app.domain.TagCount
@@ -72,7 +75,16 @@ data class TagProgressUiState(
     val isLoading: Boolean = true,
     val error: LoadError? = null,
     val progress: TagProgress? = null,
+    val layout: ExerciseLayout = ExerciseLayout(),
+    /** Tryb edycji listy ćwiczeń (usuwanie, przywracanie, przesuwanie). */
+    val isEditing: Boolean = false,
 ) {
+    val exercises: List<ExerciseProgress>
+        get() = layout.visible(progress?.strength.orEmpty())
+
+    val removedExercises: List<ExerciseProgress>
+        get() = layout.removed(progress?.strength.orEmpty())
+
     val selectedExercise: ExerciseProgress?
         get() = exercise?.let { name -> progress?.strength?.firstOrNull { it.exercise == name } }
 }
@@ -84,6 +96,7 @@ class TagProgressViewModel
     constructor(
         savedStateHandle: SavedStateHandle,
         private val repository: ProgressRepository,
+        private val layoutStore: ExerciseLayoutStore,
     ) : ViewModel() {
         private val state =
             MutableStateFlow(
@@ -96,6 +109,29 @@ class TagProgressViewModel
 
         init {
             load()
+            state.value.tag?.let { tag ->
+                viewModelScope.launch {
+                    layoutStore.layout(tag).collect { layout -> state.update { it.copy(layout = layout) } }
+                }
+            }
+        }
+
+        fun toggleEditing() = state.update { it.copy(isEditing = !it.isEditing) }
+
+        fun moveExercise(
+            name: String,
+            delta: Int,
+        ) = saveLayout { it.layout.move(it.progress?.strength.orEmpty(), name, delta) }
+
+        fun removeExercise(name: String) = saveLayout { it.layout.hide(it.progress?.strength.orEmpty(), name) }
+
+        fun restoreExercise(name: String) = saveLayout { it.layout.restore(name) }
+
+        private fun saveLayout(change: (TagProgressUiState) -> ExerciseLayout) {
+            val tag = state.value.tag ?: return
+            val layout = change(state.value)
+            state.update { it.copy(layout = layout) }
+            viewModelScope.launch { layoutStore.save(tag, layout) }
         }
 
         fun load() {

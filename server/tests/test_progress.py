@@ -223,3 +223,40 @@ def test_all_runs_without_tags(client: TestClient, token: str) -> None:
     (squat,) = get(client, token, "/api/v1/progress/all_strength")["strength"]
     assert squat["sessions"] == 2
     assert put_tag(client, token, 1, "all_running").status_code == 422
+
+
+def _set(category: str, name: str) -> dict[str, Any]:
+    return {
+        "exercises": [{"category": category, "name": name}],
+        "repetitionCount": 8,
+        "weight": 40000.0,
+        "setType": "ACTIVE",
+    }
+
+
+def test_strength_exercises_follow_workout_order(
+    client: TestClient, token: str, settings: Settings
+) -> None:
+    # Bench is done less often than the squat, but always first: it leads the list.
+    with open_db(settings)() as session:
+        user = session.scalars(select(User).where(User.name == "anna")).one()
+        for activity_id, day in ((7, 21), (8, 22)):
+            gym = add_activity(
+                session,
+                user,
+                activity_id,
+                datetime(2026, 11, day, 18),
+                ActivityKind.STRENGTH,
+                details=True,
+            )
+            assert gym.details is not None
+            gym.details.exercise_sets_json = {
+                "exerciseSets": [
+                    _set("BENCH_PRESS", "BARBELL_BENCH_PRESS"),
+                    _set("SQUAT", "BARBELL_BACK_SQUAT"),
+                    _set("ROW", "BARBELL_ROW"),
+                ]
+            }
+        session.commit()
+    names = [e["exercise"] for e in get(client, token, "/api/v1/progress/all_strength")["strength"]]
+    assert names == ["BARBELL_BENCH_PRESS", "BARBELL_BACK_SQUAT", "BARBELL_ROW"]

@@ -112,5 +112,47 @@ data class GradeCount(
     val failed: Int,
 )
 
+/**
+ * Jak użytkownik ułożył listę ćwiczeń tagu: [order] to nazwy w wybranej kolejności (puste = kolejność
+ * z serwera, czyli zwykła kolejność wykonywania), [hidden] to usunięte z listy.
+ */
+data class ExerciseLayout(
+    val order: List<String> = emptyList(),
+    val hidden: Set<String> = emptySet(),
+) {
+    /** Widoczne ćwiczenia w wybranej kolejności; nowe (spoza [order]) na końcu, w kolejności z serwera. */
+    fun visible(exercises: List<ExerciseProgress>): List<ExerciseProgress> {
+        val rank = order.withIndex().associate { it.value to it.index }
+        return exercises
+            .filterNot { it.exercise in hidden }
+            .withIndex()
+            .sortedBy { (index, e) -> rank[e.exercise] ?: (order.size + index) }
+            .map { it.value }
+    }
+
+    fun removed(exercises: List<ExerciseProgress>): List<ExerciseProgress> = exercises.filter { it.exercise in hidden }
+
+    /** Przesuwa [name] o [delta] miejsc na liście widocznych (poza krawędź = bez zmian). */
+    fun move(
+        exercises: List<ExerciseProgress>,
+        name: String,
+        delta: Int,
+    ): ExerciseLayout {
+        val names = visible(exercises).map { it.exercise }.toMutableList()
+        val from = names.indexOf(name)
+        val to = from + delta
+        if (from < 0 || to !in names.indices) return this
+        names.add(to, names.removeAt(from))
+        return copy(order = names)
+    }
+
+    fun hide(
+        exercises: List<ExerciseProgress>,
+        name: String,
+    ): ExerciseLayout = copy(order = visible(exercises).map { it.exercise } - name, hidden = hidden + name)
+
+    fun restore(name: String): ExerciseLayout = copy(hidden = hidden - name)
+}
+
 /** Dlaczego nie udało się pobrać danych z serwera (zakładka Progress działa tylko online). */
 enum class LoadError { OFFLINE, UNAUTHORIZED, NOT_CONFIGURED, INVALID_RESPONSE }
