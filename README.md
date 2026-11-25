@@ -28,6 +28,8 @@ Dla użytkowników:
 - [Konfiguracja Claude (konektor MCP, także darmowy plan)](docs/konfiguracja-claude.md)
 - [Instrukcja dla brata (drugi użytkownik, bez wiedzy technicznej)](docs/dla-brata.md)
 - [Wydania i instalacja APK](docs/release.md)
+- [Test serwera na VPS (czy Garmin działa z chmury)](docs/test-vps.md)
+- [Przeprowadzka serwera na VPS i powrót na laptopa](docs/przeprowadzka-vps.md)
 - [Aplikacja Android: budowanie i stan](android/README.md)
 
 Dla programistów:
