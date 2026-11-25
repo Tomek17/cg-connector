@@ -56,6 +56,12 @@ class ExerciseProgress:
     category: str | None
     exercise: str
     points: list[SetPoint] = field(default_factory=list)
+    # Place of the exercise in each session (0 = done first): the list follows workout order.
+    positions: list[int] = field(default_factory=list)
+
+    @property
+    def mean_position(self) -> float:
+        return sum(self.positions) / len(self.positions) if self.positions else 0.0
 
     @property
     def sessions(self) -> int:
@@ -167,7 +173,8 @@ def running_progress(session: Session, *, user_id: int, tag: str) -> list[RunPoi
 
 
 def strength_progress(session: Session, *, user_id: int, tag: str) -> list[ExerciseProgress]:
-    """Exercises done in activities with `tag`, most sessions first; each active set a point."""
+    """Exercises done in activities with `tag`, in the order they are usually done (then most
+    sessions first); each active set a point."""
     by_exercise: dict[tuple[str | None, str], ExerciseProgress] = {}
     for activity in tagged(session, user_id=user_id, tag=tag):
         numbers: dict[tuple[str | None, str], int] = defaultdict(int)
@@ -177,8 +184,10 @@ def strength_progress(session: Session, *, user_id: int, tag: str) -> list[Exerc
             if s.reps is None and s.weight_kg is None:
                 continue
             key = (s.category, s.exercise)
-            numbers[key] += 1
             progress = by_exercise.setdefault(key, ExerciseProgress(s.category, s.exercise))
+            if key not in numbers:
+                progress.positions.append(len(numbers))
+            numbers[key] += 1
             progress.points.append(
                 SetPoint(
                     activity_id=activity.garmin_activity_id,
@@ -188,7 +197,7 @@ def strength_progress(session: Session, *, user_id: int, tag: str) -> list[Exerc
                     reps=s.reps,
                 )
             )
-    return sorted(by_exercise.values(), key=lambda e: (-e.sessions, e.exercise))
+    return sorted(by_exercise.values(), key=lambda e: (e.mean_position, -e.sessions, e.exercise))
 
 
 @dataclass(frozen=True)

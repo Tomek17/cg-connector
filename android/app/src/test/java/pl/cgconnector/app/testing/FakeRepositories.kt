@@ -1,9 +1,11 @@
 package pl.cgconnector.app.testing
 
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import pl.cgconnector.app.data.repository.ActivityRepository
+import pl.cgconnector.app.data.repository.ExerciseLayoutStore
 import pl.cgconnector.app.data.repository.Loaded
 import pl.cgconnector.app.data.repository.ProgressRepository
 import pl.cgconnector.app.data.repository.RefreshResult
@@ -12,12 +14,12 @@ import pl.cgconnector.app.domain.Activity
 import pl.cgconnector.app.domain.ActivityDetail
 import pl.cgconnector.app.domain.ActivityTag
 import pl.cgconnector.app.domain.ActivityType
+import pl.cgconnector.app.domain.ExerciseLayout
 import pl.cgconnector.app.domain.PeriodSummary
 import pl.cgconnector.app.domain.SyncStatus
 import pl.cgconnector.app.domain.TagCount
 import pl.cgconnector.app.domain.TagProgress
 import pl.cgconnector.app.domain.Vo2MaxPoint
-import java.time.Instant
 
 class FakeActivityRepository(
     activities: List<Activity> = emptyList(),
@@ -129,5 +131,18 @@ class FakeGoalRepository(
     override suspend fun clear(): Loaded<Unit> {
         if (result is Loaded.Ok) goal.value = null
         return result
+    }
+}
+
+class FakeExerciseLayoutStore : ExerciseLayoutStore {
+    val layouts = MutableStateFlow<Map<ActivityTag, ExerciseLayout>>(emptyMap())
+
+    override fun layout(tag: ActivityTag): Flow<ExerciseLayout> = layouts.map { it[tag] ?: ExerciseLayout() }
+
+    override suspend fun save(
+        tag: ActivityTag,
+        layout: ExerciseLayout,
+    ) {
+        layouts.value = layouts.value + (tag to layout)
     }
 }

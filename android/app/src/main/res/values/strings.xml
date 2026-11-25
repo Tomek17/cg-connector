@@ -434,6 +434,15 @@
     <string name="tag_pull">Pull</string>
     <string name="tag_legs">Legs</string>
     <string name="tag_wall">Ścianka</string>
+    <string name="progress_edit">Edytuj</string>
+    <string name="progress_edit_done">Gotowe</string>
+    <string name="progress_edit_hint">Ułóż ćwiczenia w kolejności wykonywania albo usuń te, których nie chcesz widzieć. Dane z Garmina zostają bez zmian.</string>
+    <string name="progress_move_up">Przesuń %1$s wyżej</string>
+    <string name="progress_move_down">Przesuń %1$s niżej</string>
+    <string name="progress_remove_exercise">Usuń %1$s z listy</string>
+    <string name="progress_removed_exercises">Usunięte z listy</string>
+    <string name="progress_restore_exercise">Przywróć</string>
+    <string name="progress_all_exercises_removed">Wszystkie ćwiczenia są usunięte z listy. Przywrócisz je przez „Edytuj”.</string>
     <string name="tag_all_running">Wszystkie biegi</string>
     <string name="tag_all_strength">Wszystkie treningi siłowe</string>
     <string name="tag_label">Tag</string>

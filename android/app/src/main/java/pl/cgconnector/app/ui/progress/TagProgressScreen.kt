@@ -1,5 +1,6 @@
 package pl.cgconnector.app.ui.progress
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,20 +13,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 import pl.cgconnector.app.R
 import pl.cgconnector.app.domain.ActivityType
 import pl.cgconnector.app.domain.ClimbSession
@@ -35,7 +43,6 @@ import pl.cgconnector.app.domain.workout.ExerciseCatalog
 import pl.cgconnector.app.ui.components.BackIconButton
 import pl.cgconnector.app.ui.format.Formatters
 import pl.cgconnector.app.ui.theme.sportColors
-import kotlin.math.roundToInt
 
 /** Wykresy tagu albo (gdy w trasie jest ćwiczenie) wykres serii jednego ćwiczenia. */
 @Composable
@@ -52,8 +59,23 @@ fun TagProgressRoute(
         onBack = onBack,
         onOpenExercise = onOpenExercise,
         onOpenActivity = onOpenActivity,
+        onEditExercises =
+            ExerciseEditActions(
+                onToggleEditing = viewModel::toggleEditing,
+                onMove = viewModel::moveExercise,
+                onRemove = viewModel::removeExercise,
+                onRestore = viewModel::restoreExercise,
+            ),
     )
 }
+
+/** Edycja listy ćwiczeń tagu: przesuwanie, usuwanie i przywracanie (zapis tylko na telefonie). */
+data class ExerciseEditActions(
+    val onToggleEditing: () -> Unit = {},
+    val onMove: (name: String, delta: Int) -> Unit = { _, _ -> },
+    val onRemove: (String) -> Unit = {},
+    val onRestore: (String) -> Unit = {},
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,8 +85,11 @@ fun TagProgressScreen(
     onBack: () -> Unit,
     onOpenExercise: (String) -> Unit,
     onOpenActivity: (Long) -> Unit = {},
+    onEditExercises: ExerciseEditActions = ExerciseEditActions(),
 ) {
     val exercise = state.selectedExercise
+    val canEdit =
+        exercise == null && state.tag?.type == ActivityType.STRENGTH && !state.progress?.strength.isNullOrEmpty()
     val title =
         when {
             exercise != null -> exerciseName(exercise)
@@ -72,7 +97,19 @@ fun TagProgressScreen(
             else -> ""
         }
     Scaffold(
-        topBar = { TopAppBar(title = { Text(title) }, navigationIcon = { BackIconButton(onClick = onBack) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = { BackIconButton(onClick = onBack) },
+                actions = {
+                    if (canEdit) {
+                        TextButton(onClick = onEditExercises.onToggleEditing) {
+                            Text(stringResource(if (state.isEditing) R.string.progress_edit_done else R.string.progress_edit))
+                        }
+                    }
+                },
+            )
+        },
     ) { padding ->
         if (!readyOrStatus(state.isLoading, state.error, onRetry, Modifier.padding(padding))) return@Scaffold
         val progress = state.progress
@@ -91,7 +128,12 @@ fun TagProgressScreen(
                     } else {
                         runningCharts(progress.running, onOpenActivity)
                     }
-                tag.type == ActivityType.STRENGTH -> exerciseList(progress.strength, onOpenExercise)
+                tag.type == ActivityType.STRENGTH ->
+                    if (state.isEditing) {
+                        exerciseEditor(state.exercises, state.removedExercises, onEditExercises)
+                    } else {
+                        exerciseList(state.exercises, progress.strength.isNotEmpty(), onOpenExercise)
+                    }
                 progress.climbing.isEmpty() -> item { Text(stringResource(R.string.progress_climbing_empty)) }
                 else -> climbingCharts(progress.climbing, onOpenActivity)
             }
@@ -271,10 +313,13 @@ private fun RunRow(
 
 private fun LazyListScope.exerciseList(
     exercises: List<ExerciseProgress>,
+    anyOnServer: Boolean,
     onOpenExercise: (String) -> Unit,
 ) {
     if (exercises.isEmpty()) {
-        item { Text(stringResource(R.string.progress_no_exercises)) }
+        item {
+            Text(stringResource(if (anyOnServer) R.string.progress_all_exercises_removed else R.string.progress_no_exercises))
+        }
         return
     }
     item { Text(stringResource(R.string.progress_exercises), style = MaterialTheme.typography.titleMedium) }
@@ -290,6 +335,57 @@ private fun LazyListScope.exerciseList(
                 }
             }
         }
+    }
+}
+
+private fun LazyListScope.exerciseEditor(
+    exercises: List<ExerciseProgress>,
+    removed: List<ExerciseProgress>,
+    actions: ExerciseEditActions,
+) {
+    item { Text(stringResource(R.string.progress_edit_hint), style = MaterialTheme.typography.bodySmall) }
+    itemsIndexed(exercises, key = { _, e -> "edit-${e.exercise}" }) { index, exercise ->
+        val name = exerciseName(exercise)
+        Card(Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${index + 1}. $name", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                EditIcon(R.drawable.ic_arrow_up, stringResource(R.string.progress_move_up, name), enabled = index > 0) {
+                    actions.onMove(exercise.exercise, -1)
+                }
+                val isLast = index == exercises.lastIndex
+                EditIcon(R.drawable.ic_arrow_down, stringResource(R.string.progress_move_down, name), enabled = !isLast) {
+                    actions.onMove(exercise.exercise, 1)
+                }
+                EditIcon(R.drawable.ic_close, stringResource(R.string.progress_remove_exercise, name)) {
+                    actions.onRemove(exercise.exercise)
+                }
+            }
+        }
+    }
+    if (removed.isNotEmpty()) {
+        item(key = "removed") { Text(stringResource(R.string.progress_removed_exercises), style = MaterialTheme.typography.titleMedium) }
+        items(removed, key = { "removed-${it.exercise}" }) { exercise ->
+            Card(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(exerciseName(exercise), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { actions.onRestore(exercise.exercise) }) {
+                        Text(stringResource(R.string.progress_restore_exercise))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditIcon(
+    @DrawableRes icon: Int,
+    description: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, enabled = enabled) {
+        Icon(painterResource(icon), contentDescription = description)
     }
 }
 

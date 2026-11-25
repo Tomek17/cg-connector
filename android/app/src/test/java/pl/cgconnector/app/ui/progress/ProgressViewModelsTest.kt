@@ -3,20 +3,22 @@ package pl.cgconnector.app.ui.progress
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import java.time.LocalDate
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import pl.cgconnector.app.data.repository.Loaded
 import pl.cgconnector.app.domain.ActivityTag
 import pl.cgconnector.app.domain.ActivityType
+import pl.cgconnector.app.domain.ExerciseLayout
 import pl.cgconnector.app.domain.ExerciseProgress
 import pl.cgconnector.app.domain.LoadError
 import pl.cgconnector.app.domain.SetPoint
 import pl.cgconnector.app.domain.TagCount
 import pl.cgconnector.app.domain.TagProgress
+import pl.cgconnector.app.testing.FakeExerciseLayoutStore
 import pl.cgconnector.app.testing.FakeProgressRepository
 import pl.cgconnector.app.testing.MainDispatcherRule
-import java.time.LocalDate
 
 /** Robolectric, bo SavedStateHandle należy do warstwy Androida. */
 @RunWith(AndroidJUnit4::class)
@@ -106,7 +108,7 @@ class ProgressViewModelsTest {
             SavedStateHandle(
                 mapOf(TagProgressViewModel.ARG_TAG to "legs", TagProgressViewModel.ARG_EXERCISE to "BARBELL_BACK_SQUAT"),
             )
-        val viewModel by lazy { TagProgressViewModel(handle, repo) }
+        val viewModel by lazy { TagProgressViewModel(handle, repo, FakeExerciseLayoutStore()) }
 
         val state = viewModel.uiState.value
         assertThat(state.tag).isEqualTo(ActivityTag.LEGS)
@@ -116,10 +118,42 @@ class ProgressViewModelsTest {
     @Test
     fun `unknown tag shows nothing instead of crashing`() {
         val viewModel by lazy {
-            TagProgressViewModel(SavedStateHandle(mapOf(TagProgressViewModel.ARG_TAG to "sprint")), FakeProgressRepository())
+            TagProgressViewModel(SavedStateHandle(mapOf(TagProgressViewModel.ARG_TAG to "sprint")), FakeProgressRepository(), FakeExerciseLayoutStore())
         }
 
         assertThat(viewModel.uiState.value.isLoading).isFalse()
         assertThat(viewModel.uiState.value.progress).isNull()
+    }
+
+    @Test
+    fun `exercises can be reordered removed and restored and the layout is saved`() {
+        fun exercise(name: String) = ExerciseProgress("X", name, 1, listOf(SetPoint(1, day, 1, 50.0, 8)))
+        val all = listOf(exercise("A"), exercise("B"), exercise("C"))
+        val repo = FakeProgressRepository(progressResult = { Loaded.Ok(TagProgress(it, emptyList(), all)) })
+        val store = FakeExerciseLayoutStore()
+        val viewModel by lazy {
+            TagProgressViewModel(SavedStateHandle(mapOf(TagProgressViewModel.ARG_TAG to "push")), repo, store)
+        }
+        fun names() = viewModel.uiState.value.exercises.map { it.exercise }
+
+        assertThat(names()).containsExactly("A", "B", "C").inOrder()
+        viewModel.moveExercise("C", -1)
+        assertThat(names()).containsExactly("A", "C", "B").inOrder()
+        viewModel.moveExercise("A", -1)
+        assertThat(names()).containsExactly("A", "C", "B").inOrder()
+        viewModel.removeExercise("C")
+        assertThat(names()).containsExactly("A", "B").inOrder()
+        assertThat(viewModel.uiState.value.removedExercises.map { it.exercise }).containsExactly("C")
+        assertThat(store.layouts.value[ActivityTag.PUSH]?.hidden).containsExactly("C")
+        viewModel.restoreExercise("C")
+        assertThat(names()).containsExactly("A", "B", "C").inOrder()
+    }
+
+    @Test
+    fun `new exercises from the server go after the saved order`() {
+        fun exercise(name: String) = ExerciseProgress("X", name, 1, emptyList())
+        val layout = ExerciseLayout(order = listOf("B", "A"))
+        val visible = layout.visible(listOf(exercise("N"), exercise("A"), exercise("B")))
+        assertThat(visible.map { it.exercise }).containsExactly("B", "A", "N").inOrder()
     }
 }
