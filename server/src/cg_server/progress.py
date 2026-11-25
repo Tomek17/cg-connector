@@ -62,6 +62,15 @@ class ExerciseProgress:
         return len({p.activity_id for p in self.points})
 
 
+# Progress-only groups (not settable on an activity): every activity of the kind, tagged or
+# not, so the Progress tab is useful before anything is tagged. Listed before the real tags.
+ALL_TAGS: dict[str, ActivityKind] = {
+    "all_running": ActivityKind.RUNNING,
+    "all_strength": ActivityKind.STRENGTH,
+}
+PROGRESS_TAGS: dict[str, ActivityKind] = {**ALL_TAGS, **TAGS}
+
+
 def _implicit_tag(kind: ActivityKind) -> str | None:
     """The only tag of a kind (climbing: wall) also covers its untagged activities, so the
     Progress tab shows every session without tagging each one."""
@@ -70,14 +79,17 @@ def _implicit_tag(kind: ActivityKind) -> str | None:
 
 
 def _tag_filter(tag: str) -> ColumnElement[bool]:
-    kind = TAGS[tag]
+    kind = PROGRESS_TAGS[tag]
+    if tag in ALL_TAGS:
+        return Activity.kind == kind
     if _implicit_tag(kind) == tag:
         return (Activity.kind == kind) & or_(Activity.tag == tag, Activity.tag.is_(None))
     return Activity.tag == tag
 
 
 def tag_counts(session: Session, *, user_id: int) -> list[TagCount]:
-    """Tags in use with the number of activities and the newest local day, in TAGS order."""
+    """Tags in use with the number of activities and the newest local day, in PROGRESS_TAGS
+    order (the all_* groups first)."""
     user_id = queries.check_user_id(user_id)
     rows = session.execute(
         select(Activity.tag, func.count(), func.max(Activity.start_time_local))
@@ -85,10 +97,8 @@ def tag_counts(session: Session, *, user_id: int) -> list[TagCount]:
         .group_by(Activity.tag)
     ).all()
     found = {tag: (count, last) for tag, count, last in rows if tag in TAGS}
-    for kind in ActivityKind:
-        tag = _implicit_tag(kind)
-        if tag is None:
-            continue
+    implicit = [t for t in (_implicit_tag(kind) for kind in ActivityKind) if t is not None]
+    for tag in [*ALL_TAGS, *implicit]:
         count, last = session.execute(
             select(func.count(), func.max(Activity.start_time_local)).where(
                 Activity.user_id == user_id, _tag_filter(tag)
@@ -97,8 +107,8 @@ def tag_counts(session: Session, *, user_id: int) -> list[TagCount]:
         if count:
             found[tag] = (count, last)
     return [
-        TagCount(tag, TAGS[tag], found[tag][0], found[tag][1].date())
-        for tag in TAGS
+        TagCount(tag, PROGRESS_TAGS[tag], found[tag][0], found[tag][1].date())
+        for tag in PROGRESS_TAGS
         if tag in found
     ]
 

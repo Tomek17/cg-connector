@@ -25,7 +25,11 @@ data class ProgressTagsUiState(
     val category: ActivityType? = null,
     val counts: Map<ActivityTag, TagCount> = emptyMap(),
 ) {
-    fun countFor(type: ActivityType): Int = counts.values.filter { it.tag.type == type }.sumOf { it.count }
+    /** Liczba z grupy „wszystkie” (też bez tagu); bez niej (starszy serwer) suma tagów. */
+    fun countFor(type: ActivityType): Int {
+        val ofType = counts.values.filter { it.tag.type == type }
+        return ofType.firstOrNull { it.tag.isGroup }?.count ?: ofType.sumOf { it.count }
+    }
 }
 
 /** Zakładka Progress (kategorie) i lista tagów jednej kategorii (argument [ARG_TYPE]). */

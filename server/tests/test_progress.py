@@ -143,10 +143,13 @@ def test_tag_list_counts(client: TestClient, token: str) -> None:
     put_tag(client, token, 5, "wall")
     data = get(client, token, "/api/v1/progress")
     assert [(t["tag"], t["type"], t["count"]) for t in data["tags"]] == [
+        ("all_running", "running", 2),
+        ("all_strength", "strength", 2),
         ("intervals", "running", 2),
         ("wall", "climbing", 1),
     ]
-    assert data["tags"][0]["last_date"] == "2026-11-10"
+    assert data["tags"][2]["last_date"] == "2026-11-10"
+    assert "all_running" not in data["available"]
     assert data["available"]["fbw"] == "strength"
     assert (
         client.get(
@@ -208,3 +211,15 @@ def test_climbing_progress_counts_boulders_and_covers_untagged_sessions(
         ("V3", 1, 0),
         ("V5", 0, 2),
     ]
+
+
+def test_all_runs_without_tags(client: TestClient, token: str) -> None:
+    # Nothing tagged: the all_* groups still show every run and strength session.
+    counts = {t["tag"]: t["count"] for t in get(client, token, "/api/v1/progress")["tags"]}
+    assert counts == {"all_running": 2, "all_strength": 2, "wall": 1}
+    runs = get(client, token, "/api/v1/progress/all_running")
+    assert runs["type"] == "running"
+    assert [r["activity_id"] for r in runs["running"]] == [1, 2]
+    (squat,) = get(client, token, "/api/v1/progress/all_strength")["strength"]
+    assert squat["sessions"] == 2
+    assert put_tag(client, token, 1, "all_running").status_code == 422

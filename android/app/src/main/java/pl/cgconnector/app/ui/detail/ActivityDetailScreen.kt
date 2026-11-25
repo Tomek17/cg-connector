@@ -99,7 +99,7 @@ fun ActivityDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item { Header(detail.activity) }
-                    if (ActivityTag.forType(detail.activity.type).isNotEmpty()) {
+                    if (ActivityTag.settableFor(detail.activity.type).isNotEmpty()) {
                         item { TagCard(detail.activity, state.isSavingTag, state.tagError, onSetTag) }
                     }
                     item { SummaryCard(detail.activity) }
@@ -155,7 +155,7 @@ private fun TagCard(
         }
     }
     if (choosing) {
-        val options = listOf<ActivityTag?>(null) + ActivityTag.forType(activity.type)
+        val options = listOf<ActivityTag?>(null) + ActivityTag.settableFor(activity.type)
         AlertDialog(
             onDismissRequest = { choosing = false },
             title = { Text(stringResource(R.string.tag_dialog_title)) },

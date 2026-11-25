@@ -282,7 +282,7 @@
     "/api/v1/progress/{tag}": {
       "get": {
         "summary": "Progress Tag",
-        "description": "Dane do wykresów dla aktywności z tym tagiem (od najstarszej).",
+        "description": "Dane do wykresów dla aktywności z tym tagiem (od najstarszej). `all_running` i\n`all_strength` obejmują wszystkie biegi / treningi siłowe, także bez tagu.",
         "operationId": "progress_tag_api_v1_progress__tag__get",
         "security": [
           {
@@ -296,10 +296,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Klucz tagu, np. intervals",
+              "description": "Klucz tagu, np. intervals, albo all_running",
               "title": "Tag"
             },
-            "description": "Klucz tagu, np. intervals"
+            "description": "Klucz tagu, np. intervals, albo all_running"
           }
         ],
         "responses": {

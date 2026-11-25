@@ -479,10 +479,11 @@ def progress_tags(user: CurrentUser, session: DbSession) -> ProgressTags:
 def progress_tag(
     user: CurrentUser,
     session: DbSession,
-    tag: Annotated[str, Path(description="Klucz tagu, np. intervals")],
+    tag: Annotated[str, Path(description="Klucz tagu, np. intervals, albo all_running")],
 ) -> TagProgress:
-    """Dane do wykresów dla aktywności z tym tagiem (od najstarszej)."""
-    kind = TAGS.get(tag)
+    """Dane do wykresów dla aktywności z tym tagiem (od najstarszej). `all_running` i
+    `all_strength` obejmują wszystkie biegi / treningi siłowe, także bez tagu."""
+    kind = progress.PROGRESS_TAGS.get(tag)
     if kind is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Nieznany tag")
     running = (

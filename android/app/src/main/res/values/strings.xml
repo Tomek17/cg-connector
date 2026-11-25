@@ -434,6 +434,8 @@
     <string name="tag_pull">Pull</string>
     <string name="tag_legs">Legs</string>
     <string name="tag_wall">Ścianka</string>
+    <string name="tag_all_running">Wszystkie biegi</string>
+    <string name="tag_all_strength">Wszystkie treningi siłowe</string>
     <string name="tag_label">Tag</string>
     <string name="tag_none">Bez tagu</string>
     <string name="tag_change">Zmień</string>
