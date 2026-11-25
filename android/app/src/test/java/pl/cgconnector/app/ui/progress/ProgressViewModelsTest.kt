@@ -50,6 +50,34 @@ class ProgressViewModelsTest {
     }
 
     @Test
+    fun `group count includes untagged activities and is not summed twice`() {
+        val repo =
+            FakeProgressRepository(
+                tagsResult =
+                    Loaded.Ok(
+                        listOf(
+                            TagCount(ActivityTag.ALL_RUNNING, 7, day),
+                            TagCount(ActivityTag.INTERVALS, 3, day),
+                            TagCount(ActivityTag.LEGS, 4, day),
+                        ),
+                    ),
+            )
+        val viewModel by lazy { ProgressTagsViewModel(SavedStateHandle(), repo) }
+
+        val state = viewModel.uiState.value
+        assertThat(state.countFor(ActivityType.RUNNING)).isEqualTo(7)
+        assertThat(state.countFor(ActivityType.STRENGTH)).isEqualTo(4)
+    }
+
+    @Test
+    fun `groups are listed first in progress but cannot be set on an activity`() {
+        assertThat(ActivityTag.forType(ActivityType.RUNNING).first()).isEqualTo(ActivityTag.ALL_RUNNING)
+        assertThat(ActivityTag.forType(ActivityType.STRENGTH).first()).isEqualTo(ActivityTag.ALL_STRENGTH)
+        assertThat(ActivityTag.settableFor(ActivityType.RUNNING)).doesNotContain(ActivityTag.ALL_RUNNING)
+        assertThat(ActivityTag.settableFor(ActivityType.STRENGTH)).doesNotContain(ActivityTag.ALL_STRENGTH)
+    }
+
+    @Test
     fun `category screen keeps its type and retry reloads after an error`() {
         val repo = FakeProgressRepository(tagsResult = Loaded.Failed(LoadError.OFFLINE))
         val viewModel by lazy {

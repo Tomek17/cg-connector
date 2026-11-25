@@ -56,6 +56,8 @@ import java.time.format.DateTimeFormatter
 @StringRes
 fun ActivityTag.labelRes(): Int =
     when (this) {
+        ActivityTag.ALL_RUNNING -> R.string.tag_all_running
+        ActivityTag.ALL_STRENGTH -> R.string.tag_all_strength
         ActivityTag.INTERVALS -> R.string.tag_intervals
         ActivityTag.TEMPO -> R.string.tag_tempo
         ActivityTag.LONG -> R.string.tag_long

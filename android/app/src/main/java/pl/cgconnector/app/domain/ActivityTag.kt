@@ -6,13 +6,20 @@ import java.time.LocalDate
  * Tag aktywności (jeden na aktywność). [key] to wartość w API serwera (`cg_server.tags.TAGS`),
  * [type] to rodzaj aktywności, do którego tag pasuje. Kolejność wpisów = kolejność na ekranach.
  */
-enum class ActivityTag(val key: String, val type: ActivityType) {
+enum class ActivityTag(
+    val key: String,
+    val type: ActivityType,
+    /** Grupa w zakładce Progress (wszystkie aktywności rodzaju); nie da się jej nadać aktywności. */
+    val isGroup: Boolean = false,
+) {
+    ALL_RUNNING("all_running", ActivityType.RUNNING, isGroup = true),
     INTERVALS("intervals", ActivityType.RUNNING),
     TEMPO("tempo", ActivityType.RUNNING),
     LONG("long", ActivityType.RUNNING),
     BASE("base", ActivityType.RUNNING),
     EASY("easy", ActivityType.RUNNING),
     STRIDES("strides", ActivityType.RUNNING),
+    ALL_STRENGTH("all_strength", ActivityType.STRENGTH, isGroup = true),
     UPPER("upper", ActivityType.STRENGTH),
     FBW("fbw", ActivityType.STRENGTH),
     PUSH("push", ActivityType.STRENGTH),
@@ -25,7 +32,11 @@ enum class ActivityTag(val key: String, val type: ActivityType) {
         /** Nieznany klucz (nowszy serwer) = `null`: aplikacja pokazuje aktywność bez tagu. */
         fun fromKey(key: String?): ActivityTag? = entries.firstOrNull { it.key == key }
 
+        /** Pozycje zakładki Progress danego rodzaju: najpierw grupa „wszystkie”, potem tagi. */
         fun forType(type: ActivityType): List<ActivityTag> = entries.filter { it.type == type }
+
+        /** Tagi, które można nadać aktywności (bez grup). */
+        fun settableFor(type: ActivityType): List<ActivityTag> = forType(type).filterNot { it.isGroup }
 
         /** Kategorie zakładki Progress w kolejności z ekranu. */
         val CATEGORIES = listOf(ActivityType.STRENGTH, ActivityType.RUNNING, ActivityType.CLIMBING)
