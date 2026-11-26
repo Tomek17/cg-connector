@@ -15,7 +15,7 @@ Wszystko działa przez **serwer na laptopie Tomka**.
 
 ## Co musisz wiedzieć na start
 
-- Dane pobierają się codziennie **o 14:00**. Jeśli laptop Tomka był wtedy wyłączony, to zaraz po jego włączeniu.
+- Dane pobierają się **o 8:00, 17:00 i 21:00**. Jeśli serwer był wtedy wyłączony, to zaraz po jego włączeniu.
 - **Claude, logowanie do Garmina i wysyłanie treningów działają tylko wtedy, gdy laptop Tomka jest włączony.**
 - Gdy laptop jest wyłączony, aplikacja nadal pokazuje Twoje dane. Trening czeka w kolejce i wyśle się sam, gdy laptop się włączy.
 - Trening trafia najpierw do **kalendarza Garmin Connect**. Na zegarek trafia, gdy zegarek zsynchronizuje się z aplikacją Garmin Connect na telefonie.

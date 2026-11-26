@@ -1,8 +1,8 @@
 """Background sync schedule (APScheduler, Europe/Warsaw), started in the FastAPI lifespan.
 
-- `daily_sync` at `CG_SYNC_HOUR` (14:00) and
+- `daily_sync` at each of `CG_SYNC_HOURS` (8:00, 17:00, 21:00) and
 - `catch_up` every 15 min and right after start: both sync the users whose sync is due
-  according to `needs_catch_up` (missed 14:00 because the laptop was off/asleep, or
+  according to `needs_catch_up` (missed the last sync hour because the server was off, or
   >24 h old), with backoff after failures.
 - `outbox` every 15 min and right after start: sends scheduled workouts to Garmin.
 - Jobs: coalesce, max_instances=1, misfire_grace_time; a lock keeps the two jobs from
@@ -11,9 +11,9 @@
 
 import logging
 import threading
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import (  # type: ignore[import-untyped]
@@ -60,15 +60,16 @@ def needs_catch_up(
     now: datetime,
     *,
     tz: ZoneInfo,
-    hour: int = 14,
+    hours: Sequence[int] = (8, 17, 21),
     failures: int = 0,
 ) -> bool:
     """Is a sync due now? (MASTER_PROMPT 3.1)
 
     `last_ok`: when the last successful sync finished; `last_attempt`: when the last run
     started; `failures`: failed runs since `last_ok`.
-    Due when there was never a successful sync, when the last one finished before today's
-    `hour` and it is already past `hour`, or when it is older than 24 h. After failures
+    Due when there was never a successful sync, when the last one finished before the latest
+    sync hour (of `hours`, today or yesterday) that has already passed, or when it is older
+    than 24 h. After failures
     wait `retry_delay(failures)` from the last attempt (no hammering Garmin every 15 min).
     Naive datetimes (SQLite) are UTC.
     """
@@ -81,10 +82,20 @@ def needs_catch_up(
     if last_ok is None:
         return True
     last_ok = _aware(last_ok)
-    today_sync = now.astimezone(tz).replace(hour=hour, minute=0, second=0, microsecond=0)
-    if now >= today_sync and last_ok < today_sync:
+    if last_ok < last_sync_slot(now, tz=tz, hours=hours):
         return True
     return now - last_ok > timedelta(hours=24)
+
+
+def last_sync_slot(now: datetime, *, tz: ZoneInfo, hours: Sequence[int]) -> datetime:
+    """The latest planned sync time (one of `hours`, local) not after `now`."""
+    local = _aware(now).astimezone(tz)
+    slots = [
+        datetime.combine(local.date() - timedelta(days=back), time(hour), tzinfo=tz)
+        for back in (0, 1)
+        for hour in hours
+    ]
+    return max(slot for slot in slots if slot <= local)
 
 
 class SyncRunner:
@@ -119,7 +130,7 @@ class SyncRunner:
             return False
         if accounts.rate_limit_cooldown_until(user, now) is not None:
             return False
-        # A run stopped by the request limit is today's sync too; the rest comes tomorrow.
+        # A run stopped by the request limit counts as this slot's sync; the rest comes next slot.
         done = or_(SyncRun.status == SyncStatus.OK, SyncRun.request_limit_reached.is_(True))
         last_ok = session.scalar(
             select(func.max(SyncRun.finished_at)).where(SyncRun.user_id == user.id, done)
@@ -136,12 +147,12 @@ class SyncRunner:
             last_attempt,
             now,
             tz=self.tz,
-            hour=self.settings.sync_hour,
+            hours=self.settings.sync_hour_list,
             failures=failures or 0,
         )
 
     def daily(self, now: datetime | None = None) -> None:
-        """14:00 job. Same rule as catch-up, so a misfired daily job and the catch-up
+        """Job at each sync hour. Same rule as catch-up, so a misfired daily job and the catch-up
         check firing together after wake-up never sync a user twice."""
         self.catch_up(now)
 
@@ -197,7 +208,7 @@ def create_scheduler(
     )
     scheduler.add_job(
         runner.daily,
-        CronTrigger(hour=settings.sync_hour, minute=0, timezone=tz),
+        CronTrigger(hour=settings.sync_hours, minute=0, timezone=tz),
         id="daily_sync",
     )
     scheduler.add_job(

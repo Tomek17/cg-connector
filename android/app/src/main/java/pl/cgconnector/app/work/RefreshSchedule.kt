@@ -9,28 +9,45 @@ import java.time.ZonedDateTime
 
 /**
  * Harmonogram odświeżania (czysta logika, bez WorkManagera):
- * - codziennie o [RUN_AT] Europe/Warsaw (serwer synchronizuje się o 14:00),
- * - gdy serwer jest niedostępny albo jeszcze nie pobrał dziś danych z Garmina: ponowienie co [RETRY_INTERVAL], ale tylko w oknie [RUN_AT, [RETRY_UNTIL]),
- *   bo laptop-serwer może włączyć się później; po [RETRY_UNTIL] następna próba jest jutro o [RUN_AT].
- * Godziny liczone w strefie Europe/Warsaw, więc zmiana czasu (DST) nie przesuwa pory odświeżania.
+ * - serwer pobiera dane z Garmina o [SERVER_SYNC_TIMES] (CG_SYNC_HOURS), aplikacja odświeża się
+ *   [AFTER_SERVER_SYNC] później, czyli o [RUN_TIMES] czasu polskiego,
+ * - gdy serwer jest niedostępny albo jeszcze nie pobrał danych z ostatniej pory: ponowienie co
+ *   [RETRY_INTERVAL] (nie później niż następna pora), ale tylko od pierwszej pory do [RETRY_UNTIL].
+ * Godziny liczone w strefie Europe/Warsaw, więc zmiana czasu (DST) nie przesuwa pór odświeżania.
  */
 object RefreshSchedule {
     val ZONE: ZoneId = ZoneId.of("Europe/Warsaw")
-    val RUN_AT: LocalTime = LocalTime.of(14, 20)
+
+    /** Pory synchronizacji serwera z Garminem (domyślne CG_SYNC_HOURS). */
+    val SERVER_SYNC_TIMES: List<LocalTime> = listOf(8, 17, 21).map { LocalTime.of(it, 0) }
+    val AFTER_SERVER_SYNC: Duration = Duration.ofMinutes(20)
+    val RUN_TIMES: List<LocalTime> = SERVER_SYNC_TIMES.map { it.plus(AFTER_SERVER_SYNC) }
     val RETRY_UNTIL: LocalTime = LocalTime.of(23, 0)
     val RETRY_INTERVAL: Duration = Duration.ofHours(1)
-
-    /** Godzina codziennej synchronizacji serwera z Garminem (CG_SYNC_HOUR). */
-    val SERVER_SYNC_AT: LocalTime = LocalTime.of(14, 0)
 
     /** Po otwarciu aplikacji odświeżamy, jeśli ostatnie udane odświeżenie jest starsze niż to. */
     val FOREGROUND_STALE_AFTER: Duration = Duration.ofMinutes(15)
 
-    /** Ostatnie [RUN_AT] nie później niż [now] (dziś albo wczoraj). */
-    fun lastRunAt(now: Instant): ZonedDateTime = nextRunAt(now).minusDays(1)
+    /** Pory z [times] z wczoraj, dziś i jutro, rosnąco. */
+    private fun slotsAround(
+        now: Instant,
+        times: List<LocalTime>,
+    ): List<ZonedDateTime> {
+        val today = now.atZone(ZONE).toLocalDate()
+        return (-1L..1L).flatMap { day -> times.map { ZonedDateTime.of(today.plusDays(day), it, ZONE) } }.sorted()
+    }
+
+    /** Ostatnia pora odświeżenia nie później niż [now]. */
+    fun lastRunAt(now: Instant): ZonedDateTime = slotsAround(now, RUN_TIMES).last { !it.toInstant().isAfter(now) }
+
+    /** Najbliższa pora odświeżenia ściśle po [now]. */
+    fun nextRunAt(now: Instant): ZonedDateTime = slotsAround(now, RUN_TIMES).first { it.toInstant().isAfter(now) }
+
+    /** Ostatnia pora synchronizacji serwera nie później niż [now]. */
+    fun lastServerSyncSlot(now: Instant): ZonedDateTime = slotsAround(now, SERVER_SYNC_TIMES).last { !it.toInstant().isAfter(now) }
 
     /**
-     * Czy zaplanowane odświeżenie zostało pominięte: ostatnie udane jest sprzed ostatniego [RUN_AT].
+     * Czy zaplanowane odświeżenie zostało pominięte: ostatnie udane jest sprzed ostatniej pory.
      * Android (zwłaszcza Samsung) potrafi odłożyć zadanie z opóźnieniem o wiele godzin.
      */
     fun isMissed(
@@ -38,30 +55,18 @@ object RefreshSchedule {
         now: Instant,
     ): Boolean = lastSuccess == null || lastSuccess.isBefore(lastRunAt(now).toInstant())
 
-    /** Czy serwer zsynchronizował się z Garminem po dzisiejszej [SERVER_SYNC_AT] (jeśli już minęła). */
-    fun serverSyncedToday(
+    /** Czy serwer pobrał dane z Garmina po ostatniej porze synchronizacji. */
+    fun serverSyncedSinceLastSlot(
         serverLastSyncAt: Instant?,
         now: Instant,
-    ): Boolean {
-        val local = now.atZone(ZONE)
-        val syncToday = ZonedDateTime.of(local.toLocalDate(), SERVER_SYNC_AT, ZONE)
-        if (local.isBefore(syncToday)) return true
-        return serverLastSyncAt != null && !serverLastSyncAt.isBefore(syncToday.toInstant())
-    }
-
-    /** Najbliższe [RUN_AT] ściśle po [now]. */
-    fun nextRunAt(now: Instant): ZonedDateTime {
-        val today = now.atZone(ZONE).toLocalDate()
-        val candidate = ZonedDateTime.of(today, RUN_AT, ZONE)
-        return if (candidate.toInstant().isAfter(now)) candidate else ZonedDateTime.of(today.plusDays(1), RUN_AT, ZONE)
-    }
+    ): Boolean = serverLastSyncAt != null && !serverLastSyncAt.isBefore(lastServerSyncSlot(now).toInstant())
 
     fun delayUntilNextRun(now: Instant): Duration = Duration.between(now, nextRunAt(now).toInstant())
 
-    /** Czy o [now] wolno jeszcze ponawiać (okno od [RUN_AT] do [RETRY_UNTIL] czasu polskiego). */
+    /** Czy o [now] wolno jeszcze ponawiać (od pierwszej pory dnia do [RETRY_UNTIL] czasu polskiego). */
     fun isInRetryWindow(now: Instant): Boolean {
         val time = now.atZone(ZONE).toLocalTime()
-        return !time.isBefore(RUN_AT) && time.isBefore(RETRY_UNTIL)
+        return !time.isBefore(RUN_TIMES.first()) && time.isBefore(RETRY_UNTIL)
     }
 
     /** Opóźnienie następnego uruchomienia po zakończeniu odświeżania z wynikiem [result]. */
@@ -69,14 +74,16 @@ object RefreshSchedule {
         result: RefreshResult,
         now: Instant,
         serverLastSyncAt: Instant? = null,
-    ): Duration =
-        if (result == RefreshResult.Unavailable && isInRetryWindow(now)) {
-            RETRY_INTERVAL
-        } else if (result is RefreshResult.Success && !serverSyncedToday(serverLastSyncAt, now) && isInRetryWindow(now)) {
-            // Serwer odpowiada, ale dziś jeszcze nie pobrał z Garmina (laptop włączony później): za godzinę jeszcze raz.
-            RETRY_INTERVAL
-        } else {
-            // Sukces, brak konfiguracji, 401, zła odpowiedź albo koniec okna ponowień: jutro.
-            delayUntilNextRun(now)
-        }
+    ): Duration {
+        val retry =
+            isInRetryWindow(now) &&
+                (
+                    result == RefreshResult.Unavailable ||
+                        // Serwer odpowiada, ale jeszcze nie pobrał z Garmina z ostatniej pory: za godzinę jeszcze raz.
+                        (result is RefreshResult.Success && !serverSyncedSinceLastSlot(serverLastSyncAt, now))
+                )
+        val untilNext = delayUntilNextRun(now)
+        // Sukces, brak konfiguracji, 401, zła odpowiedź albo koniec okna ponowień: następna pora.
+        return if (retry) minOf(RETRY_INTERVAL, untilNext) else untilNext
+    }
 }

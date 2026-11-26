@@ -1,6 +1,7 @@
 """Scheduler: catch-up rule (pure function), job runner and job configuration."""
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -23,7 +24,7 @@ def waw(day: int, hour: int, minute: int = 0) -> datetime:
 
 
 def due(last_ok: datetime | None, now: datetime, last_attempt: datetime | None = None) -> bool:
-    return needs_catch_up(last_ok, last_attempt or last_ok, now, tz=WAW, hour=14)
+    return needs_catch_up(last_ok, last_attempt or last_ok, now, tz=WAW, hours=(14,))
 
 
 def test_never_synced_is_due() -> None:
@@ -50,8 +51,10 @@ def test_due_when_older_than_24h_even_before_14() -> None:
 
 def test_failed_attempt_waits_an_hour_before_next_catch_up() -> None:
     last_ok = waw(17, 9)
-    assert not needs_catch_up(last_ok, waw(18, 15), waw(18, 15, 30), tz=WAW, hour=14, failures=1)
-    assert needs_catch_up(last_ok, waw(18, 15), waw(18, 16, 1), tz=WAW, hour=14, failures=1)
+    assert not needs_catch_up(
+        last_ok, waw(18, 15), waw(18, 15, 30), tz=WAW, hours=(14,), failures=1
+    )
+    assert needs_catch_up(last_ok, waw(18, 15), waw(18, 16, 1), tz=WAW, hours=(14,), failures=1)
 
 
 @pytest.mark.parametrize(
@@ -61,7 +64,7 @@ def test_backoff_doubles_after_each_failure_up_to_24h(failures: int, wait_h: int
     last_ok, attempt = waw(10, 14, 30), waw(17, 15)
     just_before = attempt + timedelta(hours=wait_h) - timedelta(minutes=1)
     just_after = attempt + timedelta(hours=wait_h) + timedelta(minutes=1)
-    kw: dict[str, Any] = {"tz": WAW, "hour": 14, "failures": failures}
+    kw: dict[str, Any] = {"tz": WAW, "hours": (14,), "failures": failures}
     assert not needs_catch_up(last_ok, attempt, just_before, **kw)
     assert needs_catch_up(last_ok, attempt, just_after, **kw)
 
@@ -181,7 +184,7 @@ def test_last_ok_counts_from_finish_time(settings: Settings) -> None:
     assert len(runs(settings)) == 1
 
 
-def test_run_stopped_by_request_limit_counts_as_todays_sync(settings: Settings) -> None:
+def test_run_stopped_by_request_limit_counts_as_this_slots_sync(settings: Settings) -> None:
     add_user(settings, "tomek")
     with open_db(settings)() as session:
         user = session.scalars(select(User)).one()
@@ -197,9 +200,26 @@ def test_run_stopped_by_request_limit_counts_as_todays_sync(settings: Settings) 
         session.commit()
     runner = runner_for(settings)
 
-    runner.catch_up(now=datetime(2026, 11, 18, 18, 0, tzinfo=WAW))
-
+    runner.catch_up(now=datetime(2026, 11, 18, 16, 0, tzinfo=WAW))
     assert len(runs(settings)) == 1
+
+
+def test_three_sync_hours() -> None:
+    hours = (8, 17, 21)
+    kw: dict[str, Any] = {"tz": WAW, "hours": hours}
+    morning = waw(18, 8, 5)
+    assert not needs_catch_up(morning, morning, waw(18, 16, 59), **kw)
+    assert needs_catch_up(morning, morning, waw(18, 17, 0), **kw)
+    evening = waw(18, 21, 3)
+    # After midnight the last slot is yesterday's 21:00: done, wait for 8:00.
+    assert not needs_catch_up(evening, evening, waw(19, 7, 59), **kw)
+    assert needs_catch_up(evening, evening, waw(19, 8, 0), **kw)
+
+
+def test_sync_hours_setting(tmp_path: Path) -> None:
+    assert Settings(data_dir=tmp_path, sync_hours="21, 8,17").sync_hour_list == (8, 17, 21)
+    with pytest.raises(ValueError):
+        Settings(data_dir=tmp_path, sync_hours="8,24")
 
 
 def test_consecutive_failures_back_off(settings: Settings) -> None:
@@ -258,7 +278,7 @@ def test_scheduler_jobs(settings: Settings) -> None:
     assert jobs["daily_sync"].func == runner.daily
     daily = jobs["daily_sync"]
     assert str(daily.trigger.timezone) == "Europe/Warsaw"
-    assert "hour='14'" in str(daily.trigger)
+    assert "hour='8,17,21'" in str(daily.trigger)
     assert jobs["catch_up"].trigger.interval == timedelta(minutes=15)
     for job in jobs.values():
         assert job.coalesce is True

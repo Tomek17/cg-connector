@@ -15,8 +15,8 @@ android {
         applicationId = "pl.cgconnector.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 17
-        versionName = "0.17.0"
+        versionCode = 18
+        versionName = "0.18.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

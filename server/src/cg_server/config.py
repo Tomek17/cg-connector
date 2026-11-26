@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LOCAL_HOSTS = ("", "localhost", "127.0.0.1")
@@ -18,7 +19,9 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path("/data")
     timezone: str = "Europe/Warsaw"
-    sync_hour: int = 14
+    # Hours (Europe/Warsaw) of the automatic Garmin sync, comma separated. The old single-hour
+    # CG_SYNC_HOUR is ignored.
+    sync_hours: str = "8,17,21"
     # Pause before each Garmin request during sync (seconds); be gentle with Garmin.
     sync_request_delay_s: float = 2.0
     # How far back the first sync goes.
@@ -40,6 +43,18 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 30
     # Who may invite new people from the app; empty = the first account created (Tomek).
     admin_user: str = ""
+
+    @field_validator("sync_hours")
+    @classmethod
+    def _valid_sync_hours(cls, value: str) -> str:
+        hours = [int(h) for h in value.replace(" ", "").split(",") if h]
+        if not hours or any(not 0 <= h <= 23 for h in hours):
+            raise ValueError("CG_SYNC_HOURS: godziny 0-23 po przecinku, np. 8,17,21")
+        return ",".join(str(h) for h in sorted(set(hours)))
+
+    @property
+    def sync_hour_list(self) -> tuple[int, ...]:
+        return tuple(int(h) for h in self.sync_hours.split(","))
 
     @property
     def is_production(self) -> bool:

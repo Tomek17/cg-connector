@@ -17,7 +17,7 @@ Most między zegarkami **Garmin** a **Claude**. Pozwala:
 ### Ograniczenia (ważne)
 
 - **Claude i wysyłanie treningów działają tylko, gdy laptop-serwer jest włączony** i ma internet. Gdy jest wyłączony, aplikacja kolejkuje treningi i wysyła je przy następnym kontakcie.
-- Synchronizacja odbywa się o 14:00 albo zaraz po włączeniu laptopa, jeśli 14:00 została pominięta.
+- Synchronizacja odbywa się o 8:00, 17:00 i 21:00 (CG_SYNC_HOURS) albo zaraz po włączeniu serwera, jeśli pora została pominięta.
 - Dane w aplikacji są dostępne cały czas, także offline.
 
 ## Dokumentacja
