@@ -13,7 +13,7 @@ import javax.inject.Inject
 
 /**
  * Łańcuch jednorazowych zadań pod jedną unikalną nazwą: każde uruchomienie [RefreshWorker] planuje
- * następne (za 1 h przy braku serwera w oknie ponowień, inaczej jutro o 14:20). OneTimeWork zamiast
+ * następne (za 1 h przy braku serwera w oknie ponowień, inaczej o następnej porze: 8:20, 17:20 albo 21:20). OneTimeWork zamiast
  * PeriodicWork, bo okresowe zadanie dryfuje i nie pozwala na stałe ponowienia co godzinę.
  */
 class RefreshScheduler
@@ -25,7 +25,7 @@ class RefreshScheduler
         /** Przy starcie aplikacji: nie rusza już zaplanowanego łańcucha (KEEP). */
         fun ensureScheduled() {
             enqueue(RefreshSchedule.delayUntilNextRun(clock.instant()), ExistingWorkPolicy.KEEP)
-            // Siatka bezpieczeństwa, gdy system odłoży zadanie o 14:20 (oszczędzanie baterii).
+            // Siatka bezpieczeństwa, gdy system odłoży zaplanowane zadanie (oszczędzanie baterii).
             val catchUp =
                 PeriodicWorkRequestBuilder<CatchUpRefreshWorker>(CATCH_UP_EVERY)
                     .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))

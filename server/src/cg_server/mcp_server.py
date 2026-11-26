@@ -43,7 +43,8 @@ SYNC = ToolAnnotations(
 
 INSTRUCTIONS = (
     "CG-connector: the user's Garmin Connect training data (activities, VO2max) "
-    "synced once a day, and workouts sent to the user's Garmin calendar/watch. "
+    "synced three times a day (8:00, 17:00, 21:00), and workouts sent to the user's "
+    "Garmin calendar/watch. "
     "Units: km, min/km, bpm; times local (Europe/Warsaw). Dates are YYYY-MM-DD."
 )
 
@@ -229,7 +230,7 @@ def build_mcp(
 
     @mcp.tool(annotations=SYNC)
     async def sync_now() -> CallToolResult:
-        """Fetch new Garmin data now (normally once a day at 14:00), e.g. right after a
+        """Fetch new Garmin data now (normally at 8:00, 17:00 and 21:00), e.g. right after a
         workout. Waits for the sync; then read activities as usual. Refused if a sync
         ran in the last hour, is running, or Garmin needs login/is paused."""
         with sessions() as session:

@@ -35,7 +35,7 @@ Co robią te polecenia:
 |---|---|
 | `user-add --name brat` | Dodaje użytkownika. Oczekiwany wynik: `Dodano użytkownika „brat”.` |
 | `garmin-login --user brat` | Jednorazowe logowanie do Garmin Connect. Pyta o e-mail, hasło (niewidoczne) i ewentualnie kod MFA. **Hasło wpisuje właściciel konta Garmin osobiście, na tym laptopie.** Hasło nie jest nigdzie zapisywane, tylko zaszyfrowane tokeny. |
-| `sync --user brat` | Pierwsza synchronizacja od razu (zamiast czekać do 14:00). Pierwszy sync pobiera historię i może potrwać kilka minut. |
+| `sync --user brat` | Pierwsza synchronizacja od razu (zamiast czekać do najbliższej pory syncu). Pierwszy sync pobiera historię i może potrwać kilka minut. |
 | `user-code --user brat` | Generuje **osobisty kod CG** do logowania konektora w Claude. |
 | `app-token --user brat` | (Opcjonalnie, dla aplikacji Android) generuje **token aplikacji** `cga_…`. Patrz [dla-brata.md](dla-brata.md). |
 
@@ -99,7 +99,7 @@ Claude sam wybiera narzędzie na podstawie pytania. Nie musisz znać nazw. Daty 
 | `get_activity` | Szczegóły jednej aktywności: okrążenia, minuty w strefach tętna, serie siłowe, training effect i obciążenie. |
 | `set_activity_tag` | Nadaje aktywności jeden tag (bieg: `intervals`, `tempo`, `long`, `base`, `strides`; siłownia: `upper`, `fbw`, `push`, `pull`, `legs`; wspinaczka: `wall`) albo go usuwa. Zmienia tylko bazę CG-connector, nie Garmina. Na tagach opiera się zakładka Progress w aplikacji. |
 | `set_goal` | Ustawia Twój cel: start (np. Półmaraton Warszawski), datę, dystans i opcjonalnie czas docelowy (`h:mm:ss`); `name: null` usuwa cel. Cel widać na stronie głównej aplikacji, a `get_profile` podaje go Claude razem z tempem docelowym. |
-| `sync_now` | Pobiera nowe dane z Garmina od razu (normalnie raz dziennie o 14:00), np. zaraz po treningu. Odmawia, gdy synchronizacja była w ostatniej godzinie, właśnie trwa albo Garmin wymaga logowania. |
+| `sync_now` | Pobiera nowe dane z Garmina od razu (normalnie o 8:00, 17:00 i 21:00), np. zaraz po treningu. Odmawia, gdy synchronizacja była w ostatniej godzinie, właśnie trwa albo Garmin wymaga logowania. |
 | `get_vo2max_trend` | Trend VO2max z biegu: ostatnia wartość, zmiana, min/max, punkty. Domyślnie ostatnie 180 dni. |
 | `get_training_summary` | Sumy tygodniowe (pon–niedz) albo miesięczne per typ aktywności: liczba, km, czas, przewyższenie, tempo biegu. Domyślnie 8 tygodni albo 6 miesięcy. |
 
@@ -132,7 +132,7 @@ Dobra praktyka: przy planowaniu poproś Claude, żeby **najpierw pokazał podgl�
 
 ## Ograniczenia
 
-- **Dane są z ostatniej synchronizacji serwera z Garminem**, a nie na żywo. Sync jest codziennie o **14:00**, a jeśli laptop był wtedy wyłączony, zaraz po jego włączeniu. Trening zrobiony rano zobaczysz w Claude po popołudniowym syncu. Gdy ostatni udany sync był ponad 24 h temu albo konto Garmin wymaga ponownego logowania, Claude dostaje w odpowiedzi notatkę o tym i powinien Ci to przekazać.
+- **Dane są z ostatniej synchronizacji serwera z Garminem**, a nie na żywo. Sync jest o **8:00, 17:00 i 21:00**, a jeśli serwer był wtedy wyłączony, zaraz po jego włączeniu. Trening zrobiony rano zobaczysz w Claude po syncu o 17:00 (albo od razu po „sync_now”). Gdy ostatni udany sync był ponad 24 h temu albo konto Garmin wymaga ponownego logowania, Claude dostaje w odpowiedzi notatkę o tym i powinien Ci to przekazać.
 - **Konektor działa tylko, gdy laptop-serwer jest włączony** i ma internet. Gdy laptop śpi albo jest wyłączony, Claude pokaże błąd połączenia z konektorem. Dane nadal są w aplikacji na telefonie (offline).
 - **Darmowy plan Claude pozwala dodać tylko 1 własny konektor.** CG-connector go zajmuje. Żeby dodać inny, trzeba usunąć ten.
 - Darmowy plan ma limity wiadomości i długości rozmowy. Narzędzia zwracają krótkie odpowiedzi, ale długie analizy wielu miesięcy szybciej wyczerpują limit. Lepiej pytać o konkretny okres.
@@ -147,7 +147,7 @@ Dobra praktyka: przy planowaniu poproś Claude, żeby **najpierw pokazał podgl�
 | Na stronie logowania: „Nieprawidłowy kod” | Sprawdź, czy wklejasz **kod CG** (`cgc_…`), a nie token aplikacji (`cga_…`), cały i bez spacji. Jeśli kod był wygenerowany ponownie, działa tylko najnowszy. |
 | „Link logowania wygasł albo jest nieprawidłowy” | Minęło ponad 10 minut, było 5 błędnych prób albo serwer się zrestartował w trakcie. Wróć do Claude i połącz konektor ponownie. |
 | Konektor nagle przestał działać po wygenerowaniu nowego kodu | To zamierzone: `user-code` rozłącza stare połączenia. Połącz konektor ponownie nowym kodem. |
-| Claude odpowiada, że nie ma nowych treningów | Sync jeszcze nie przeszedł (przed 14:00 albo laptop był wyłączony). Zapytaj „kiedy była ostatnia synchronizacja?”. Tomek może wymusić sync: `docker compose exec cg-server cg-server sync --user <nazwa>`. |
+| Claude odpowiada, że nie ma nowych treningów | Sync jeszcze nie przeszedł (przed najbliższą porą syncu albo serwer był wyłączony). Zapytaj „kiedy była ostatnia synchronizacja?”. Tomek może wymusić sync: `docker compose exec cg-server cg-server sync --user <nazwa>`. |
 | Claude pisze, że logowanie do Garmina wygasło | Tomek uruchamia `docker compose exec cg-server cg-server garmin-check --user <nazwa>`, a jeśli to nie pomoże, `garmin-login --user <nazwa>` (z właścicielem konta, który sam wpisuje hasło). Po błędzie 429 od Garmina odczekaj 24 h przed ponownym logowaniem. |
 | Trening „wysłany”, ale nie ma go na zegarku | Zsynchronizuj zegarek z aplikacją Garmin Connect na telefonie i sprawdź kalendarz w Garmin Connect. |
 | Trening ma status błędu | Zapytaj Claude „co jest zaplanowane i jaki ma status?”. Komunikat błędu jest w odpowiedzi `list_scheduled_workouts`. Najczęściej to zła nazwa ćwiczenia siłowego albo chwilowy problem z Garminem. |

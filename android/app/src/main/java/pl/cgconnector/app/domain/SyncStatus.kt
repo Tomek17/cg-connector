@@ -44,8 +44,8 @@ enum class Freshness {
 }
 
 /**
- * Progi „dane stare”. Serwer synchronizuje się z Garminem raz dziennie ok. 14:00, a aplikacja odświeża
- * ok. 14:20, więc próg 24 h dawałby codzienny fałszywy alarm (np. sync wczoraj 14:03, teraz 14:10).
+ * Progi „dane stare”. Serwer synchronizuje się z Garminem o 8:00, 17:00 i 21:00, a aplikacja odświeża
+ * 20 minut później. Progi są z zapasem na wyłączony serwer albo telefon.
  * Progi mają zapas: [SERVER_SYNC_MAX_AGE] na opóźniony sync, [APP_REFRESH_MAX_AGE] na ponowienia
  * odświeżania do 23:00 i pominięty dzień przy wyłączonym telefonie.
  */

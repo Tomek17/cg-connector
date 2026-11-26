@@ -11,7 +11,7 @@ import pl.cgconnector.app.data.repository.StatsRepository
 import java.time.Clock
 
 /**
- * Siatka bezpieczeństwa co kilka godzin: jeśli codzienne odświeżenie o 14:20 nie doszło do skutku
+ * Siatka bezpieczeństwa co kilka godzin: jeśli zaplanowane odświeżenie (8:20, 17:20, 21:20) nie doszło do skutku
  * (Android/Samsung odłożył zadanie, telefon był bez sieci), odświeża od razu. Inaczej nic nie robi.
  */
 @HiltWorker

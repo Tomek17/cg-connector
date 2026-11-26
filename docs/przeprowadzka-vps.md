@@ -72,7 +72,7 @@ Jeśli zamiast tego zobaczysz `!!! Coś poszło nie tak – włączam z powrotem
 2. **Claude:** w nowej rozmowie zapytaj np. „Jaki mam VO2max?”. Konektor powinien odpowiedzieć bez ponownego łączenia.
 3. **Laptop możesz wyłączyć** i sprawdzić z telefonu na danych komórkowych, że wszystko dalej działa.
 
-Codzienna synchronizacja o 14:00 i kopia bazy o 14:30 działają teraz na VPS.
+Synchronizacja (8:00, 17:00, 21:00) i kopia bazy o 14:30 działają teraz na VPS.
 
 ---
 

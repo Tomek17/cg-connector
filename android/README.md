@@ -36,7 +36,7 @@ Aplikacja Android CG-connector (Kotlin, Jetpack Compose Material 3). Stan: **M2,
   (z `/me`), ostatnie udane odświeżenie aplikacji, stan konta Garmin i bieżący tydzień z `/summary`.
   Ostrzeżenie „dane mogą być nieaktualne” pojawia się, gdy serwer nie zsynchronizował się z Garminem od ponad
   26 h albo aplikacja nie odświeżyła danych od ponad 30 h. Progi mają zapas, bo przy progu 24 h ostrzeżenie
-  pojawiałoby się codziennie między syncem serwera (ok. 14:00) a odświeżeniem aplikacji (14:20).
+  pojawiałoby się codziennie między syncem serwera (8:00, 17:00, 21:00) a odświeżeniem aplikacji (20 minut później).
   Ekran przelicza to co minutę, gdy jest widoczny. Po świeżej instalacji zamiast ostrzeżenia jest komunikat
   „Dane nie były jeszcze pobrane”.
 - **Odświeżanie** (ręczne i WorkManager) pobiera po kolei: treningi, VO2max (od najnowszego lokalnego

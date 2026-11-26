@@ -498,7 +498,7 @@
     <string name="account_network">Nie udało się połączyć z serwerem. Sprawdź internet albo czy laptop Tomka jest włączony.</string>
     <string name="account_retry_at">Spróbuj po %1$s.</string>
     <string name="garmin_title">Konto Garmin</string>
-    <string name="garmin_connected">Połączone. Serwer pobiera Twoje treningi codziennie i wysyła treningi do kalendarza Garmin.</string>
+    <string name="garmin_connected">Połączone. Serwer pobiera Twoje treningi trzy razy dziennie (8:00, 17:00, 21:00) i wysyła treningi do kalendarza Garmin.</string>
     <string name="garmin_relogin">Zaloguj ponownie</string>
     <string name="garmin_login_intro">Zaloguj się kontem Garmin Connect. Hasło jest szyfrowane w telefonie i nie jest nigdzie zapisywane; serwer trzyma tylko zaszyfrowany klucz dostępu.</string>
     <string name="garmin_email">E-mail Garmin Connect</string>
